@@ -18,6 +18,8 @@ tags:
     description: User profile and preferences
   - name: ai
     description: AI memory and personas
+  - name: admin
+    description: Family admin operations
 paths:
   /healthz:
     get:
@@ -468,6 +470,97 @@ paths:
                 $ref: "#/components/schemas/AiPersona"
         "401":
           description: Unauthorized
+
+  /user/status:
+    get:
+      operationId: getUserStatus
+      tags: [user]
+      summary: Get current user's family membership status and feature flags
+      responses:
+        "200":
+          description: User family status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserStatus"
+        "401":
+          description: Unauthorized
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List all family members (admin only)
+      responses:
+        "200":
+          description: List of family members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FamilyMember"
+        "403":
+          description: Forbidden
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get family-wide storage and member count stats (admin only)
+      responses:
+        "200":
+          description: Admin stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "403":
+          description: Forbidden
+
+  /admin/users/{userId}:
+    patch:
+      operationId: updateAdminUser
+      tags: [admin]
+      summary: Update a family member's status, quota, or feature flags (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFamilyMemberInput"
+      responses:
+        "200":
+          description: Updated member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyMember"
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteAdminUser
+      tags: [admin]
+      summary: Remove a family member (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden
 
   /ai/personas/{id}:
     patch:
@@ -920,3 +1013,113 @@ components:
           type: string
         isDefault:
           type: boolean
+
+    FeatureFlags:
+      type: object
+      properties:
+        imageGen:
+          type: boolean
+        voiceChat:
+          type: boolean
+        personas:
+          type: boolean
+        memories:
+          type: boolean
+
+    UserStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        role:
+          type: string
+        isAdmin:
+          type: boolean
+        storageQuotaBytes:
+          type: integer
+        storageUsedBytes:
+          type: integer
+        featureFlags:
+          $ref: "#/components/schemas/FeatureFlags"
+      required:
+        - status
+        - role
+        - isAdmin
+        - storageQuotaBytes
+        - storageUsedBytes
+        - featureFlags
+
+    FamilyMember:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        role:
+          type: string
+        status:
+          type: string
+        storageQuotaBytes:
+          type: integer
+        storageUsedBytes:
+          type: integer
+        featureFlags:
+          $ref: "#/components/schemas/FeatureFlags"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - clerkUserId
+        - role
+        - status
+        - storageQuotaBytes
+        - storageUsedBytes
+        - featureFlags
+        - createdAt
+        - updatedAt
+
+    UpdateFamilyMemberInput:
+      type: object
+      properties:
+        status:
+          type: string
+        displayName:
+          type: string
+        storageQuotaBytes:
+          type: integer
+        featureFlags:
+          $ref: "#/components/schemas/FeatureFlags"
+
+    AdminStats:
+      type: object
+      properties:
+        totalMembers:
+          type: integer
+        pendingCount:
+          type: integer
+        approvedCount:
+          type: integer
+        rejectedCount:
+          type: integer
+        totalQuotaBytes:
+          type: integer
+        totalUsedBytes:
+          type: integer
+      required:
+        - totalMembers
+        - pendingCount
+        - approvedCount
+        - rejectedCount
+        - totalQuotaBytes
+        - totalUsedBytes

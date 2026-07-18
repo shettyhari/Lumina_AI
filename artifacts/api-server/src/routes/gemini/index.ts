@@ -356,7 +356,7 @@ router.post("/gemini/conversations/:id/messages", requireAuth, async (req, res):
 
 router.get("/gemini/conversations/:id/export", requireAuth, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [conv] = await db.select().from(conversations).where(eq(conversations.id, id));

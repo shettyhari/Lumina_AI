@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk } from '@clerk/react';
+import { useEffect, useRef, ReactNode } from "react";
+import { ClerkProvider, SignIn, SignUp, Show, useClerk, useUser } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
@@ -13,7 +13,10 @@ import DashboardPage from "./pages/dashboard";
 import SettingsPage from "./pages/settings";
 import MemoryPage from "./pages/memory";
 import PersonasPage from "./pages/personas";
+import PendingPage from "./pages/pending";
+import AdminPage from "./pages/admin";
 import Layout from "./components/layout";
+import { FamilyStatusProvider, useFamilyStatus } from "./contexts/family-context";
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -125,10 +128,46 @@ function HomeRedirect() {
   );
 }
 
-function ProtectedRoute({ component: Component }: { component: React.ComponentType<any> }) {
+/** Shows a loading spinner while family status is being fetched */
+function FamilyStatusGate({ children }: { children: ReactNode }) {
+  const { isSignedIn } = useUser();
+  const { status, isLoading } = useFamilyStatus();
+
+  if (!isSignedIn) return <>{children}</>;
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[100dvh] items-center justify-center bg-background">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (status === "rejected") return <PendingPage rejected />;
+  if (status === "pending") return <PendingPage />;
+
+  return <>{children}</>;
+}
+
+function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType<any>; adminOnly?: boolean }) {
+  const { isAdmin } = useFamilyStatus();
+
+  if (adminOnly && !isAdmin) {
+    return (
+      <>
+        <Show when="signed-in"><Redirect to="/chat" /></Show>
+        <Show when="signed-out"><Redirect to="/" /></Show>
+      </>
+    );
+  }
+
   return (
     <>
-      <Show when="signed-in"><Layout><Component /></Layout></Show>
+      <Show when="signed-in">
+        <FamilyStatusGate>
+          <Layout><Component /></Layout>
+        </FamilyStatusGate>
+      </Show>
       <Show when="signed-out"><Redirect to="/" /></Show>
     </>
   );
@@ -153,26 +192,29 @@ function ClerkProviderWithRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <ClerkQueryClientCacheInvalidator />
-        <Switch>
-          <Route path="/" component={HomeRedirect} />
-          <Route path="/sign-in/*?" component={SignInPage} />
-          <Route path="/sign-up/*?" component={SignUpPage} />
+        <FamilyStatusProvider>
+          <Switch>
+            <Route path="/" component={HomeRedirect} />
+            <Route path="/sign-in/*?" component={SignInPage} />
+            <Route path="/sign-up/*?" component={SignUpPage} />
 
-          <Route path="/chat" component={() => <ProtectedRoute component={ChatPage} />} />
-          <Route path="/chat/:id" component={() => <ProtectedRoute component={ChatPage} />} />
-          <Route path="/image-gen" component={() => <ProtectedRoute component={ImageGenPage} />} />
-          <Route path="/memory" component={() => <ProtectedRoute component={MemoryPage} />} />
-          <Route path="/personas" component={() => <ProtectedRoute component={PersonasPage} />} />
-          <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
-          <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
+            <Route path="/chat" component={() => <ProtectedRoute component={ChatPage} />} />
+            <Route path="/chat/:id" component={() => <ProtectedRoute component={ChatPage} />} />
+            <Route path="/image-gen" component={() => <ProtectedRoute component={ImageGenPage} />} />
+            <Route path="/memory" component={() => <ProtectedRoute component={MemoryPage} />} />
+            <Route path="/personas" component={() => <ProtectedRoute component={PersonasPage} />} />
+            <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
+            <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
+            <Route path="/admin" component={() => <ProtectedRoute component={AdminPage} adminOnly />} />
 
-          <Route>
-            <div className="flex h-[100dvh] items-center justify-center flex-col gap-4 text-center">
-              <h1 className="text-4xl font-bold text-iridescent">404</h1>
-              <p className="text-muted-foreground">The page you are looking for does not exist.</p>
-            </div>
-          </Route>
-        </Switch>
+            <Route>
+              <div className="flex h-[100dvh] items-center justify-center flex-col gap-4 text-center">
+                <h1 className="text-4xl font-bold text-iridescent">404</h1>
+                <p className="text-muted-foreground">The page you are looking for does not exist.</p>
+              </div>
+            </Route>
+          </Switch>
+        </FamilyStatusProvider>
       </QueryClientProvider>
     </ClerkProvider>
   );

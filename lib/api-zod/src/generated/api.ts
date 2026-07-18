@@ -384,6 +384,112 @@ export const CreateAiPersonaResponse = zod.object({
 
 
 /**
+ * @summary Get current user's family membership status and feature flags
+ */
+export const GetUserStatusResponse = zod.object({
+  "status": zod.string(),
+  "role": zod.string(),
+  "isAdmin": zod.boolean(),
+  "storageQuotaBytes": zod.number(),
+  "storageUsedBytes": zod.number(),
+  "featureFlags": zod.object({
+  "imageGen": zod.boolean().optional(),
+  "voiceChat": zod.boolean().optional(),
+  "personas": zod.boolean().optional(),
+  "memories": zod.boolean().optional()
+})
+})
+
+
+/**
+ * @summary List all family members (admin only)
+ */
+export const ListAdminUsersResponseItem = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "displayName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "role": zod.string(),
+  "status": zod.string(),
+  "storageQuotaBytes": zod.number(),
+  "storageUsedBytes": zod.number(),
+  "featureFlags": zod.object({
+  "imageGen": zod.boolean().optional(),
+  "voiceChat": zod.boolean().optional(),
+  "personas": zod.boolean().optional(),
+  "memories": zod.boolean().optional()
+}),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListAdminUsersResponse = zod.array(ListAdminUsersResponseItem)
+
+
+/**
+ * @summary Get family-wide storage and member count stats (admin only)
+ */
+export const GetAdminStatsResponse = zod.object({
+  "totalMembers": zod.number(),
+  "pendingCount": zod.number(),
+  "approvedCount": zod.number(),
+  "rejectedCount": zod.number(),
+  "totalQuotaBytes": zod.number(),
+  "totalUsedBytes": zod.number()
+})
+
+
+/**
+ * @summary Update a family member's status, quota, or feature flags (admin only)
+ */
+export const UpdateAdminUserParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const UpdateAdminUserBody = zod.object({
+  "status": zod.string().optional(),
+  "displayName": zod.string().optional(),
+  "storageQuotaBytes": zod.number().optional(),
+  "featureFlags": zod.object({
+  "imageGen": zod.boolean().optional(),
+  "voiceChat": zod.boolean().optional(),
+  "personas": zod.boolean().optional(),
+  "memories": zod.boolean().optional()
+}).optional()
+})
+
+export const UpdateAdminUserResponse = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "displayName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "role": zod.string(),
+  "status": zod.string(),
+  "storageQuotaBytes": zod.number(),
+  "storageUsedBytes": zod.number(),
+  "featureFlags": zod.object({
+  "imageGen": zod.boolean().optional(),
+  "voiceChat": zod.boolean().optional(),
+  "personas": zod.boolean().optional(),
+  "memories": zod.boolean().optional()
+}),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove a family member (admin only)
+ */
+export const DeleteAdminUserParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const DeleteAdminUserResponse = zod.void()
+
+
+/**
  * @summary Update an AI persona
  */
 export const UpdateAiPersonaParams = zod.object({

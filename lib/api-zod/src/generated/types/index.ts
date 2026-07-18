@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './adminStats';
 export * from './aiDigest';
 export * from './aiMemory';
 export * from './aiMemoryInput';
@@ -16,6 +17,8 @@ export * from './apiError';
 export * from './apiKeyInput';
 export * from './conversationActivity';
 export * from './conversationExport';
+export * from './familyMember';
+export * from './featureFlags';
 export * from './geminiConversation';
 export * from './geminiConversationInput';
 export * from './geminiConversationUpdate';
@@ -27,7 +30,9 @@ export * from './geminiMessageInput';
 export * from './healthStatus';
 export * from './modelInfo';
 export * from './setApiKeyInput';
+export * from './updateFamilyMemberInput';
 export * from './userApiKeyEntry';
 export * from './userProfile';
 export * from './userProfileUpdate';
 export * from './userStats';
+export * from './userStatus';

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, count } from "drizzle-orm";
-import { db, users, conversations, messages, aiMemories, aiPersonas } from "@workspace/db";
+import { db, users, conversations, messages, aiMemories, aiPersonas, familyMembers } from "@workspace/db";
 import {
   GetUserProfileResponse,
   UpdateUserProfileBody,
@@ -37,6 +37,48 @@ router.patch("/user/profile", requireAuth, async (req, res): Promise<void> => {
   if (parsed.data.theme !== undefined) updateData.theme = parsed.data.theme;
   const [updated] = await db.update(users).set(updateData).where(eq(users.clerkUserId, clerkUserId)).returning();
   res.json(UpdateUserProfileResponse.parse(updated));
+});
+
+router.get("/user/status", requireAuth, async (req, res): Promise<void> => {
+  const clerkUserId = (req as any).clerkUserId as string;
+  const { name, email, avatar } = req.query as Record<string, string | undefined>;
+
+  let [member] = await db.select().from(familyMembers).where(eq(familyMembers.clerkUserId, clerkUserId));
+
+  if (!member) {
+    const [existingAdmin] = await db.select().from(familyMembers).where(eq(familyMembers.role, "admin"));
+    const isFirstAdmin = !existingAdmin;
+    [member] = await db.insert(familyMembers).values({
+      clerkUserId,
+      role: isFirstAdmin ? "admin" : "member",
+      status: isFirstAdmin ? "approved" : "pending",
+      displayName: name ?? null,
+      email: email ?? null,
+      avatarUrl: avatar ?? null,
+      featureFlags: '{"imageGen":true,"voiceChat":true,"personas":true,"memories":true}',
+    }).returning();
+  } else {
+    // Update profile info if provided and not yet stored
+    const updates: Record<string, unknown> = {};
+    if (name && !member.displayName) updates.displayName = name;
+    if (email && !member.email) updates.email = email;
+    if (avatar && !member.avatarUrl) updates.avatarUrl = avatar;
+    if (Object.keys(updates).length > 0) {
+      [member] = await db.update(familyMembers).set(updates).where(eq(familyMembers.clerkUserId, clerkUserId)).returning();
+    }
+  }
+
+  let featureFlags: Record<string, boolean> = { imageGen: true, voiceChat: true, personas: true, memories: true };
+  try { featureFlags = JSON.parse(member.featureFlags || "{}"); } catch { /* use default */ }
+
+  res.json({
+    status: member.status,
+    role: member.role,
+    isAdmin: member.role === "admin",
+    storageQuotaBytes: member.storageQuotaBytes,
+    storageUsedBytes: member.storageUsedBytes,
+    featureFlags,
+  });
 });
 
 router.get("/user/stats", requireAuth, async (req, res): Promise<void> => {

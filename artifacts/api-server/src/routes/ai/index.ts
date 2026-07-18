@@ -31,7 +31,7 @@ router.post("/ai/memories", requireAuth, async (req, res): Promise<void> => {
 
 router.delete("/ai/memories/:id", requireAuth, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(aiMemories).where(and(eq(aiMemories.id, id), eq(aiMemories.clerkUserId, clerkUserId)));
   res.status(204).end();
@@ -75,7 +75,7 @@ router.post("/ai/personas", requireAuth, async (req, res): Promise<void> => {
 
 router.patch("/ai/personas/:id", requireAuth, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [existing] = await db.select().from(aiPersonas).where(and(eq(aiPersonas.id, id), eq(aiPersonas.clerkUserId, clerkUserId)));
@@ -99,7 +99,7 @@ router.patch("/ai/personas/:id", requireAuth, async (req, res): Promise<void> =>
 
 router.delete("/ai/personas/:id", requireAuth, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(aiPersonas).where(and(eq(aiPersonas.id, id), eq(aiPersonas.clerkUserId, clerkUserId)));
   res.status(204).end();

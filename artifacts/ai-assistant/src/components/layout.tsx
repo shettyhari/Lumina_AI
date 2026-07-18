@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
 import {
   MessageSquare, Image as ImageIcon, LayoutDashboard, Settings,
-  Plus, Pin, Menu, X, MessageCircle, LogOut, Brain, Sparkles
+  Plus, Pin, Menu, X, MessageCircle, LogOut, Brain, Sparkles, Shield
 } from "lucide-react";
 import {
   useGetRecentActivity, getGetRecentActivityQueryKey,
@@ -11,12 +11,14 @@ import {
   useCreateGeminiConversation,
 } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
+import { useFamilyStatus } from "@/contexts/family-context";
 
 export default function Layout({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [location, setLocation] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const { isAdmin } = useFamilyStatus();
 
   const { data: recentActivity } = useGetRecentActivity({ query: { queryKey: getGetRecentActivityQueryKey() } });
   const { data: pinnedConversations } = useGetPinnedConversations({ query: { queryKey: getGetPinnedConversationsQueryKey() } });
@@ -74,6 +76,21 @@ export default function Layout({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+
+          {/* Admin-only link */}
+          {isAdmin && (
+            <Link href="/admin" onClick={() => setIsSidebarOpen(false)}>
+              <div className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer mt-1",
+                location === "/admin"
+                  ? "bg-primary/15 text-primary"
+                  : "text-primary/70 hover:bg-primary/10 hover:text-primary"
+              )}>
+                <Shield className="h-4 w-4" />
+                Admin Panel
+              </div>
+            </Link>
+          )}
         </div>
 
         {pinnedConversations && pinnedConversations.length > 0 && (
@@ -118,10 +135,17 @@ export default function Layout({ children }: { children: ReactNode }) {
       <div className="p-4 border-t border-sidebar-border">
         <div className="flex items-center justify-between gap-3 px-2 py-2">
           <div className="flex items-center gap-3 overflow-hidden">
-            <img src={user?.imageUrl} alt={user?.fullName || "User"} className="h-8 w-8 rounded-full border border-border" />
+            <div className="relative">
+              <img src={user?.imageUrl} alt={user?.fullName || "User"} className="h-8 w-8 rounded-full border border-border" />
+              {isAdmin && (
+                <div className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary ring-2 ring-sidebar">
+                  <Shield className="h-2 w-2 text-primary-foreground" />
+                </div>
+              )}
+            </div>
             <div className="flex flex-col overflow-hidden">
               <span className="truncate text-sm font-medium text-foreground">{user?.fullName}</span>
-              <span className="truncate text-xs text-muted-foreground">{user?.primaryEmailAddress?.emailAddress}</span>
+              <span className="truncate text-xs text-muted-foreground">{isAdmin ? "Family Admin" : user?.primaryEmailAddress?.emailAddress}</span>
             </div>
           </div>
           <button

@@ -183,3 +183,53 @@ export interface AiPersonaUpdate {
   isDefault?: boolean;
 }
 
+export interface FeatureFlags {
+  imageGen?: boolean;
+  voiceChat?: boolean;
+  personas?: boolean;
+  memories?: boolean;
+}
+
+export interface UserStatus {
+  status: string;
+  role: string;
+  isAdmin: boolean;
+  storageQuotaBytes: number;
+  storageUsedBytes: number;
+  featureFlags: FeatureFlags;
+}
+
+export interface FamilyMember {
+  id: number;
+  clerkUserId: string;
+  /** @nullable */
+  displayName?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  /** @nullable */
+  email?: string | null;
+  role: string;
+  status: string;
+  storageQuotaBytes: number;
+  storageUsedBytes: number;
+  featureFlags: FeatureFlags;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateFamilyMemberInput {
+  status?: string;
+  displayName?: string;
+  storageQuotaBytes?: number;
+  featureFlags?: FeatureFlags;
+}
+
+export interface AdminStats {
+  totalMembers: number;
+  pendingCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  totalQuotaBytes: number;
+  totalUsedBytes: number;
+}
+
