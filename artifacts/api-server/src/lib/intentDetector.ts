@@ -6,6 +6,7 @@ export type IntentAction =
   | { type: "reminder"; message: string; remindAt: Date }
   | { type: "chore"; title: string }
   | { type: "event"; title: string; startAt: Date }
+  | { type: "budget"; entryType: "income" | "expense"; amount: number; category: string; description: string; entryDate: string }
   | null;
 
 // ── Budget questions ───────────────────────────────────────────────────────────
@@ -223,6 +224,127 @@ export async function getBudgetContext(
   return sections.join("\n");
 }
 
+// ── Budget logging ────────────────────────────────────────────────────────────
+const EXPENSE_PATTERNS = [
+  /(?:i\s+)?(?:spent|paid|purchased|bought)\s+\$?([\d,]+(?:\.\d{1,2})?)\s+(?:on|for)\s+(.+?)(?:\s+today|\s+yesterday|\s+this\s+week|\s+just\s+now|\.?$)/i,
+  /(?:i\s+)?(?:paid|spent)\s+(?:the\s+)?(.+?)\s+(?:bill|invoice)(?:\s*[—\-]\s*|\s+for\s+|\s+of\s+|\s*:\s*)\$?([\d,]+(?:\.\d{1,2})?)/i,
+  /(?:we\s+)?(?:just\s+)?paid\s+(?:the\s+)?(.+?)\s+(?:bill|invoice)(?:\s*[—\-]\s*|\s+of\s+|\s+for\s+|\s*:\s*|\s+)\$?([\d,]+(?:\.\d{1,2})?)/i,
+  /(?:we\s+|i\s+)?(?:just\s+)?(?:spent|paid)\s+\$?([\d,]+(?:\.\d{1,2})?)\s+(?:on|for)\s+(.+?)(?:\s+today|\s+yesterday|\.?$)/i,
+];
+
+const INCOME_PATTERNS = [
+  /(?:i\s+)?(?:received|got|earned)\s+\$?([\d,]+(?:\.\d{1,2})?)\s+(?:from|as|for)\s+(.+?)(?:\s+today|\s+yesterday|\.?$)/i,
+  /(?:my\s+)?(?:salary|paycheck|payslip|income|wages?)\s+(?:of\s+|:\s*)?\$?([\d,]+(?:\.\d{1,2})?)(?:\s+(?:came\s+in|arrived|deposited))?/i,
+  /(?:got\s+paid|received\s+payment)\s+\$?([\d,]+(?:\.\d{1,2})?)(?:\s+(?:today|from|for)\s+(.+?))?(?:\s*\.?$)/i,
+];
+
+// Keyword → category mapping for expense descriptions
+const CATEGORY_KEYWORDS: Array<{ pattern: RegExp; category: string }> = [
+  { pattern: /\b(groceries|grocery|supermarket|food|produce|vegetables?|fruits?)\b/i, category: "Groceries" },
+  { pattern: /\b(electricity|electric|power|gas\s+bill|water\s+bill|internet|phone\s+bill|utility|utilities)\b/i, category: "Utilities" },
+  { pattern: /\b(rent|mortgage|lease|housing)\b/i, category: "Housing" },
+  { pattern: /\b(gas|petrol|fuel|car|auto|automobile|parking|toll|transport|uber|lyft|taxi|bus|train|subway)\b/i, category: "Transportation" },
+  { pattern: /\b(restaurant|dining|dinner|lunch|breakfast|coffee|cafe|takeout|take.?out|pizza|sushi)\b/i, category: "Dining" },
+  { pattern: /\b(doctor|hospital|pharmacy|medicine|prescription|medical|health|dental|vision)\b/i, category: "Healthcare" },
+  { pattern: /\b(school|tuition|education|course|class|books?|supplies)\b/i, category: "Education" },
+  { pattern: /\b(netflix|spotify|amazon|apple|subscription|streaming|membership|gym|fitness)\b/i, category: "Subscriptions" },
+  { pattern: /\b(clothes|clothing|shoes|apparel|fashion|shopping)\b/i, category: "Clothing" },
+  { pattern: /\b(insurance|policy|premium)\b/i, category: "Insurance" },
+  { pattern: /\b(entertainment|movie|cinema|theater|concert|event|ticket)\b/i, category: "Entertainment" },
+  { pattern: /\b(salary|paycheck|wages?|payroll|freelance|income|bonus)\b/i, category: "Salary" },
+];
+
+function inferCategory(description: string): string {
+  for (const { pattern, category } of CATEGORY_KEYWORDS) {
+    if (pattern.test(description)) return category;
+  }
+  return "Other";
+}
+
+function parseAmount(raw: string): number {
+  return parseFloat(raw.replace(/,/g, ""));
+}
+
+function todayDate(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function yesterdayDate(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function detectEntryDate(msg: string): string {
+  if (/yesterday/i.test(msg)) return yesterdayDate();
+  return todayDate();
+}
+
+function detectBudgetLogIntent(msg: string): Extract<IntentAction, { type: "budget" }> | null {
+  // Try expense patterns
+  // Pattern 1: "spent $47 on groceries", "paid $120 for electricity"
+  const ep1 = msg.match(/(?:i\s+)?(?:spent|paid|purchased|bought)\s+\$?([\d,]+(?:\.\d{1,2})?)\s+(?:on|for)\s+(.+?)(?:\s+today|\s+yesterday|\s+this\s+week|\s+just\s+now|\.?\s*$)/i);
+  if (ep1) {
+    const amount = parseAmount(ep1[1]);
+    if (!isNaN(amount) && amount > 0) {
+      const description = ep1[2].trim().replace(/\.$/, "");
+      return { type: "budget", entryType: "expense", amount, category: inferCategory(description), description, entryDate: detectEntryDate(msg) };
+    }
+  }
+
+  // Pattern 2: "paid the electricity bill — $120" or "paid the electricity bill for $120"
+  const ep2 = msg.match(/(?:i\s+|we\s+)?(?:just\s+)?paid\s+(?:the\s+)?(.+?)\s+(?:bill|invoice)(?:\s*[—\-]\s*|\s+(?:for|of)\s+|\s*:\s*)\s*\$?([\d,]+(?:\.\d{1,2})?)/i);
+  if (ep2) {
+    const amount = parseAmount(ep2[2]);
+    if (!isNaN(amount) && amount > 0) {
+      const description = ep2[1].trim() + " bill";
+      return { type: "budget", entryType: "expense", amount, category: inferCategory(description), description, entryDate: detectEntryDate(msg) };
+    }
+  }
+
+  // Pattern 3: "we spent $200 on dining out"
+  const ep3 = msg.match(/(?:we\s+)?(?:just\s+)?(?:spent|paid)\s+\$?([\d,]+(?:\.\d{1,2})?)\s+(?:on|for)\s+(.+?)(?:\s+today|\s+yesterday|\.?\s*$)/i);
+  if (ep3) {
+    const amount = parseAmount(ep3[1]);
+    if (!isNaN(amount) && amount > 0) {
+      const description = ep3[2].trim().replace(/\.$/, "");
+      return { type: "budget", entryType: "expense", amount, category: inferCategory(description), description, entryDate: detectEntryDate(msg) };
+    }
+  }
+
+  // Try income patterns
+  // Pattern: "received $1000 from salary" / "got $2000 as bonus"
+  const ip1 = msg.match(/(?:i\s+)?(?:received|got|earned)\s+\$?([\d,]+(?:\.\d{1,2})?)\s+(?:from|as|for)\s+(.+?)(?:\s+today|\s+yesterday|\.?\s*$)/i);
+  if (ip1) {
+    const amount = parseAmount(ip1[1]);
+    if (!isNaN(amount) && amount > 0) {
+      const description = ip1[2].trim().replace(/\.$/, "");
+      return { type: "budget", entryType: "income", amount, category: inferCategory(description) || "Income", description, entryDate: detectEntryDate(msg) };
+    }
+  }
+
+  // Pattern: "got paid $2000 today"
+  const ip2 = msg.match(/(?:got\s+paid|received\s+(?:my\s+)?(?:paycheck|salary|wages?))\s+(?:of\s+)?\$?([\d,]+(?:\.\d{1,2})?)(?:\s+(?:today|yesterday))?/i);
+  if (ip2) {
+    const amount = parseAmount(ip2[1]);
+    if (!isNaN(amount) && amount > 0) {
+      return { type: "budget", entryType: "income", amount, category: "Salary", description: "Paycheck", entryDate: detectEntryDate(msg) };
+    }
+  }
+
+  // Pattern: "my salary of $3000 arrived"
+  const ip3 = msg.match(/(?:my\s+)?(?:salary|paycheck|income|wages?)\s+(?:of\s+|:\s*)?\$?([\d,]+(?:\.\d{1,2})?)(?:\s+(?:came\s+in|arrived|deposited|today))?/i);
+  if (ip3) {
+    const amount = parseAmount(ip3[1]);
+    if (!isNaN(amount) && amount > 0) {
+      return { type: "budget", entryType: "income", amount, category: "Salary", description: "Salary", entryDate: detectEntryDate(msg) };
+    }
+  }
+
+  return null;
+}
+
 // ── Shopping list ─────────────────────────────────────────────────────────────
 const SHOPPING_PATTERNS = [
   /add\s+(.+?)\s+to\s+(?:the\s+)?shopping\s+list/i,
@@ -283,6 +405,17 @@ function parseShoppingItems(raw: string): string[] {
     .filter((s) => s.length > 0 && s.length < 80);
 }
 
+/**
+ * Returns a system-prompt hint if the message looks like a budget log request,
+ * so the AI can confirm the exact amount and category it recorded.
+ */
+export function detectBudgetLogHint(msg: string): string | null {
+  const intent = detectBudgetLogIntent(msg);
+  if (!intent) return null;
+  const sign = intent.entryType === "income" ? "+" : "-";
+  return `[Budget Log Action]\nThe system will automatically record the following budget entry from this message:\n  Type: ${intent.entryType}\n  Amount: ${sign}${intent.amount.toFixed(2)}\n  Category: ${intent.category}\n  Description: ${intent.description}\n  Date: ${intent.entryDate}\nIn your response, confirm that you've logged this entry, mentioning the exact amount (${intent.amount.toFixed(2)}), category (${intent.category}), and date. Be brief and friendly.`;
+}
+
 export async function detectIntent(clerkUserId: string, msg: string): Promise<IntentAction> {
   // Shopping list detection
   for (const pattern of SHOPPING_PATTERNS) {
@@ -307,6 +440,10 @@ export async function detectIntent(clerkUserId: string, msg: string): Promise<In
       }
     }
   }
+
+  // Budget logging detection
+  const budgetIntent = detectBudgetLogIntent(msg);
+  if (budgetIntent) return budgetIntent;
   
   return null;
 }
@@ -326,6 +463,17 @@ export async function executeIntent(clerkUserId: string, action: IntentAction): 
       message: action.message,
       remindAt: action.remindAt,
       repeat: "none",
+    });
+  }
+
+  if (action.type === "budget") {
+    await db.insert(budgetEntries).values({
+      clerkUserId,
+      type: action.entryType,
+      amount: String(action.amount.toFixed(2)),
+      category: action.category,
+      description: action.description,
+      entryDate: action.entryDate,
     });
   }
 }

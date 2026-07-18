@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, conversations, messages, users, userApiKeys, aiMemories } from "@workspace/db";
 import { detectAndExecuteRelay } from "../../lib/relayDetector";
-import { isBudgetQuestion, getBudgetContext, detectBudgetMonth } from "../../lib/intentDetector";
+import { detectIntent, executeIntent, isBudgetQuestion, getBudgetContext, detectBudgetMonth, detectBudgetLogHint } from "../../lib/intentDetector";
 import { TOOL_DECLARATIONS, executeTool } from "../../lib/agentTools";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { generateImage } from "@workspace/integrations-gemini-ai/image";
@@ -388,6 +388,12 @@ router.post("/gemini/conversations/:id/messages", requireAuth, async (req, res):
     } catch (err) {
       req.log.warn({ err }, "Failed to fetch budget context");
     }
+  }
+
+  // Inject budget log hint if the user is logging an expense or income
+  const budgetLogHint = detectBudgetLogHint(parsed.data.content);
+  if (budgetLogHint) {
+    systemPrompt = (systemPrompt || "") + `\n\n${budgetLogHint}`;
   }
 
   // Save user message (with optional image data for vision)
