@@ -2,7 +2,8 @@ import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, conversations, messages, users, userApiKeys, aiMemories } from "@workspace/db";
 import { detectAndExecuteRelay } from "../../lib/relayDetector";
-import { detectIntent, executeIntent, isBudgetQuestion, getBudgetContext, detectBudgetMonth } from "../../lib/intentDetector";
+import { isBudgetQuestion, getBudgetContext, detectBudgetMonth } from "../../lib/intentDetector";
+import { TOOL_DECLARATIONS, executeTool } from "../../lib/agentTools";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { generateImage } from "@workspace/integrations-gemini-ai/image";
 import OpenAI from "openai";
@@ -52,22 +53,12 @@ async function getUserApiKey(clerkUserId: string, provider: string): Promise<str
 
 type ChatMessage = { role: "user" | "assistant"; content: string; imageData?: string | null };
 
-async function streamGemini(
-  model: string,
-  chatMessages: ChatMessage[],
-  systemPrompt: string | undefined,
-  onChunk: (text: string) => void,
-  reasoningMode = false,
-): Promise<string> {
-  // Build Gemini contents — support image inline data for vision
-  const contents = chatMessages.map((m) => {
+function buildGeminiContents(chatMessages: ChatMessage[]): any[] {
+  return chatMessages.map((m) => {
     const parts: any[] = [];
     if (m.imageData) {
-      // imageData is "data:<mime>;base64,<data>" or just base64
       const match = m.imageData.match(/^data:([^;]+);base64,(.+)$/);
-      if (match) {
-        parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
-      }
+      if (match) parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
     }
     parts.push({ text: m.content });
     return {
@@ -75,13 +66,105 @@ async function streamGemini(
       parts,
     };
   });
+}
 
+/**
+ * Agentic Gemini loop: calls tools when needed, then streams the final text response.
+ * Sends SSE events: toolCall, toolResult, content, done.
+ */
+async function streamGeminiAgentic(
+  model: string,
+  chatMessages: ChatMessage[],
+  systemPrompt: string | undefined,
+  clerkUserId: string,
+  sendEvent: (obj: object) => void,
+  reasoningMode = false,
+): Promise<string> {
+  const contents: any[] = buildGeminiContents(chatMessages);
+
+  const agentSystemPrompt = (systemPrompt || "") +
+    `\n\nYou are Lumina, an agentic AI home assistant for a family. You have access to tools that let you take real actions:
+- Manage the shopping list (add items, check them off, view the list)
+- Set and view reminders
+- Manage chores (add, complete, list)
+- Add and view calendar events
+- Record budget entries and view spending summaries
+- Create and search notes
+- Manage the pantry inventory
+- View family members and send direct messages to them
+
+When the user asks you to do something you can accomplish with a tool, USE THE TOOL immediately — don't just describe what you would do. After taking action, confirm what you did concisely.
+
+You can chain multiple tools in one response when it makes sense (e.g. check the pantry, then add missing items to the shopping list).
+
+Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`;
+
+  const config: Record<string, unknown> = {
+    maxOutputTokens: 8192,
+    tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+  };
+  if (agentSystemPrompt) config.systemInstruction = agentSystemPrompt;
+  if (reasoningMode) (config as any).thinkingConfig = { thinkingBudget: 2048 };
+
+  let fullText = "";
+  const MAX_ITERATIONS = 6;
+
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    // Non-streaming call to detect function calls
+    const response = await ai.models.generateContent({ model, contents, config });
+    const parts: any[] = response.candidates?.[0]?.content?.parts ?? [];
+
+    const funcCalls = parts.filter((p: any) => p.functionCall);
+    const textParts = parts.filter((p: any) => p.text);
+
+    if (funcCalls.length === 0) {
+      // Final text response — stream it in chunks for smooth UX
+      const text = textParts.map((p: any) => p.text as string).join("");
+      fullText += text;
+      const chunkSize = 40;
+      for (let j = 0; j < text.length; j += chunkSize) {
+        sendEvent({ content: text.slice(j, j + chunkSize) });
+      }
+      return fullText;
+    }
+
+    // Execute all function calls in this iteration
+    const funcResponseParts: any[] = [];
+    for (const part of funcCalls) {
+      const { name, args } = part.functionCall;
+      sendEvent({ toolCall: { name, args: args ?? {} } });
+      const result = await executeTool(clerkUserId, name, args ?? {});
+      sendEvent({ toolResult: { name, success: result.success, summary: result.summary } });
+      funcResponseParts.push({
+        functionResponse: {
+          name,
+          response: { output: result.summary, success: result.success },
+        },
+      });
+    }
+
+    // Append model turn + function responses to continue the conversation
+    contents.push({ role: "model", parts });
+    contents.push({ role: "user", parts: funcResponseParts });
+  }
+
+  // Safety fallback
+  const fallback = "I've completed the requested actions.";
+  sendEvent({ content: fallback });
+  return fallback;
+}
+
+async function streamGemini(
+  model: string,
+  chatMessages: ChatMessage[],
+  systemPrompt: string | undefined,
+  onChunk: (text: string) => void,
+  reasoningMode = false,
+): Promise<string> {
+  const contents = buildGeminiContents(chatMessages);
   const config: Record<string, unknown> = { maxOutputTokens: 8192 };
   if (systemPrompt) config.systemInstruction = systemPrompt;
-  if (reasoningMode) {
-    // Enable thinking for models that support it
-    (config as any).thinkingConfig = { thinkingBudget: 2048 };
-  }
+  if (reasoningMode) (config as any).thinkingConfig = { thinkingBudget: 2048 };
 
   let full = "";
   const stream = await ai.models.generateContentStream({ model, contents, config });
@@ -339,7 +422,12 @@ router.post("/gemini/conversations/:id/messages", requireAuth, async (req, res):
     let fullResponse = "";
 
     if (provider === "gemini") {
-      fullResponse = await streamGemini(model, chatMessages, systemPrompt || undefined, sendChunk, reasoningMode);
+      // Agentic loop: native function calling with tool use
+      fullResponse = await streamGeminiAgentic(
+        model, chatMessages, systemPrompt || undefined, clerkUserId,
+        (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`),
+        reasoningMode,
+      );
     } else if (provider === "openai") {
       const key = await getUserApiKey(clerkUserId, "openai");
       fullResponse = await streamOpenAI(key!, model, chatMessages, systemPrompt || undefined, sendChunk);
@@ -351,11 +439,7 @@ router.post("/gemini/conversations/:id/messages", requireAuth, async (req, res):
       fullResponse = await streamOpenRouter(key!, model, chatMessages, systemPrompt || undefined, sendChunk);
     }
 
-    // ── Tool intent detection (shopping list, reminders, etc.) ───────────
-    const intent = await detectIntent(clerkUserId, parsed.data.content);
-    if (intent) await executeIntent(clerkUserId, intent);
-
-    // ── AI relay detection ────────────────────────────────────────────────
+    // ── AI relay detection (still useful for non-Gemini providers) ────────
     const relay = await detectAndExecuteRelay(clerkUserId, parsed.data.content);
     let savedResponse = fullResponse;
     if (relay) {

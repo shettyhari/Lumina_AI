@@ -19,7 +19,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Send, Sparkles, MoreVertical, Trash2, Edit2, Pin, ChevronDown,
-  AlertTriangle, Bot, Mic, Paperclip, X, Brain, Download, Image as ImageIcon
+  AlertTriangle, Bot, Mic, Paperclip, X, Brain, Download, Image as ImageIcon,
+  Wrench, CheckCircle2, XCircle, Loader2
 } from "lucide-react";
 import { SiAnthropic, SiGoogle } from "react-icons/si";
 import { Link as WouterLink } from "wouter";
@@ -254,13 +255,71 @@ const MessageBubble = ({
   );
 };
 
+// ─── Tool Call Bubble ─────────────────────────────────────────────────────────
+
+const TOOL_DISPLAY_NAMES: Record<string, string> = {
+  add_shopping_items:      "Adding to shopping list",
+  get_shopping_list:       "Checking shopping list",
+  check_off_shopping_item: "Checking off item",
+  add_reminder:            "Setting reminder",
+  get_reminders:           "Getting reminders",
+  add_chore:               "Creating chore",
+  get_chores:              "Getting chores",
+  complete_chore:          "Completing chore",
+  add_calendar_event:      "Adding calendar event",
+  get_calendar_events:     "Getting calendar events",
+  add_budget_entry:        "Recording budget entry",
+  get_budget_summary:      "Getting budget summary",
+  create_note:             "Creating note",
+  get_notes:               "Getting notes",
+  add_pantry_item:         "Adding to pantry",
+  get_pantry:              "Checking pantry",
+  get_family_members:      "Getting family members",
+  send_family_message:     "Sending message",
+};
+
+type ToolEvent =
+  | { kind: "call";   name: string }
+  | { kind: "result"; name: string; success: boolean; summary: string };
+
+function ToolCallBar({ events }: { events: ToolEvent[] }) {
+  if (events.length === 0) return null;
+  return (
+    <div className="flex justify-start w-full mb-3">
+      <div className="bg-card/60 border border-border/50 rounded-xl px-4 py-2.5 max-w-[85%] space-y-1.5 shadow-sm">
+        {events.map((ev, i) => {
+          if (ev.kind === "call") {
+            return (
+              <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
+                <span className="font-medium text-foreground/80">{TOOL_DISPLAY_NAMES[ev.name] ?? ev.name}</span>
+                <span className="text-muted-foreground/50">…</span>
+              </div>
+            );
+          }
+          return (
+            <div key={i} className="flex items-start gap-2 text-xs">
+              {ev.success
+                ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                : <XCircle     className="w-3.5 h-3.5 text-destructive shrink-0 mt-0.5" />}
+              <span className={cn("leading-relaxed", ev.success ? "text-muted-foreground" : "text-destructive/80")}>
+                {ev.summary}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Suggestions ──────────────────────────────────────────────────────────────
 
 const SUGGESTIONS = [
-  "Explain quantum computing simply",
-  "Write a Python script to sort a CSV",
-  "What are the key differences between React and Vue?",
-  "Help me outline a business plan for a SaaS product",
+  "Add milk, eggs and bread to the shopping list",
+  "What's on the family calendar this week?",
+  "Remind me to call the doctor tomorrow at 9am",
+  "Show me this month's budget summary",
 ];
 
 // ─── Main Chat Page ───────────────────────────────────────────────────────────
@@ -288,6 +347,7 @@ export default function ChatPage() {
   const [attachedImage, setAttachedImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [relayToast, setRelayToast] = useState<string | null>(null);
+  const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const voiceSessionRef = useRef(false);
 
   const { data: profile } = useGetUserProfile({ query: { queryKey: getGetUserProfileQueryKey() } });
@@ -390,6 +450,7 @@ export default function ChatPage() {
     setAttachedImage(null);
     setIsStreaming(true);
     setStreamingContent("");
+    setToolEvents([]);
 
     const capturedConvId = conversationId;
     if (capturedConvId && messages) {
@@ -452,6 +513,16 @@ export default function ChatPage() {
               if (data.error) setStreamError({ message: data.error });
               if (data.relayConfirm) setRelayToast(data.relayConfirm);
               if (data.content) { fullResponse += data.content; setStreamingContent(prev => prev + data.content); }
+              if (data.toolCall) {
+                setToolEvents(prev => [...prev, { kind: "call", name: data.toolCall.name }]);
+              }
+              if (data.toolResult) {
+                setToolEvents(prev => [
+                  // replace the pending "call" entry for this tool with the result
+                  ...prev.filter(e => !(e.kind === "call" && e.name === data.toolResult.name)),
+                  { kind: "result", name: data.toolResult.name, success: data.toolResult.success, summary: data.toolResult.summary },
+                ]);
+              }
             } catch { /* ignore */ }
           }
         }
@@ -604,12 +675,15 @@ export default function ChatPage() {
             />
           ))}
           {isStreaming && (
-            <MessageBubble
-              role="assistant"
-              content={streamingContent}
-              isStreaming={!streamingContent}
-              wasReasoning={reasoningMode}
-            />
+            <>
+              <ToolCallBar events={toolEvents} />
+              <MessageBubble
+                role="assistant"
+                content={streamingContent}
+                isStreaming={!streamingContent && toolEvents.length === 0}
+                wasReasoning={reasoningMode}
+              />
+            </>
           )}
 
           {/* Error banner */}
