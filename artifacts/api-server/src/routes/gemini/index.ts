@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, conversations, messages, users, userApiKeys, aiMemories } from "@workspace/db";
 import { detectAndExecuteRelay } from "../../lib/relayDetector";
-import { isBudgetQuestion, getBudgetContext, detectBudgetMonth, detectBudgetLogHint } from "../../lib/intentDetector";
+import { isBudgetQuestion, getBudgetContext, detectBudgetMonth, detectBudgetComparison, detectBudgetLogHint } from "../../lib/intentDetector";
 import { TOOL_DECLARATIONS, executeTool } from "../../lib/agentTools";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { generateImage } from "@workspace/integrations-gemini-ai/image";
@@ -381,7 +381,20 @@ router.post("/gemini/conversations/:id/messages", requireAuth, async (req, res):
   }
 
   // Inject budget context if the user is asking a budget question
-  if (isBudgetQuestion(parsed.data.content)) {
+  const comparisonTarget = detectBudgetComparison(parsed.data.content);
+  if (comparisonTarget) {
+    // Comparison query: fetch both periods in parallel and inject both summaries
+    try {
+      const [ctx1, ctx2] = await Promise.all([
+        getBudgetContext(clerkUserId, comparisonTarget.period1),
+        getBudgetContext(clerkUserId, comparisonTarget.period2),
+      ]);
+      systemPrompt = (systemPrompt || "") +
+        `\n\n${ctx1}\n\n${ctx2}\n\nThe user wants a side-by-side comparison of these two periods. Clearly show the delta (difference) for totals and key categories. State which period had higher income/expenses and by how much. Be specific with numbers from the data above.`;
+    } catch (err) {
+      req.log.warn({ err }, "Failed to fetch budget comparison context");
+    }
+  } else if (isBudgetQuestion(parsed.data.content)) {
     try {
       const budgetMonthTarget = detectBudgetMonth(parsed.data.content);
       const budgetContext = await getBudgetContext(clerkUserId, budgetMonthTarget);

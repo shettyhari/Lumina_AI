@@ -45,6 +45,11 @@ export type BudgetMonthTarget =
   | { kind: "single"; year: number; month: number; assumedPriorYear?: boolean }
   | { kind: "range"; startYear: number; startMonth: number; endYear: number; endMonth: number };
 
+export type BudgetComparisonTarget = {
+  period1: BudgetMonthTarget;
+  period2: BudgetMonthTarget;
+};
+
 /**
  * Words that signal the user is asking about a future period rather than a past one.
  * Presence of any of these means a month name that is "in the future" this year
@@ -145,6 +150,123 @@ export function detectBudgetMonth(msg: string): BudgetMonthTarget | null {
 
   // "this month" — explicitly current month; return null (use default)
   if (/this\s+month/i.test(msg)) return null;
+
+  return null;
+}
+
+/**
+ * Extract ALL period targets found in a message (months, quarters, relative refs).
+ * Used to identify comparison queries with two distinct periods.
+ */
+function extractAllPeriodTargets(msg: string): BudgetMonthTarget[] {
+  const lower = msg.toLowerCase();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const targets: BudgetMonthTarget[] = [];
+
+  // "this month"
+  if (/this\s+month/i.test(msg)) {
+    targets.push({ kind: "single", year: currentYear, month: currentMonth });
+  }
+
+  // "last month"
+  if (/last\s+month/i.test(msg)) {
+    let y = currentYear;
+    let m = currentMonth - 1;
+    if (m < 1) { m = 12; y--; }
+    targets.push({ kind: "single", year: y, month: m });
+  }
+
+  // "X months ago" (one or two occurrences)
+  const wordNums: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6 };
+  const monthsAgoRe = /(\d+|two|three|four|five|six)\s+months?\s+ago/gi;
+  let maoMatch: RegExpExecArray | null;
+  while ((maoMatch = monthsAgoRe.exec(msg)) !== null) {
+    const n = wordNums[maoMatch[1].toLowerCase()] ?? parseInt(maoMatch[1]);
+    let m = currentMonth - n;
+    let y = currentYear;
+    while (m < 1) { m += 12; y--; }
+    targets.push({ kind: "single", year: y, month: m });
+  }
+
+  // All Q1/Q2/Q3/Q4 references (optionally with year)
+  const quarterRe = /\bq([1-4])\b(?:\s+(\d{4}))?/gi;
+  let qMatch: RegExpExecArray | null;
+  while ((qMatch = quarterRe.exec(msg)) !== null) {
+    const q = parseInt(qMatch[1]);
+    const y = qMatch[2] ? parseInt(qMatch[2]) : currentYear;
+    const startMonth = (q - 1) * 3 + 1;
+    const endMonth = startMonth + 2;
+    targets.push({ kind: "range", startYear: y, startMonth, endYear: y, endMonth });
+  }
+
+  // All named months (e.g. "November", "Jan", "june 2024")
+  const monthPattern = new RegExp(
+    `\\b(${Object.keys(MONTH_NAMES).join("|")})(?:\\s+(\\d{4}))?\\b`,
+    "gi",
+  );
+  let nmMatch: RegExpExecArray | null;
+  while ((nmMatch = monthPattern.exec(lower)) !== null) {
+    const monthNum = MONTH_NAMES[nmMatch[1].toLowerCase()]!;
+    let y = nmMatch[2] ? parseInt(nmMatch[2]) : currentYear;
+    if (y === currentYear && monthNum > currentMonth) y--;
+    targets.push({ kind: "single", year: y, month: monthNum });
+  }
+
+  // Deduplicate: keep first occurrence of each unique serialised key
+  const seen = new Set<string>();
+  return targets.filter((t) => {
+    const key = JSON.stringify(t);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Comparison-intent keywords */
+const COMPARISON_PATTERNS = [
+  /\bcompare\b/i,
+  /\bvs\.?\b/i,
+  /\bversus\b/i,
+  /\bdifference\s+between\b/i,
+  /\bhow\s+(?:did|has|does)\s+.{0,40}change(?:d)?\s+(?:from|between)\b/i,
+  /\bchange\s+(?:from|between)\b/i,
+  /\bside[\s-]by[\s-]side\b/i,
+  /\brelative\s+to\b/i,
+];
+
+/**
+ * Budget-domain terms that must appear alongside comparison intent so we don't
+ * inject financial context into unrelated comparisons (weather, schedules, etc.).
+ */
+const BUDGET_DOMAIN_PATTERNS = [
+  /\b(?:spend|spending|spent)\b/i,
+  /\b(?:expenses?|expenditure)\b/i,
+  /\b(?:budget|finances?|financial)\b/i,
+  /\b(?:income|earnings?|salary|revenue)\b/i,
+  /\b(?:cost|costs|money|cash|dollars?)\b/i,
+  /\b(?:groceries|grocery|utilities|rent|mortgage)\b/i,
+  /\b(?:how\s+much\s+did\s+we|how\s+much\s+(?:have\s+we|did\s+(?:the\s+)?family))\b/i,
+];
+
+/**
+ * If the message asks to compare two distinct BUDGET periods, return both targets.
+ * Requires both comparison-intent keywords AND budget-domain vocabulary so
+ * non-financial comparisons (weather, events, etc.) do not trigger budget context injection.
+ * Returns null when the message is not a budget comparison query.
+ */
+export function detectBudgetComparison(msg: string): BudgetComparisonTarget | null {
+  const hasComparisonIntent = COMPARISON_PATTERNS.some((p) => p.test(msg));
+  if (!hasComparisonIntent) return null;
+
+  const hasBudgetDomain = BUDGET_DOMAIN_PATTERNS.some((p) => p.test(msg)) || isBudgetQuestion(msg);
+  if (!hasBudgetDomain) return null;
+
+  const periods = extractAllPeriodTargets(msg);
+  if (periods.length >= 2) {
+    return { period1: periods[0], period2: periods[1] };
+  }
 
   return null;
 }
