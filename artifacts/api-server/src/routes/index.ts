@@ -8,6 +8,11 @@ import modelsRouter from "./models";
 import aiRouter from "./ai";
 import adminRouter from "./admin";
 import familyRouter from "./family";
+import shoppingRouter from "./shopping";
+import choresRouter from "./chores";
+import calendarRouter from "./calendar";
+import remindersRouter from "./reminders";
+import mealsRouter from "./meals";
 import { requireApproved } from "../middlewares/requireApproved";
 
 const router: IRouter = Router();
@@ -38,5 +43,10 @@ router.use(modelsRouter);
 router.use(aiRouter);
 router.use(adminRouter);
 router.use(familyRouter);
+router.use(shoppingRouter);
+router.use(choresRouter);
+router.use(calendarRouter);
+router.use(remindersRouter);
+router.use(mealsRouter);
 
 export default router;

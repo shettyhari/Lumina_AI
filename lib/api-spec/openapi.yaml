@@ -22,6 +22,8 @@ tags:
     description: Family admin operations
   - name: family
     description: Family communication hub
+  - name: home
+    description: Home organization tools
 paths:
   /healthz:
     get:
@@ -725,6 +727,362 @@ paths:
         "401":
           description: Unauthorized
 
+  /shopping:
+    get:
+      operationId: listShoppingItems
+      tags: [home]
+      summary: List all shopping items (shared across family)
+      responses:
+        "200":
+          description: Shopping items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShoppingItem"
+    post:
+      operationId: createShoppingItem
+      tags: [home]
+      summary: Add a shopping item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShoppingItemInput"
+      responses:
+        "201":
+          description: Created item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShoppingItem"
+
+  /shopping/completed:
+    delete:
+      operationId: clearCompletedShoppingItems
+      tags: [home]
+      summary: Delete all checked/completed shopping items
+      responses:
+        "204":
+          description: Cleared
+
+  /shopping/{id}:
+    patch:
+      operationId: updateShoppingItem
+      tags: [home]
+      summary: Update a shopping item (toggle checked, edit name etc.)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateShoppingItemInput"
+      responses:
+        "200":
+          description: Updated item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShoppingItem"
+    delete:
+      operationId: deleteShoppingItem
+      tags: [home]
+      summary: Delete a shopping item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /chores:
+    get:
+      operationId: listChores
+      tags: [home]
+      summary: List all family chores
+      responses:
+        "200":
+          description: Chores list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Chore"
+    post:
+      operationId: createChore
+      tags: [home]
+      summary: Create a new chore
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateChoreInput"
+      responses:
+        "201":
+          description: Created chore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Chore"
+
+  /chores/{id}:
+    patch:
+      operationId: updateChore
+      tags: [home]
+      summary: Update a chore (status, priority, etc.)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateChoreInput"
+      responses:
+        "200":
+          description: Updated chore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Chore"
+    delete:
+      operationId: deleteChore
+      tags: [home]
+      summary: Delete a chore
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /calendar:
+    get:
+      operationId: listFamilyEvents
+      tags: [home]
+      summary: List family events (optionally filtered by year/month)
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: month
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Family events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FamilyEventEnriched"
+    post:
+      operationId: createFamilyEvent
+      tags: [home]
+      summary: Create a family calendar event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFamilyEventInput"
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyEventEnriched"
+
+  /calendar/{id}:
+    delete:
+      operationId: deleteFamilyEvent
+      tags: [home]
+      summary: Delete a family calendar event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /reminders:
+    get:
+      operationId: listReminders
+      tags: [home]
+      summary: List current user's reminders
+      responses:
+        "200":
+          description: Reminders list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reminder"
+    post:
+      operationId: createReminder
+      tags: [home]
+      summary: Create a reminder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReminderInput"
+      responses:
+        "201":
+          description: Created reminder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reminder"
+
+  /reminders/due:
+    get:
+      operationId: getDueReminders
+      tags: [home]
+      summary: Get reminders that are now due (marks them triggered)
+      responses:
+        "200":
+          description: Due reminders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reminder"
+
+  /reminders/{id}:
+    delete:
+      operationId: deleteReminder
+      tags: [home]
+      summary: Delete a reminder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /meals:
+    get:
+      operationId: listMealPlans
+      tags: [home]
+      summary: Get meal plan for a week
+      parameters:
+        - name: weekStart
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Meal plan entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MealPlanEntry"
+    post:
+      operationId: saveMealPlan
+      tags: [home]
+      summary: Create or replace a meal slot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveMealPlanInput"
+      responses:
+        "201":
+          description: Saved meal plan entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MealPlanEntry"
+
+  /meals/ai-suggest:
+    post:
+      operationId: aiSuggestMeal
+      tags: [home]
+      summary: Get an AI meal suggestion for a slot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiMealSuggestInput"
+      responses:
+        "200":
+          description: AI meal suggestion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiMealSuggestResponse"
+
+  /meals/week:
+    delete:
+      operationId: clearMealPlanWeek
+      tags: [home]
+      summary: Clear all meals for a week (admin only)
+      parameters:
+        - name: weekStart
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Cleared
+
+  /meals/{id}:
+    delete:
+      operationId: deleteMealPlan
+      tags: [home]
+      summary: Delete a single meal plan entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
 components:
   schemas:
     HealthStatus:
@@ -1343,3 +1701,290 @@ components:
             - type: "null"
       required:
         - message
+
+    ShoppingItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        name:
+          type: string
+        quantity:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        isChecked:
+          type: boolean
+        sortOrder:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        adderName:
+          type: string
+        adderAvatarUrl:
+          type: ["string", "null"]
+      required:
+        - id
+        - clerkUserId
+        - name
+        - isChecked
+        - createdAt
+        - adderName
+
+    CreateShoppingItemInput:
+      type: object
+      properties:
+        name:
+          type: string
+        quantity:
+          type: string
+        category:
+          type: string
+      required:
+        - name
+
+    UpdateShoppingItemInput:
+      type: object
+      properties:
+        name:
+          type: string
+        quantity:
+          type: string
+        category:
+          type: string
+        isChecked:
+          type: boolean
+
+    Chore:
+      type: object
+      properties:
+        id:
+          type: integer
+        assignedToClerkUserId:
+          type: ["string", "null"]
+        createdByClerkUserId:
+          type: string
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
+        priority:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        assignedToName:
+          type: ["string", "null"]
+        assignedToAvatarUrl:
+          type: ["string", "null"]
+        createdByName:
+          type: string
+      required:
+        - id
+        - createdByClerkUserId
+        - title
+        - priority
+        - status
+        - createdAt
+        - createdByName
+
+    CreateChoreInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        assignedToClerkUserId:
+          type: string
+        dueDate:
+          type: string
+        priority:
+          type: string
+      required:
+        - title
+
+    UpdateChoreInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        assignedToClerkUserId:
+          type: string
+        dueDate:
+          type: string
+        priority:
+          type: string
+        status:
+          type: string
+
+    FamilyEventEnriched:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        title:
+          type: string
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: ["string", "null"]
+          format: date-time
+        notes:
+          type: ["string", "null"]
+        color:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        creatorName:
+          type: string
+        creatorAvatarUrl:
+          type: ["string", "null"]
+      required:
+        - id
+        - clerkUserId
+        - title
+        - startAt
+        - createdAt
+        - creatorName
+
+    CreateFamilyEventInput:
+      type: object
+      properties:
+        title:
+          type: string
+        startAt:
+          type: string
+        endAt:
+          type: string
+        notes:
+          type: string
+        color:
+          type: string
+      required:
+        - title
+        - startAt
+
+    Reminder:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        message:
+          type: string
+        remindAt:
+          type: string
+          format: date-time
+        repeat:
+          type: ["string", "null"]
+        isTriggered:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - clerkUserId
+        - message
+        - remindAt
+        - isTriggered
+        - createdAt
+
+    CreateReminderInput:
+      type: object
+      properties:
+        message:
+          type: string
+        remindAt:
+          type: string
+        repeat:
+          type: string
+      required:
+        - message
+        - remindAt
+
+    MealPlanEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        weekStart:
+          type: string
+        dayOfWeek:
+          type: integer
+        mealSlot:
+          type: string
+        dishName:
+          type: string
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        plannedByName:
+          type: string
+      required:
+        - id
+        - clerkUserId
+        - weekStart
+        - dayOfWeek
+        - mealSlot
+        - dishName
+        - createdAt
+        - plannedByName
+
+    SaveMealPlanInput:
+      type: object
+      properties:
+        weekStart:
+          type: string
+        dayOfWeek:
+          type: integer
+        mealSlot:
+          type: string
+        dishName:
+          type: string
+        notes:
+          type: string
+      required:
+        - weekStart
+        - dayOfWeek
+        - mealSlot
+        - dishName
+
+    AiMealSuggestInput:
+      type: object
+      properties:
+        dayOfWeek:
+          type: integer
+        mealSlot:
+          type: string
+        existingMeals:
+          type: array
+          items:
+            type: string
+
+    AiMealSuggestResponse:
+      type: object
+      properties:
+        suggestion:
+          type: string
+      required:
+        - suggestion

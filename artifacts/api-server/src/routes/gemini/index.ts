@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, conversations, messages, users, userApiKeys, aiMemories } from "@workspace/db";
 import { detectAndExecuteRelay } from "../../lib/relayDetector";
+import { detectIntent, executeIntent } from "../../lib/intentDetector";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { generateImage } from "@workspace/integrations-gemini-ai/image";
 import OpenAI from "openai";
@@ -338,6 +339,10 @@ router.post("/gemini/conversations/:id/messages", requireAuth, async (req, res):
       const key = await getUserApiKey(clerkUserId, "openrouter");
       fullResponse = await streamOpenRouter(key!, model, chatMessages, systemPrompt || undefined, sendChunk);
     }
+
+    // ── Tool intent detection (shopping list, reminders, etc.) ───────────
+    const intent = await detectIntent(clerkUserId, parsed.data.content);
+    if (intent) await executeIntent(clerkUserId, intent);
 
     // ── AI relay detection ────────────────────────────────────────────────
     const relay = await detectAndExecuteRelay(clerkUserId, parsed.data.content);

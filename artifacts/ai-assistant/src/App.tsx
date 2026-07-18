@@ -16,6 +16,11 @@ import PersonasPage from "./pages/personas";
 import PendingPage from "./pages/pending";
 import AdminPage from "./pages/admin";
 import FamilyRoomPage from "./pages/family-room";
+import ShoppingPage from "./pages/shopping";
+import ChoresPage from "./pages/chores";
+import CalendarPage from "./pages/calendar";
+import RemindersPage from "./pages/reminders";
+import MealsPage from "./pages/meals";
 import Layout from "./components/layout";
 import { FamilyStatusProvider, useFamilyStatus } from "./contexts/family-context";
 
@@ -208,6 +213,11 @@ function ClerkProviderWithRoutes() {
             <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
             <Route path="/admin" component={() => <ProtectedRoute component={AdminPage} adminOnly />} />
             <Route path="/family-room" component={() => <ProtectedRoute component={FamilyRoomPage} />} />
+            <Route path="/shopping" component={() => <ProtectedRoute component={ShoppingPage} />} />
+            <Route path="/chores" component={() => <ProtectedRoute component={ChoresPage} />} />
+            <Route path="/calendar" component={() => <ProtectedRoute component={CalendarPage} />} />
+            <Route path="/reminders" component={() => <ProtectedRoute component={RemindersPage} />} />
+            <Route path="/meals" component={() => <ProtectedRoute component={MealsPage} />} />
 
             <Route>
               <div className="flex h-[100dvh] items-center justify-center flex-col gap-4 text-center">

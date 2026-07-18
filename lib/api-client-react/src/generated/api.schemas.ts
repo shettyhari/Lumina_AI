@@ -281,7 +281,160 @@ export interface SendFamilyRoomMessageResponse {
   aiMessage?: FamilyRoomMessageEnriched | null;
 }
 
+export interface ShoppingItem {
+  id: number;
+  clerkUserId: string;
+  name: string;
+  /** @nullable */
+  quantity?: string | null;
+  /** @nullable */
+  category?: string | null;
+  isChecked: boolean;
+  /** @nullable */
+  sortOrder?: number | null;
+  createdAt: string;
+  adderName: string;
+  /** @nullable */
+  adderAvatarUrl?: string | null;
+}
+
+export interface CreateShoppingItemInput {
+  name: string;
+  quantity?: string;
+  category?: string;
+}
+
+export interface UpdateShoppingItemInput {
+  name?: string;
+  quantity?: string;
+  category?: string;
+  isChecked?: boolean;
+}
+
+export interface Chore {
+  id: number;
+  /** @nullable */
+  assignedToClerkUserId?: string | null;
+  createdByClerkUserId: string;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  priority: string;
+  status: string;
+  createdAt: string;
+  /** @nullable */
+  assignedToName?: string | null;
+  /** @nullable */
+  assignedToAvatarUrl?: string | null;
+  createdByName: string;
+}
+
+export interface CreateChoreInput {
+  title: string;
+  description?: string;
+  assignedToClerkUserId?: string;
+  dueDate?: string;
+  priority?: string;
+}
+
+export interface UpdateChoreInput {
+  title?: string;
+  description?: string;
+  assignedToClerkUserId?: string;
+  dueDate?: string;
+  priority?: string;
+  status?: string;
+}
+
+export interface FamilyEventEnriched {
+  id: number;
+  clerkUserId: string;
+  title: string;
+  startAt: string;
+  /** @nullable */
+  endAt?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  color?: string | null;
+  createdAt: string;
+  creatorName: string;
+  /** @nullable */
+  creatorAvatarUrl?: string | null;
+}
+
+export interface CreateFamilyEventInput {
+  title: string;
+  startAt: string;
+  endAt?: string;
+  notes?: string;
+  color?: string;
+}
+
+export interface Reminder {
+  id: number;
+  clerkUserId: string;
+  message: string;
+  remindAt: string;
+  /** @nullable */
+  repeat?: string | null;
+  isTriggered: boolean;
+  createdAt: string;
+}
+
+export interface CreateReminderInput {
+  message: string;
+  remindAt: string;
+  repeat?: string;
+}
+
+export interface MealPlanEntry {
+  id: number;
+  clerkUserId: string;
+  weekStart: string;
+  dayOfWeek: number;
+  mealSlot: string;
+  dishName: string;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  plannedByName: string;
+}
+
+export interface SaveMealPlanInput {
+  weekStart: string;
+  dayOfWeek: number;
+  mealSlot: string;
+  dishName: string;
+  notes?: string;
+}
+
+export interface AiMealSuggestInput {
+  dayOfWeek?: number;
+  mealSlot?: string;
+  existingMeals?: string[];
+}
+
+export interface AiMealSuggestResponse {
+  suggestion: string;
+}
+
 export type ListFamilyRoomMessagesParams = {
 after?: number;
+};
+
+export type ListFamilyEventsParams = {
+year?: number;
+month?: number;
+};
+
+export type ListMealPlansParams = {
+weekStart: string;
+};
+
+export type ClearMealPlanWeekParams = {
+weekStart: string;
 };
 

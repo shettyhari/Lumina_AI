@@ -4,7 +4,7 @@ import { useClerk, useUser } from "@clerk/react";
 import {
   MessageSquare, Image as ImageIcon, LayoutDashboard, Settings,
   Plus, Pin, Menu, X, MessageCircle, LogOut, Brain, Sparkles, Shield,
-  Bell, Users,
+  Bell, Users, ShoppingCart, CheckSquare, Calendar, ChefHat,
 } from "lucide-react";
 import {
   useGetRecentActivity, getGetRecentActivityQueryKey,
@@ -49,6 +49,14 @@ export default function Layout({ children }: { children: ReactNode }) {
     { href: "/settings", icon: Settings, label: "Settings" },
   ];
 
+  const homeItems = [
+    { href: "/shopping", icon: ShoppingCart, label: "Shopping" },
+    { href: "/chores", icon: CheckSquare, label: "Chores" },
+    { href: "/calendar", icon: Calendar, label: "Calendar" },
+    { href: "/reminders", icon: Bell, label: "Reminders" },
+    { href: "/meals", icon: ChefHat, label: "Meals" },
+  ];
+
   const SidebarContent = () => (
     <div className="flex h-full flex-col bg-sidebar border-r border-sidebar-border">
       <div className="flex items-center gap-3 px-6 py-5">
@@ -85,6 +93,25 @@ export default function Layout({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+
+          {/* Home section */}
+          <div className="mt-2 mb-1">
+            <p className="px-3 mb-1 text-[10px] font-medium text-muted-foreground/40 uppercase tracking-wider">Home</p>
+            {homeItems.map((item) => {
+              const isActive = location === item.href;
+              return (
+                <Link key={item.href} href={item.href} onClick={() => setIsSidebarOpen(false)}>
+                  <div className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
+                    isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
+                  )}>
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
 
           {/* Admin-only link */}
           {isAdmin && (

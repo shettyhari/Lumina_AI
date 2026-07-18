@@ -625,3 +625,374 @@ export const DeleteAiPersonaParams = zod.object({
 export const DeleteAiPersonaResponse = zod.void()
 
 
+/**
+ * @summary List all shopping items (shared across family)
+ */
+export const ListShoppingItemsResponseItem = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "name": zod.string(),
+  "quantity": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "isChecked": zod.boolean(),
+  "sortOrder": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "adderName": zod.string(),
+  "adderAvatarUrl": zod.string().nullish()
+})
+export const ListShoppingItemsResponse = zod.array(ListShoppingItemsResponseItem)
+
+
+/**
+ * @summary Add a shopping item
+ */
+export const CreateShoppingItemBody = zod.object({
+  "name": zod.string(),
+  "quantity": zod.string().optional(),
+  "category": zod.string().optional()
+})
+
+export const CreateShoppingItemResponse = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "name": zod.string(),
+  "quantity": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "isChecked": zod.boolean(),
+  "sortOrder": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "adderName": zod.string(),
+  "adderAvatarUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Delete all checked/completed shopping items
+ */
+export const ClearCompletedShoppingItemsResponse = zod.void()
+
+
+/**
+ * @summary Update a shopping item (toggle checked, edit name etc.)
+ */
+export const UpdateShoppingItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateShoppingItemBody = zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.string().optional(),
+  "category": zod.string().optional(),
+  "isChecked": zod.boolean().optional()
+})
+
+export const UpdateShoppingItemResponse = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "name": zod.string(),
+  "quantity": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "isChecked": zod.boolean(),
+  "sortOrder": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "adderName": zod.string(),
+  "adderAvatarUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Delete a shopping item
+ */
+export const DeleteShoppingItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteShoppingItemResponse = zod.void()
+
+
+/**
+ * @summary List all family chores
+ */
+export const ListChoresResponseItem = zod.object({
+  "id": zod.number(),
+  "assignedToClerkUserId": zod.string().nullish(),
+  "createdByClerkUserId": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "priority": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "assignedToName": zod.string().nullish(),
+  "assignedToAvatarUrl": zod.string().nullish(),
+  "createdByName": zod.string()
+})
+export const ListChoresResponse = zod.array(ListChoresResponseItem)
+
+
+/**
+ * @summary Create a new chore
+ */
+export const CreateChoreBody = zod.object({
+  "title": zod.string(),
+  "description": zod.string().optional(),
+  "assignedToClerkUserId": zod.string().optional(),
+  "dueDate": zod.string().optional(),
+  "priority": zod.string().optional()
+})
+
+export const CreateChoreResponse = zod.object({
+  "id": zod.number(),
+  "assignedToClerkUserId": zod.string().nullish(),
+  "createdByClerkUserId": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "priority": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "assignedToName": zod.string().nullish(),
+  "assignedToAvatarUrl": zod.string().nullish(),
+  "createdByName": zod.string()
+})
+
+
+/**
+ * @summary Update a chore (status, priority, etc.)
+ */
+export const UpdateChoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateChoreBody = zod.object({
+  "title": zod.string().optional(),
+  "description": zod.string().optional(),
+  "assignedToClerkUserId": zod.string().optional(),
+  "dueDate": zod.string().optional(),
+  "priority": zod.string().optional(),
+  "status": zod.string().optional()
+})
+
+export const UpdateChoreResponse = zod.object({
+  "id": zod.number(),
+  "assignedToClerkUserId": zod.string().nullish(),
+  "createdByClerkUserId": zod.string(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "priority": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "assignedToName": zod.string().nullish(),
+  "assignedToAvatarUrl": zod.string().nullish(),
+  "createdByName": zod.string()
+})
+
+
+/**
+ * @summary Delete a chore
+ */
+export const DeleteChoreParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteChoreResponse = zod.void()
+
+
+/**
+ * @summary List family events (optionally filtered by year/month)
+ */
+export const ListFamilyEventsQueryParams = zod.object({
+  "year": zod.coerce.number().optional(),
+  "month": zod.coerce.number().optional()
+})
+
+export const ListFamilyEventsResponseItem = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "title": zod.string(),
+  "startAt": zod.coerce.date(),
+  "endAt": zod.coerce.date().nullish(),
+  "notes": zod.string().nullish(),
+  "color": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "creatorName": zod.string(),
+  "creatorAvatarUrl": zod.string().nullish()
+})
+export const ListFamilyEventsResponse = zod.array(ListFamilyEventsResponseItem)
+
+
+/**
+ * @summary Create a family calendar event
+ */
+export const CreateFamilyEventBody = zod.object({
+  "title": zod.string(),
+  "startAt": zod.string(),
+  "endAt": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "color": zod.string().optional()
+})
+
+export const CreateFamilyEventResponse = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "title": zod.string(),
+  "startAt": zod.coerce.date(),
+  "endAt": zod.coerce.date().nullish(),
+  "notes": zod.string().nullish(),
+  "color": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "creatorName": zod.string(),
+  "creatorAvatarUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Delete a family calendar event
+ */
+export const DeleteFamilyEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteFamilyEventResponse = zod.void()
+
+
+/**
+ * @summary List current user's reminders
+ */
+export const ListRemindersResponseItem = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "message": zod.string(),
+  "remindAt": zod.coerce.date(),
+  "repeat": zod.string().nullish(),
+  "isTriggered": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListRemindersResponse = zod.array(ListRemindersResponseItem)
+
+
+/**
+ * @summary Create a reminder
+ */
+export const CreateReminderBody = zod.object({
+  "message": zod.string(),
+  "remindAt": zod.string(),
+  "repeat": zod.string().optional()
+})
+
+export const CreateReminderResponse = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "message": zod.string(),
+  "remindAt": zod.coerce.date(),
+  "repeat": zod.string().nullish(),
+  "isTriggered": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get reminders that are now due (marks them triggered)
+ */
+export const GetDueRemindersResponseItem = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "message": zod.string(),
+  "remindAt": zod.coerce.date(),
+  "repeat": zod.string().nullish(),
+  "isTriggered": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const GetDueRemindersResponse = zod.array(GetDueRemindersResponseItem)
+
+
+/**
+ * @summary Delete a reminder
+ */
+export const DeleteReminderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteReminderResponse = zod.void()
+
+
+/**
+ * @summary Get meal plan for a week
+ */
+export const ListMealPlansQueryParams = zod.object({
+  "weekStart": zod.coerce.string()
+})
+
+export const ListMealPlansResponseItem = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "weekStart": zod.string(),
+  "dayOfWeek": zod.number(),
+  "mealSlot": zod.string(),
+  "dishName": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "plannedByName": zod.string()
+})
+export const ListMealPlansResponse = zod.array(ListMealPlansResponseItem)
+
+
+/**
+ * @summary Create or replace a meal slot
+ */
+export const SaveMealPlanBody = zod.object({
+  "weekStart": zod.string(),
+  "dayOfWeek": zod.number(),
+  "mealSlot": zod.string(),
+  "dishName": zod.string(),
+  "notes": zod.string().optional()
+})
+
+export const SaveMealPlanResponse = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "weekStart": zod.string(),
+  "dayOfWeek": zod.number(),
+  "mealSlot": zod.string(),
+  "dishName": zod.string(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "plannedByName": zod.string()
+})
+
+
+/**
+ * @summary Get an AI meal suggestion for a slot
+ */
+export const AiSuggestMealBody = zod.object({
+  "dayOfWeek": zod.number().optional(),
+  "mealSlot": zod.string().optional(),
+  "existingMeals": zod.array(zod.string()).optional()
+})
+
+export const AiSuggestMealResponse = zod.object({
+  "suggestion": zod.string()
+})
+
+
+/**
+ * @summary Clear all meals for a week (admin only)
+ */
+export const ClearMealPlanWeekQueryParams = zod.object({
+  "weekStart": zod.coerce.string()
+})
+
+export const ClearMealPlanWeekResponse = zod.void()
+
+
+/**
+ * @summary Delete a single meal plan entry
+ */
+export const DeleteMealPlanParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteMealPlanResponse = zod.void()
+
+
