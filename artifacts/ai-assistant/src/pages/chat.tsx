@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import {
   useGetGeminiConversation,
@@ -16,10 +16,12 @@ import {
   getListUserApiKeysQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Sparkles, MoreVertical, Trash2, Edit2, Pin, ChevronDown, AlertTriangle, Bot } from "lucide-react";
+import { Send, Sparkles, MoreVertical, Trash2, Edit2, Pin, ChevronDown, AlertTriangle, Bot, Mic } from "lucide-react";
 import { SiAnthropic, SiGoogle } from "react-icons/si";
 import { Link as WouterLink } from "wouter";
 import { cn } from "@/lib/utils";
+import { useVoiceAgent } from "@/hooks/useVoiceAgent";
+import VoiceOrb from "@/components/VoiceOrb";
 
 // ─── Provider badge ───────────────────────────────────────────────────────────
 
@@ -214,6 +216,9 @@ export default function ChatPage() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [streamError, setStreamError] = useState<{ message: string; provider?: string } | null>(null);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  // Track whether current session originated from voice so TTS fires
+  const voiceSessionRef = useRef(false);
 
   const { data: profile } = useGetUserProfile({ query: { queryKey: getGetUserProfileQueryKey() } });
   const { data: conversation } = useGetGeminiConversation(conversationId!, {
@@ -227,20 +232,33 @@ export default function ChatPage() {
   const deleteConversation = useDeleteGeminiConversation();
   const createConversation = useCreateGeminiConversation();
 
-  useEffect(() => {
-    if (profile?.preferredModel && isNew) setModel(profile.preferredModel);
-  }, [profile, isNew]);
+  // ── Voice agent ────────────────────────────────────────────────────────
+  const handleVoiceTranscript = useCallback((text: string) => {
+    voiceSessionRef.current = true;
+    handleSendVoice(text);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (conversation) setEditTitle(conversation.title);
-  }, [conversation]);
+  const voice = useVoiceAgent({
+    onTranscript: handleVoiceTranscript,
+    wakeWords: ["hey lumina", "lumina"],
+  });
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingContent]);
+  const handleOpenVoice = () => {
+    setVoiceOpen(true);
+    voice.toggleWake(); // enter wake mode
+  };
 
-  const handleSend = async (text?: string) => {
-    const msg = (text ?? input).trim();
+  const handleCloseVoice = () => {
+    voice.stopListening();
+    voice.stopSpeaking();
+    // Fully disable: if currently in wake/listening/speaking, reset to idle
+    setVoiceOpen(false);
+    voiceSessionRef.current = false;
+  };
+
+  // ─── Shared send logic (used by text + voice) ──────────────────────────
+
+  const handleSendCore = async (msg: string, fromVoice = false) => {
     if (!msg || isStreaming) return;
 
     let targetConvId = conversationId;
@@ -254,28 +272,31 @@ export default function ChatPage() {
         targetConvId = newConv.id;
         window.history.pushState(null, "", `${import.meta.env.BASE_URL}chat/${newConv.id}`.replace("//", "/"));
       } catch {
+        if (fromVoice) voice.setThinking(false);
         return;
       }
     }
 
-    const userMessage = msg;
     setInput("");
     setIsStreaming(true);
     setStreamingContent("");
 
-    if (conversationId && messages) {
-      queryClient.setQueryData(getListGeminiMessagesQueryKey(conversationId), [
+    const capturedConvId = conversationId;
+    if (capturedConvId && messages) {
+      queryClient.setQueryData(getListGeminiMessagesQueryKey(capturedConvId), [
         ...messages,
-        { id: Date.now(), conversationId, role: "user", content: userMessage, imageData: null, createdAt: new Date().toISOString() },
+        { id: Date.now(), conversationId: capturedConvId, role: "user", content: msg, imageData: null, createdAt: new Date().toISOString() },
       ]);
     }
+
+    let fullResponse = "";
 
     try {
       const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
       const response = await fetch(`${basePath}/api/gemini/conversations/${targetConvId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: userMessage, model, systemPrompt: profile?.systemPrompt || undefined }),
+        body: JSON.stringify({ content: msg, model, systemPrompt: profile?.systemPrompt || undefined }),
         credentials: "include",
       });
 
@@ -283,6 +304,7 @@ export default function ChatPage() {
         const body = await response.json();
         setStreamError({ message: body.error, provider: body.provider });
         setIsStreaming(false);
+        if (fromVoice) voice.setThinking(false);
         return;
       }
 
@@ -304,7 +326,10 @@ export default function ChatPage() {
               const data = JSON.parse(line.slice(6));
               if (data.done) break;
               if (data.error) setStreamError({ message: data.error });
-              if (data.content) setStreamingContent(prev => prev + data.content);
+              if (data.content) {
+                fullResponse += data.content;
+                setStreamingContent(prev => prev + data.content);
+              }
             } catch { /* ignore */ }
           }
         }
@@ -318,10 +343,41 @@ export default function ChatPage() {
         queryClient.invalidateQueries({ queryKey: getListGeminiMessagesQueryKey(targetConvId) });
         queryClient.invalidateQueries({ queryKey: ["/api/gemini/conversations"] });
         queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
-        if (!conversationId) setLocation(`/chat/${targetConvId}`);
+        if (!capturedConvId) setLocation(`/chat/${targetConvId}`);
+      }
+      // Speak response if triggered by voice
+      if (fromVoice && fullResponse && voiceSessionRef.current) {
+        voice.speak(fullResponse);
+      } else if (fromVoice) {
+        voice.setThinking(false);
       }
     }
   };
+
+  // Public send from text input
+  const handleSend = (text?: string) => {
+    const msg = (text ?? input).trim();
+    handleSendCore(msg, false);
+  };
+
+  // Send triggered by voice transcript (marks voice session)
+  const handleSendVoice = (text: string) => {
+    handleSendCore(text.trim(), true);
+  };
+
+  // ──────────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (profile?.preferredModel && isNew) setModel(profile.preferredModel);
+  }, [profile, isNew]);
+
+  useEffect(() => {
+    if (conversation) setEditTitle(conversation.title);
+  }, [conversation]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, streamingContent]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -354,6 +410,15 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full w-full">
+      {/* Voice orb overlay */}
+      {voiceOpen && (
+        <VoiceOrb
+          state={voice.state}
+          interimText={voice.interimText}
+          onClose={handleCloseVoice}
+          onStopSpeaking={voice.stopSpeaking}
+        />
+      )}
 
       {/* Header */}
       {!isNew && conversation && (
@@ -483,18 +548,37 @@ export default function ChatPage() {
             />
             <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between">
               <ModelSelector value={model} onChange={setModel} disabled={isStreaming} />
-              <button
-                type="submit"
-                disabled={!input.trim() || isStreaming}
-                data-testid="button-send-message"
-                className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              >
-                {isStreaming ? (
-                  <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
+              <div className="flex items-center gap-2">
+                {/* Mic / voice button */}
+                {voice.isSupported && (
+                  <button
+                    type="button"
+                    onClick={handleOpenVoice}
+                    title="Open voice mode"
+                    data-testid="button-voice"
+                    className={cn(
+                      "flex items-center justify-center w-9 h-9 rounded-xl border transition-all",
+                      voiceOpen
+                        ? "bg-primary/20 border-primary/50 text-primary"
+                        : "bg-muted/30 border-border/40 text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/10"
+                    )}
+                  >
+                    <Mic className="w-4 h-4" />
+                  </button>
                 )}
-              </button>
+                <button
+                  type="submit"
+                  disabled={!input.trim() || isStreaming}
+                  data-testid="button-send-message"
+                  className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  {isStreaming ? (
+                    <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
             </div>
           </form>
           <p className="text-center text-xs text-muted-foreground/50 mt-2">
