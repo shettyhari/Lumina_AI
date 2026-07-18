@@ -233,3 +233,55 @@ export interface AdminStats {
   totalUsedBytes: number;
 }
 
+export interface FamilyMemberPublic {
+  clerkUserId: string;
+  /** @nullable */
+  displayName?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  /** @nullable */
+  email?: string | null;
+  role: string;
+  status: string;
+}
+
+export interface FamilyNotification {
+  id: number;
+  fromClerkUserId: string;
+  fromName: string;
+  /** @nullable */
+  fromAvatarUrl?: string | null;
+  content: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface FamilyNotificationCount {
+  count: number;
+}
+
+export interface FamilyRoomMessageEnriched {
+  id: number;
+  /** @nullable */
+  clerkUserId?: string | null;
+  content: string;
+  role: string;
+  senderName: string;
+  /** @nullable */
+  senderAvatarUrl?: string | null;
+  createdAt: string;
+}
+
+export interface SendFamilyRoomMessageInput {
+  content: string;
+}
+
+export interface SendFamilyRoomMessageResponse {
+  message: FamilyRoomMessageEnriched;
+  aiMessage?: FamilyRoomMessageEnriched | null;
+}
+
+export type ListFamilyRoomMessagesParams = {
+after?: number;
+};
+

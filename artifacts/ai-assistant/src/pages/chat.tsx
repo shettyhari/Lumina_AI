@@ -26,6 +26,7 @@ import { Link as WouterLink } from "wouter";
 import { cn } from "@/lib/utils";
 import { useVoiceAgent } from "@/hooks/useVoiceAgent";
 import VoiceOrb from "@/components/VoiceOrb";
+import { RelayToast } from "@/components/relay-toast";
 
 // ─── Provider badge ───────────────────────────────────────────────────────────
 
@@ -286,6 +287,7 @@ export default function ChatPage() {
   const [reasoningMode, setReasoningMode] = useState(false);
   const [attachedImage, setAttachedImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
+  const [relayToast, setRelayToast] = useState<string | null>(null);
   const voiceSessionRef = useRef(false);
 
   const { data: profile } = useGetUserProfile({ query: { queryKey: getGetUserProfileQueryKey() } });
@@ -448,6 +450,7 @@ export default function ChatPage() {
               const data = JSON.parse(line.slice(6));
               if (data.done) break;
               if (data.error) setStreamError({ message: data.error });
+              if (data.relayConfirm) setRelayToast(data.relayConfirm);
               if (data.content) { fullResponse += data.content; setStreamingContent(prev => prev + data.content); }
             } catch { /* ignore */ }
           }
@@ -513,6 +516,7 @@ export default function ChatPage() {
       {voiceOpen && (
         <VoiceOrb state={voice.state} interimText={voice.interimText} onClose={handleCloseVoice} onStopSpeaking={voice.stopSpeaking} />
       )}
+      <RelayToast message={relayToast} onDismiss={() => setRelayToast(null)} />
 
       {/* Header */}
       {!isNew && conversation && (

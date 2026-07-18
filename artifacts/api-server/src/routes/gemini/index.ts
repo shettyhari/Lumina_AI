@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, conversations, messages, users, userApiKeys, aiMemories } from "@workspace/db";
+import { detectAndExecuteRelay } from "../../lib/relayDetector";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { generateImage } from "@workspace/integrations-gemini-ai/image";
 import OpenAI from "openai";
@@ -338,11 +339,23 @@ router.post("/gemini/conversations/:id/messages", requireAuth, async (req, res):
       fullResponse = await streamOpenRouter(key!, model, chatMessages, systemPrompt || undefined, sendChunk);
     }
 
-    await db.insert(messages).values({ conversationId: conv.id, role: "assistant", content: fullResponse });
+    // ── AI relay detection ────────────────────────────────────────────────
+    const relay = await detectAndExecuteRelay(clerkUserId, parsed.data.content);
+    let savedResponse = fullResponse;
+    if (relay) {
+      const confirmLine = `\n\n*${relay.confirmMsg}*`;
+      savedResponse += confirmLine;
+      sendChunk(confirmLine);
+    }
+
+    await db.insert(messages).values({ conversationId: conv.id, role: "assistant", content: savedResponse });
     await db.update(conversations)
       .set({ messageCount: sql`${conversations.messageCount} + 2`, updatedAt: new Date() })
       .where(eq(conversations.id, conv.id));
 
+    if (relay) {
+      res.write(`data: ${JSON.stringify({ relayConfirm: relay.confirmMsg })}\n\n`);
+    }
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
   } catch (err) {
     req.log.error({ err }, "LLM streaming error");

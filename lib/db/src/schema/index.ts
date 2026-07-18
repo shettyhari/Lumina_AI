@@ -5,3 +5,5 @@ export * from "./userApiKeys";
 export * from "./aiMemories";
 export * from "./aiPersonas";
 export * from "./familyMembers";
+export * from "./familyMessages";
+export * from "./familyRoomMessages";

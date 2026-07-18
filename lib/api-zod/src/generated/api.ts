@@ -490,6 +490,107 @@ export const DeleteAdminUserResponse = zod.void()
 
 
 /**
+ * @summary List approved family members with name and avatar
+ */
+export const ListFamilyMembersResponseItem = zod.object({
+  "clerkUserId": zod.string(),
+  "displayName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "role": zod.string(),
+  "status": zod.string()
+})
+export const ListFamilyMembersResponse = zod.array(ListFamilyMembersResponseItem)
+
+
+/**
+ * @summary List unread relay notifications for the current user
+ */
+export const ListFamilyNotificationsResponseItem = zod.object({
+  "id": zod.number(),
+  "fromClerkUserId": zod.string(),
+  "fromName": zod.string(),
+  "fromAvatarUrl": zod.string().nullish(),
+  "content": zod.string(),
+  "isRead": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListFamilyNotificationsResponse = zod.array(ListFamilyNotificationsResponseItem)
+
+
+/**
+ * @summary Get unread notification count
+ */
+export const GetFamilyNotificationCountResponse = zod.object({
+  "count": zod.number()
+})
+
+
+/**
+ * @summary Mark all notifications as read
+ */
+export const MarkAllFamilyNotificationsReadResponse = zod.void()
+
+
+/**
+ * @summary Mark a single relay notification as read
+ */
+export const MarkFamilyNotificationReadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const MarkFamilyNotificationReadResponse = zod.void()
+
+
+/**
+ * @summary Get family room messages (paginated, supports ?after=<id>)
+ */
+export const ListFamilyRoomMessagesQueryParams = zod.object({
+  "after": zod.coerce.number().optional()
+})
+
+export const ListFamilyRoomMessagesResponseItem = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string().nullish(),
+  "content": zod.string(),
+  "role": zod.string(),
+  "senderName": zod.string(),
+  "senderAvatarUrl": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListFamilyRoomMessagesResponse = zod.array(ListFamilyRoomMessagesResponseItem)
+
+
+/**
+ * @summary Post a message to the family room (triggers AI if @Lumina is mentioned)
+ */
+export const SendFamilyRoomMessageBody = zod.object({
+  "content": zod.string()
+})
+
+export const SendFamilyRoomMessageResponse = zod.object({
+  "message": zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string().nullish(),
+  "content": zod.string(),
+  "role": zod.string(),
+  "senderName": zod.string(),
+  "senderAvatarUrl": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}),
+  "aiMessage": zod.union([zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string().nullish(),
+  "content": zod.string(),
+  "role": zod.string(),
+  "senderName": zod.string(),
+  "senderAvatarUrl": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]).optional()
+})
+
+
+/**
  * @summary Update an AI persona
  */
 export const UpdateAiPersonaParams = zod.object({

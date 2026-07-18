@@ -15,6 +15,7 @@ import MemoryPage from "./pages/memory";
 import PersonasPage from "./pages/personas";
 import PendingPage from "./pages/pending";
 import AdminPage from "./pages/admin";
+import FamilyRoomPage from "./pages/family-room";
 import Layout from "./components/layout";
 import { FamilyStatusProvider, useFamilyStatus } from "./contexts/family-context";
 
@@ -206,6 +207,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
             <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
             <Route path="/admin" component={() => <ProtectedRoute component={AdminPage} adminOnly />} />
+            <Route path="/family-room" component={() => <ProtectedRoute component={FamilyRoomPage} />} />
 
             <Route>
               <div className="flex h-[100dvh] items-center justify-center flex-col gap-4 text-center">

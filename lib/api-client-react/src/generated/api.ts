@@ -31,6 +31,10 @@ import type {
   ConversationActivity,
   ConversationExport,
   FamilyMember,
+  FamilyMemberPublic,
+  FamilyNotification,
+  FamilyNotificationCount,
+  FamilyRoomMessageEnriched,
   GeminiConversation,
   GeminiConversationInput,
   GeminiConversationUpdate,
@@ -40,7 +44,10 @@ import type {
   GeminiMessage,
   GeminiMessageInput,
   HealthStatus,
+  ListFamilyRoomMessagesParams,
   ModelInfo,
+  SendFamilyRoomMessageInput,
+  SendFamilyRoomMessageResponse,
   SetApiKeyInput,
   UpdateFamilyMemberInput,
   UserApiKeyEntry,
@@ -2311,6 +2318,534 @@ export const useDeleteAdminUser = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteAdminUserMutationOptions(options));
+    }
+
+export const getListFamilyMembersUrl = () => {
+
+
+
+
+  return `/api/family/members`
+}
+
+/**
+ * @summary List approved family members with name and avatar
+ */
+export const listFamilyMembers = async ( options?: RequestInit): Promise<FamilyMemberPublic[]> => {
+
+  return customFetch<FamilyMemberPublic[]>(getListFamilyMembersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFamilyMembersQueryKey = () => {
+    return [
+    `/api/family/members`
+    ] as const;
+    }
+
+
+export const getListFamilyMembersQueryOptions = <TData = Awaited<ReturnType<typeof listFamilyMembers>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFamilyMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFamilyMembersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFamilyMembers>>> = ({ signal }) => listFamilyMembers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFamilyMembers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFamilyMembersQueryResult = NonNullable<Awaited<ReturnType<typeof listFamilyMembers>>>
+export type ListFamilyMembersQueryError = ErrorType<void>
+
+
+/**
+ * @summary List approved family members with name and avatar
+ */
+
+export function useListFamilyMembers<TData = Awaited<ReturnType<typeof listFamilyMembers>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFamilyMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFamilyMembersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListFamilyNotificationsUrl = () => {
+
+
+
+
+  return `/api/family/notifications`
+}
+
+/**
+ * @summary List unread relay notifications for the current user
+ */
+export const listFamilyNotifications = async ( options?: RequestInit): Promise<FamilyNotification[]> => {
+
+  return customFetch<FamilyNotification[]>(getListFamilyNotificationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFamilyNotificationsQueryKey = () => {
+    return [
+    `/api/family/notifications`
+    ] as const;
+    }
+
+
+export const getListFamilyNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof listFamilyNotifications>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFamilyNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFamilyNotificationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFamilyNotifications>>> = ({ signal }) => listFamilyNotifications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFamilyNotifications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFamilyNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof listFamilyNotifications>>>
+export type ListFamilyNotificationsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List unread relay notifications for the current user
+ */
+
+export function useListFamilyNotifications<TData = Awaited<ReturnType<typeof listFamilyNotifications>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFamilyNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFamilyNotificationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetFamilyNotificationCountUrl = () => {
+
+
+
+
+  return `/api/family/notifications/count`
+}
+
+/**
+ * @summary Get unread notification count
+ */
+export const getFamilyNotificationCount = async ( options?: RequestInit): Promise<FamilyNotificationCount> => {
+
+  return customFetch<FamilyNotificationCount>(getGetFamilyNotificationCountUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFamilyNotificationCountQueryKey = () => {
+    return [
+    `/api/family/notifications/count`
+    ] as const;
+    }
+
+
+export const getGetFamilyNotificationCountQueryOptions = <TData = Awaited<ReturnType<typeof getFamilyNotificationCount>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFamilyNotificationCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFamilyNotificationCountQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFamilyNotificationCount>>> = ({ signal }) => getFamilyNotificationCount({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFamilyNotificationCount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFamilyNotificationCountQueryResult = NonNullable<Awaited<ReturnType<typeof getFamilyNotificationCount>>>
+export type GetFamilyNotificationCountQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get unread notification count
+ */
+
+export function useGetFamilyNotificationCount<TData = Awaited<ReturnType<typeof getFamilyNotificationCount>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFamilyNotificationCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFamilyNotificationCountQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMarkAllFamilyNotificationsReadUrl = () => {
+
+
+
+
+  return `/api/family/notifications/read-all`
+}
+
+/**
+ * @summary Mark all notifications as read
+ */
+export const markAllFamilyNotificationsRead = async ( options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getMarkAllFamilyNotificationsReadUrl(),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkAllFamilyNotificationsReadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllFamilyNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markAllFamilyNotificationsRead>>, TError,void, TContext> => {
+
+const mutationKey = ['markAllFamilyNotificationsRead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markAllFamilyNotificationsRead>>, void> = () => {
+
+
+          return  markAllFamilyNotificationsRead(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkAllFamilyNotificationsReadMutationResult = NonNullable<Awaited<ReturnType<typeof markAllFamilyNotificationsRead>>>
+
+    export type MarkAllFamilyNotificationsReadMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark all notifications as read
+ */
+export const useMarkAllFamilyNotificationsRead = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllFamilyNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markAllFamilyNotificationsRead>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getMarkAllFamilyNotificationsReadMutationOptions(options));
+    }
+
+export const getMarkFamilyNotificationReadUrl = (id: number,) => {
+
+
+
+
+  return `/api/family/notifications/${id}/read`
+}
+
+/**
+ * @summary Mark a single relay notification as read
+ */
+export const markFamilyNotificationRead = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getMarkFamilyNotificationReadUrl(id),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkFamilyNotificationReadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markFamilyNotificationRead>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markFamilyNotificationRead>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['markFamilyNotificationRead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markFamilyNotificationRead>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  markFamilyNotificationRead(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkFamilyNotificationReadMutationResult = NonNullable<Awaited<ReturnType<typeof markFamilyNotificationRead>>>
+
+    export type MarkFamilyNotificationReadMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark a single relay notification as read
+ */
+export const useMarkFamilyNotificationRead = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markFamilyNotificationRead>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markFamilyNotificationRead>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getMarkFamilyNotificationReadMutationOptions(options));
+    }
+
+export const getListFamilyRoomMessagesUrl = (params?: ListFamilyRoomMessagesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/family/room/messages?${stringifiedParams}` : `/api/family/room/messages`
+}
+
+/**
+ * @summary Get family room messages (paginated, supports ?after=<id>)
+ */
+export const listFamilyRoomMessages = async (params?: ListFamilyRoomMessagesParams, options?: RequestInit): Promise<FamilyRoomMessageEnriched[]> => {
+
+  return customFetch<FamilyRoomMessageEnriched[]>(getListFamilyRoomMessagesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFamilyRoomMessagesQueryKey = (params?: ListFamilyRoomMessagesParams,) => {
+    return [
+    `/api/family/room/messages`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListFamilyRoomMessagesQueryOptions = <TData = Awaited<ReturnType<typeof listFamilyRoomMessages>>, TError = ErrorType<void>>(params?: ListFamilyRoomMessagesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFamilyRoomMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFamilyRoomMessagesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFamilyRoomMessages>>> = ({ signal }) => listFamilyRoomMessages(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFamilyRoomMessages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFamilyRoomMessagesQueryResult = NonNullable<Awaited<ReturnType<typeof listFamilyRoomMessages>>>
+export type ListFamilyRoomMessagesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get family room messages (paginated, supports ?after=<id>)
+ */
+
+export function useListFamilyRoomMessages<TData = Awaited<ReturnType<typeof listFamilyRoomMessages>>, TError = ErrorType<void>>(
+ params?: ListFamilyRoomMessagesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFamilyRoomMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFamilyRoomMessagesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendFamilyRoomMessageUrl = () => {
+
+
+
+
+  return `/api/family/room/messages`
+}
+
+/**
+ * @summary Post a message to the family room (triggers AI if @Lumina is mentioned)
+ */
+export const sendFamilyRoomMessage = async (sendFamilyRoomMessageInput: SendFamilyRoomMessageInput, options?: RequestInit): Promise<SendFamilyRoomMessageResponse> => {
+
+  return customFetch<SendFamilyRoomMessageResponse>(getSendFamilyRoomMessageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sendFamilyRoomMessageInput)
+  }
+);}
+
+
+
+
+
+export const getSendFamilyRoomMessageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendFamilyRoomMessage>>, TError,{data: BodyType<SendFamilyRoomMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendFamilyRoomMessage>>, TError,{data: BodyType<SendFamilyRoomMessageInput>}, TContext> => {
+
+const mutationKey = ['sendFamilyRoomMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendFamilyRoomMessage>>, {data: BodyType<SendFamilyRoomMessageInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendFamilyRoomMessage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendFamilyRoomMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendFamilyRoomMessage>>>
+    export type SendFamilyRoomMessageMutationBody = BodyType<SendFamilyRoomMessageInput>
+    export type SendFamilyRoomMessageMutationError = ErrorType<void>
+
+    /**
+ * @summary Post a message to the family room (triggers AI if @Lumina is mentioned)
+ */
+export const useSendFamilyRoomMessage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendFamilyRoomMessage>>, TError,{data: BodyType<SendFamilyRoomMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendFamilyRoomMessage>>,
+        TError,
+        {data: BodyType<SendFamilyRoomMessageInput>},
+        TContext
+      > => {
+      return useMutation(getSendFamilyRoomMessageMutationOptions(options));
     }
 
 export const getUpdateAiPersonaUrl = (id: number,) => {

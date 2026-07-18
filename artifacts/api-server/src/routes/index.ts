@@ -7,6 +7,7 @@ import geminiRouter from "./gemini";
 import modelsRouter from "./models";
 import aiRouter from "./ai";
 import adminRouter from "./admin";
+import familyRouter from "./family";
 import { requireApproved } from "../middlewares/requireApproved";
 
 const router: IRouter = Router();
@@ -36,5 +37,6 @@ router.use(geminiRouter);
 router.use(modelsRouter);
 router.use(aiRouter);
 router.use(adminRouter);
+router.use(familyRouter);
 
 export default router;

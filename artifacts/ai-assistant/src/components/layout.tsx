@@ -3,18 +3,22 @@ import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
 import {
   MessageSquare, Image as ImageIcon, LayoutDashboard, Settings,
-  Plus, Pin, Menu, X, MessageCircle, LogOut, Brain, Sparkles, Shield
+  Plus, Pin, Menu, X, MessageCircle, LogOut, Brain, Sparkles, Shield,
+  Bell, Users,
 } from "lucide-react";
 import {
   useGetRecentActivity, getGetRecentActivityQueryKey,
   useGetPinnedConversations, getGetPinnedConversationsQueryKey,
   useCreateGeminiConversation,
+  useGetFamilyNotificationCount,
 } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
 import { useFamilyStatus } from "@/contexts/family-context";
+import { NotificationDrawer } from "./notification-drawer";
 
 export default function Layout({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [location, setLocation] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
@@ -23,6 +27,10 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { data: recentActivity } = useGetRecentActivity({ query: { queryKey: getGetRecentActivityQueryKey() } });
   const { data: pinnedConversations } = useGetPinnedConversations({ query: { queryKey: getGetPinnedConversationsQueryKey() } });
   const createConversation = useCreateGeminiConversation();
+  const { data: notifCount } = useGetFamilyNotificationCount({
+    query: { queryKey: ["/api/family/notifications/count"], refetchInterval: 10_000 },
+  });
+  const unreadCount = notifCount?.count ?? 0;
 
   const handleNewChat = () => {
     createConversation.mutate(
@@ -33,6 +41,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   const navItems = [
     { href: "/chat", icon: MessageSquare, label: "Chat" },
+    { href: "/family-room", icon: Users, label: "Family Room" },
     { href: "/image-gen", icon: ImageIcon, label: "Image Gen" },
     { href: "/memory", icon: Brain, label: "Memory" },
     { href: "/personas", icon: Sparkles, label: "Personas" },
@@ -148,6 +157,19 @@ export default function Layout({ children }: { children: ReactNode }) {
               <span className="truncate text-xs text-muted-foreground">{isAdmin ? "Family Admin" : user?.primaryEmailAddress?.emailAddress}</span>
             </div>
           </div>
+          {/* Notification bell */}
+          <button
+            onClick={() => setNotifOpen(true)}
+            className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors shrink-0"
+            title="Notifications"
+          >
+            <Bell className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground leading-none">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => signOut({ redirectUrl: import.meta.env.BASE_URL || "/" })}
             className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0"
@@ -162,6 +184,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-[100dvh] w-full bg-background overflow-hidden selection:bg-primary/30">
+      <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} />
       {isSidebarOpen && (
         <div className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden" onClick={() => setIsSidebarOpen(false)} />
       )}

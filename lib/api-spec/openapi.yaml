@@ -20,6 +20,8 @@ tags:
     description: AI memory and personas
   - name: admin
     description: Family admin operations
+  - name: family
+    description: Family communication hub
 paths:
   /healthz:
     get:
@@ -561,6 +563,125 @@ paths:
           description: Deleted
         "403":
           description: Forbidden
+
+  /family/members:
+    get:
+      operationId: listFamilyMembers
+      tags: [family]
+      summary: List approved family members with name and avatar
+      responses:
+        "200":
+          description: Approved family members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FamilyMemberPublic"
+        "401":
+          description: Unauthorized
+
+  /family/notifications:
+    get:
+      operationId: listFamilyNotifications
+      tags: [family]
+      summary: List unread relay notifications for the current user
+      responses:
+        "200":
+          description: Unread notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FamilyNotification"
+        "401":
+          description: Unauthorized
+
+  /family/notifications/count:
+    get:
+      operationId: getFamilyNotificationCount
+      tags: [family]
+      summary: Get unread notification count
+      responses:
+        "200":
+          description: Count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyNotificationCount"
+        "401":
+          description: Unauthorized
+
+  /family/notifications/read-all:
+    patch:
+      operationId: markAllFamilyNotificationsRead
+      tags: [family]
+      summary: Mark all notifications as read
+      responses:
+        "204":
+          description: All marked read
+        "401":
+          description: Unauthorized
+
+  /family/notifications/{id}/read:
+    patch:
+      operationId: markFamilyNotificationRead
+      tags: [family]
+      summary: Mark a single relay notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Marked read
+        "401":
+          description: Unauthorized
+
+  /family/room/messages:
+    get:
+      operationId: listFamilyRoomMessages
+      tags: [family]
+      summary: Get family room messages (paginated, supports ?after=<id>)
+      parameters:
+        - name: after
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Room messages with sender info
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FamilyRoomMessageEnriched"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: sendFamilyRoomMessage
+      tags: [family]
+      summary: Post a message to the family room (triggers AI if @Lumina is mentioned)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendFamilyRoomMessageInput"
+      responses:
+        "201":
+          description: Created message(s)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendFamilyRoomMessageResponse"
+        "401":
+          description: Unauthorized
 
   /ai/personas/{id}:
     patch:
@@ -1123,3 +1244,102 @@ components:
         - rejectedCount
         - totalQuotaBytes
         - totalUsedBytes
+
+    FamilyMemberPublic:
+      type: object
+      properties:
+        clerkUserId:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        role:
+          type: string
+        status:
+          type: string
+      required:
+        - clerkUserId
+        - role
+        - status
+
+    FamilyNotification:
+      type: object
+      properties:
+        id:
+          type: integer
+        fromClerkUserId:
+          type: string
+        fromName:
+          type: string
+        fromAvatarUrl:
+          type: ["string", "null"]
+        content:
+          type: string
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - fromClerkUserId
+        - fromName
+        - content
+        - isRead
+        - createdAt
+
+    FamilyNotificationCount:
+      type: object
+      properties:
+        count:
+          type: integer
+      required:
+        - count
+
+    FamilyRoomMessageEnriched:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: ["string", "null"]
+        content:
+          type: string
+        role:
+          type: string
+        senderName:
+          type: string
+        senderAvatarUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - content
+        - role
+        - senderName
+        - createdAt
+
+    SendFamilyRoomMessageInput:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    SendFamilyRoomMessageResponse:
+      type: object
+      properties:
+        message:
+          $ref: "#/components/schemas/FamilyRoomMessageEnriched"
+        aiMessage:
+          oneOf:
+            - $ref: "#/components/schemas/FamilyRoomMessageEnriched"
+            - type: "null"
+      required:
+        - message
