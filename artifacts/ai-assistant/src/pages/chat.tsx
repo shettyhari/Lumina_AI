@@ -282,6 +282,21 @@ type ToolEvent =
   | { kind: "call";   name: string }
   | { kind: "result"; name: string; success: boolean; summary: string };
 
+// Persists tool events across the component remount that happens when a new
+// conversation is created (setLocation navigates from /chat → /chat/:id).
+// sessionStorage survives navigation but is cleared on tab close.
+const PENDING_TOOL_EVENTS_KEY = "lumina_pending_tool_events";
+function savePendingToolEvents(events: ToolEvent[]) {
+  try { sessionStorage.setItem(PENDING_TOOL_EVENTS_KEY, JSON.stringify(events)); } catch { /* ignore */ }
+}
+function loadAndClearPendingToolEvents(): ToolEvent[] {
+  try {
+    const raw = sessionStorage.getItem(PENDING_TOOL_EVENTS_KEY);
+    sessionStorage.removeItem(PENDING_TOOL_EVENTS_KEY);
+    return raw ? (JSON.parse(raw) as ToolEvent[]) : [];
+  } catch { return []; }
+}
+
 function ToolCallBar({ events }: { events: ToolEvent[] }) {
   if (events.length === 0) return null;
   return (
@@ -347,7 +362,12 @@ export default function ChatPage() {
   const [attachedImage, setAttachedImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [relayToast, setRelayToast] = useState<string | null>(null);
-  const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
+  const [toolEvents, setToolEvents] = useState<ToolEvent[]>(() =>
+    loadAndClearPendingToolEvents()
+  );
+  // Ref that mirrors toolEvents synchronously so the finally block can read
+  // the latest value even after Wouter navigates (which unmounts this component).
+  const toolEventsRef = useRef<ToolEvent[]>(toolEvents);
   const voiceSessionRef = useRef(false);
 
   const { data: profile } = useGetUserProfile({ query: { queryKey: getGetUserProfileQueryKey() } });
@@ -438,7 +458,8 @@ export default function ChatPage() {
           data: { title: msg.slice(0, 50) + (msg.length > 50 ? "..." : "") },
         });
         targetConvId = newConv.id;
-        window.history.pushState(null, "", `${import.meta.env.BASE_URL}chat/${newConv.id}`.replace("//", "/"));
+        // Do NOT pushState here — Wouter patches pushState and would immediately
+        // unmount this component, orphaning the SSE stream and losing toolEvents.
       } catch {
         if (fromVoice) voice.setThinking(false);
         return;
@@ -514,14 +535,17 @@ export default function ChatPage() {
               if (data.relayConfirm) setRelayToast(data.relayConfirm);
               if (data.content) { fullResponse += data.content; setStreamingContent(prev => prev + data.content); }
               if (data.toolCall) {
-                setToolEvents(prev => [...prev, { kind: "call", name: data.toolCall.name }]);
+                const ev: ToolEvent = { kind: "call", name: data.toolCall.name };
+                toolEventsRef.current = [...toolEventsRef.current, ev];
+                setToolEvents([...toolEventsRef.current]); // sync ref → state
               }
               if (data.toolResult) {
-                setToolEvents(prev => [
-                  // replace the pending "call" entry for this tool with the result
-                  ...prev.filter(e => !(e.kind === "call" && e.name === data.toolResult.name)),
-                  { kind: "result", name: data.toolResult.name, success: data.toolResult.success, summary: data.toolResult.summary },
-                ]);
+                const ev: ToolEvent = { kind: "result", name: data.toolResult.name, success: data.toolResult.success, summary: data.toolResult.summary };
+                toolEventsRef.current = [
+                  ...toolEventsRef.current.filter(e => !(e.kind === "call" && e.name === data.toolResult.name)),
+                  ev,
+                ];
+                setToolEvents([...toolEventsRef.current]); // sync ref → state
               }
             } catch { /* ignore */ }
           }
@@ -532,11 +556,17 @@ export default function ChatPage() {
       setStreamError({ message: "Connection failed. Please try again." });
     } finally {
       setIsStreaming(false);
+      setStreamingContent("");
       if (targetConvId) {
         queryClient.invalidateQueries({ queryKey: getListGeminiMessagesQueryKey(targetConvId) });
         queryClient.invalidateQueries({ queryKey: ["/api/gemini/conversations"] });
         queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
-        if (!capturedConvId) setLocation(`/chat/${targetConvId}`);
+        if (!capturedConvId) {
+          // Persist tool events to sessionStorage so the incoming /chat/:id
+          // component can read them after Wouter's navigation unmounts this one.
+          savePendingToolEvents(toolEventsRef.current);
+          setLocation(`/chat/${targetConvId}`);
+        }
       }
       if (fromVoice && fullResponse && voiceSessionRef.current) {
         voice.speak(fullResponse);
@@ -674,16 +704,13 @@ export default function ChatPage() {
               imageData={msg.imageData}
             />
           ))}
-          {isStreaming && (
-            <>
-              <ToolCallBar events={toolEvents} />
-              <MessageBubble
-                role="assistant"
-                content={streamingContent}
-                isStreaming={!streamingContent && toolEvents.length === 0}
-                wasReasoning={reasoningMode}
-              />
-            </>
+          {(isStreaming || streamingContent) && (
+            <MessageBubble
+              role="assistant"
+              content={streamingContent}
+              isStreaming={!streamingContent && toolEvents.length === 0}
+              wasReasoning={reasoningMode}
+            />
           )}
 
           {/* Error banner */}
@@ -707,6 +734,13 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
       </div>
+
+      {/* Tool-call results strip — pinned above the input, visible after streaming ends */}
+      {toolEvents.length > 0 && (
+        <div className="shrink-0 px-4 md:px-8 pt-2 max-w-3xl mx-auto w-full">
+          <ToolCallBar events={toolEvents} />
+        </div>
+      )}
 
       {/* Input bar */}
       <div className="shrink-0 px-4 md:px-8 pb-6 pt-2">

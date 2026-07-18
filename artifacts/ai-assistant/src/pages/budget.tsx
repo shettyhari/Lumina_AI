@@ -19,7 +19,7 @@ interface BudgetEntry {
 }
 interface Summary { month: string; totalIncome: number; totalExpenses: number; net: number; entryCount: number }
 
-const CATEGORIES = ["Food", "Utilities", "Transport", "Health", "Education", "Entertainment", "Income", "Other"];
+const CATEGORIES = ["Groceries", "Food", "Utilities", "Transport", "Health", "Education", "Entertainment", "Income", "Other"];
 
 function fmt(n: number) { return n.toLocaleString("en-US", { style: "currency", currency: "USD" }); }
 function currentMonth() { return new Date().toISOString().slice(0, 7); }

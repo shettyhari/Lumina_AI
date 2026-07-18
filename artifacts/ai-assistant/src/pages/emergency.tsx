@@ -80,11 +80,9 @@ export default function EmergencyPage() {
           <h1 className="text-2xl font-bold text-foreground">Emergency Contacts</h1>
           <p className="text-sm text-muted-foreground">{contacts.length} contact{contacts.length !== 1 ? "s" : ""}, sorted by priority</p>
         </div>
-        {isAdmin && (
-          <button onClick={openNew} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-            <Plus className="h-4 w-4" /> Add Contact
-          </button>
-        )}
+        <button onClick={openNew} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+          <Plus className="h-4 w-4" /> Add Contact
+        </button>
       </div>
 
       {isLoading ? (
@@ -92,7 +90,7 @@ export default function EmergencyPage() {
       ) : contacts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
           <div className="text-5xl">📞</div>
-          {isAdmin ? <p>No contacts yet. Add the first emergency contact.</p> : <p>No emergency contacts have been added yet.</p>}
+          <p>No contacts yet. Add the first emergency contact.</p>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -106,12 +104,10 @@ export default function EmergencyPage() {
                   </div>
                   <p className="text-sm text-muted-foreground">{c.relationship}</p>
                 </div>
-                {isAdmin && (
-                  <div className="flex gap-1">
-                    <button onClick={() => openEdit(c)} className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"><Edit2 className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => deleteMutation.mutate(c.id)} className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>
-                  </div>
-                )}
+                <div className="flex gap-1">
+                  <button onClick={() => openEdit(c)} className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"><Edit2 className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => deleteMutation.mutate(c.id)} className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <code className="text-sm font-mono text-foreground">
@@ -161,7 +157,7 @@ export default function EmergencyPage() {
       )}
 
       {/* Admin Edit Modal */}
-      {showModal && isAdmin && (
+      {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-card border border-border rounded-2xl w-full max-w-md p-6 shadow-2xl flex flex-col gap-4">
             <div className="flex items-center justify-between">

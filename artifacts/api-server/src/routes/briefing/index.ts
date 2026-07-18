@@ -23,7 +23,7 @@ router.get("/briefing/morning", requireAuth, async (req: Request, res: Response)
     db.select().from(familyEvents).where(and(gte(familyEvents.startAt, todayStart), lte(familyEvents.startAt, todayEnd))),
     db.select().from(chores).where(eq(chores.status, "todo")).limit(5),
     db.select().from(bills).where(eq(bills.isActive, true)),
-    db.select().from(homeSettings).where(eq(homeSettings.key, "weatherCity")).limit(1),
+    db.select().from(homeSettings).where(eq(homeSettings.key, "city")).limit(1),
   ]);
 
   const city = (cityRow[0] as any)?.value ?? "your city";
@@ -45,10 +45,17 @@ Family update:
 
 Write 3-4 warm, friendly sentences covering the day ahead. Start with a cheerful greeting like "Good morning, [family name]!" Use "the family" if you don't know their name.`;
 
-  const result = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
-  const text = result.text ?? "Good morning! Wishing your family a wonderful day ahead. ☀️";
-  briefingCache = { text, generatedAt: Date.now() };
-  res.json({ text, cached: false, generatedAt: new Date(briefingCache.generatedAt).toISOString() });
+  try {
+    const result = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
+    const text = result.text ?? "Good morning! Wishing your family a wonderful day ahead. ☀️";
+    briefingCache = { text, generatedAt: Date.now() };
+    res.json({ text, cached: false, generatedAt: new Date(briefingCache.generatedAt).toISOString() });
+  } catch (err) {
+    console.error("Briefing generation failed:", err);
+    // Return a friendly fallback instead of a 500
+    const fallback = "Good morning, family! Wishing you a wonderful day ahead. Check your calendar, stay on top of chores, and make the most of today! ☀️";
+    res.json({ text: fallback, cached: false, generatedAt: new Date().toISOString() });
+  }
 });
 
 // Bust cache (admin use)

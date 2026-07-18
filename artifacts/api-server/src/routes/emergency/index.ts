@@ -1,8 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, asc } from "drizzle-orm";
-import { db, emergencyContacts, familyMembers } from "@workspace/db";
+import { db, emergencyContacts } from "@workspace/db";
 import { requireAuth } from "../../middlewares/requireAuth";
-import { requireAdmin } from "../../middlewares/requireAdmin";
 
 const router: IRouter = Router();
 
@@ -12,8 +11,8 @@ router.get("/emergency/contacts", requireAuth, async (_req, res): Promise<void> 
   res.json(contacts);
 });
 
-// Admin only: create, update, delete
-router.post("/emergency/contacts", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+// All approved members can create, update, delete
+router.post("/emergency/contacts", requireAuth, async (req, res): Promise<void> => {
   const { name, relationship, phone, notes, priority = 10 } = req.body ?? {};
   if (!name || !relationship || !phone) {
     res.status(400).json({ error: "name, relationship, and phone are required" }); return;
@@ -26,7 +25,7 @@ router.post("/emergency/contacts", requireAuth, requireAdmin, async (req, res): 
   res.status(201).json(contact);
 });
 
-router.patch("/emergency/contacts/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+router.patch("/emergency/contacts/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -40,7 +39,7 @@ router.patch("/emergency/contacts/:id", requireAuth, requireAdmin, async (req, r
   res.json(updated);
 });
 
-router.delete("/emergency/contacts/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+router.delete("/emergency/contacts/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(emergencyContacts).where(eq(emergencyContacts.id, id));

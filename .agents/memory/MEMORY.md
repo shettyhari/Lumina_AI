@@ -1,1 +1,2 @@
 - [Multi-LLM Provider Architecture](multi-llm-providers.md) — per-user encrypted keys, provider routing by model ID prefix, 402 before SSE headers, SiOpenai doesn't exist in react-icons v5
+- [Chat ToolCallBar Navigation Bug](chat-toolcallbar-nav.md) — Wouter patches history.pushState; module-level vars aren't safe across navigation; use sessionStorage to bridge new-chat navigation
