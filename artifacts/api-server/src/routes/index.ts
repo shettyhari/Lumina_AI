@@ -13,6 +13,12 @@ import choresRouter from "./chores";
 import calendarRouter from "./calendar";
 import remindersRouter from "./reminders";
 import mealsRouter from "./meals";
+import notesRouter from "./notes";
+import budgetRouter from "./budget";
+import emergencyRouter from "./emergency";
+import weatherRouter from "./weather";
+import documentsRouter from "./documents";
+import storageRouter from "./storage";
 import { requireApproved } from "../middlewares/requireApproved";
 
 const router: IRouter = Router();
@@ -48,5 +54,11 @@ router.use(choresRouter);
 router.use(calendarRouter);
 router.use(remindersRouter);
 router.use(mealsRouter);
+router.use(notesRouter);
+router.use(budgetRouter);
+router.use(emergencyRouter);
+router.use(weatherRouter);
+router.use(documentsRouter);
+router.use(storageRouter);
 
 export default router;

@@ -5,6 +5,7 @@ import {
   MessageSquare, Image as ImageIcon, LayoutDashboard, Settings,
   Plus, Pin, Menu, X, MessageCircle, LogOut, Brain, Sparkles, Shield,
   Bell, Users, ShoppingCart, CheckSquare, Calendar, ChefHat,
+  StickyNote, DollarSign, PhoneCall, CloudSun, FolderOpen,
 } from "lucide-react";
 import {
   useGetRecentActivity, getGetRecentActivityQueryKey,
@@ -57,6 +58,14 @@ export default function Layout({ children }: { children: ReactNode }) {
     { href: "/meals", icon: ChefHat, label: "Meals" },
   ];
 
+  const resourceItems = [
+    { href: "/notes", icon: StickyNote, label: "Notes" },
+    { href: "/budget", icon: DollarSign, label: "Budget" },
+    { href: "/emergency", icon: PhoneCall, label: "Emergency" },
+    { href: "/weather", icon: CloudSun, label: "Weather" },
+    { href: "/documents", icon: FolderOpen, label: "Documents" },
+  ];
+
   const SidebarContent = () => (
     <div className="flex h-full flex-col bg-sidebar border-r border-sidebar-border">
       <div className="flex items-center gap-3 px-6 py-5">
@@ -98,6 +107,25 @@ export default function Layout({ children }: { children: ReactNode }) {
           <div className="mt-2 mb-1">
             <p className="px-3 mb-1 text-[10px] font-medium text-muted-foreground/40 uppercase tracking-wider">Home</p>
             {homeItems.map((item) => {
+              const isActive = location === item.href;
+              return (
+                <Link key={item.href} href={item.href} onClick={() => setIsSidebarOpen(false)}>
+                  <div className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
+                    isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
+                  )}>
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Resources section */}
+          <div className="mt-2 mb-1">
+            <p className="px-3 mb-1 text-[10px] font-medium text-muted-foreground/40 uppercase tracking-wider">Resources</p>
+            {resourceItems.map((item) => {
               const isActive = location === item.href;
               return (
                 <Link key={item.href} href={item.href} onClick={() => setIsSidebarOpen(false)}>

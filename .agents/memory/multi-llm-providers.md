@@ -1,46 +1,18 @@
 ---
 name: Multi-LLM Provider Architecture
-description: Per-user encrypted keys, provider routing by model ID prefix, 402 before SSE headers, icon pitfalls, schema naming conventions
+description: Per-user encrypted keys, provider routing by model ID prefix, 402 before SSE headers
 ---
 
-## Provider routing
-- `gemini-*` → built-in Gemini via `@workspace/integrations-gemini-ai`
-- `gpt-*` → OpenAI (user API key required)
-- `claude-*` → Anthropic (user API key required)
-- `openrouter/*` → OpenRouter (user API key required)
-- If paid provider and no key: return HTTP 402 JSON **before** setting SSE headers
+# Multi-LLM Provider Architecture
 
-## Image generation
-- Correct model: `"gemini-2.0-flash-preview-image-generation"` (NOT `"gemini-2.5-flash-image"`)
-- Uses `Modality.TEXT` + `Modality.IMAGE` response modalities
+The app uses per-user encrypted API keys. Provider routing is done by model ID prefix. The 402 status must be sent before SSE headers are written.
 
-## API key storage
-- AES-256-GCM encryption via `artifacts/api-server/src/lib/crypto.ts`
-- Endpoint: `POST /api/user/api-keys` with body `{ provider, key }` (changed from `PUT /user/api-keys/:provider`)
-- Schema names after codegen: `SetUserApiKeyBody`, `SetUserApiKeyResponse` (NOT `Upsert*`)
+**Why:** SiOpenai does not exist in react-icons v5 (confirmed). Use a generic icon instead.
 
-## Frontend icons
-- `SiOpenai` does NOT exist in react-icons v5 → use `Bot` from lucide-react
-- `SiAnthropic`, `SiGoogle` do exist in react-icons v5
+**How to apply:** When adding new LLM providers, follow the existing pattern in the gemini route. Never import SiOpenai from react-icons.
 
-## API server build
-- Uses esbuild bundler — cannot import `zod` or `zod/v4` directly in route files
-- All schema validation must use `@workspace/api-zod` schemas or inline plain JS validation
-- Zod schemas in routes cause "Could not resolve" build errors
+# Object Storage
 
-## Codegen
-- OpenAPI spec lives in `lib/api-spec/openapi.yaml`
-- Run codegen: `cd lib/api-spec && pnpm run codegen`
-- Generates both `@workspace/api-zod` (Zod schemas) and `@workspace/api-client-react` (React Query hooks)
-- After codegen, route imports must match newly generated schema names exactly
-
-## Memory + Persona injection
-- AI memories injected into every chat's system prompt server-side (backend handles it)
-- Active persona's systemPrompt is the base; memories appended as `[User Memory]\n1. ...`
-- DB tables: `ai_memories` (clerkUserId, content), `ai_personas` (clerkUserId, name, emoji, systemPrompt, isDefault)
-
-## Vision (image in chat)
-- Frontend: FileReader converts image → base64; POST sends `imageBase64` (bare base64, no prefix) + `imageMimeType`
-- Backend: reassembles `data:<mime>;base64,<data>` for storage; passes `inlineData` to Gemini API
-
-**Why:** Gemini's native image input requires `inlineData` format; OpenAI uses `image_url` with full data URL
+- `@workspace/integrations-gemini-ai` exports: `ai` (client), `generateImage`, `batchProcess`, `batchProcessWithSSE`, `isRateLimitError`, `BatchOptions`. NOT `GoogleGenAI`.
+- `storage.ts` template imports `RequestUploadUrlBody` and `RequestUploadUrlResponse` from `@workspace/api-zod` — these don't exist until codegen adds them to the OpenAPI spec. Patch the template to use manual validation instead.
+- `customFetch` IS exported from `lib/api-client-react/src/index.ts` — but only after `export { ..., customFetch } from "./custom-fetch"` is added AND the package is rebuilt with `npx tsc --build`.

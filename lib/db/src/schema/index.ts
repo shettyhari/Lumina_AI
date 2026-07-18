@@ -12,3 +12,8 @@ export * from "./chores";
 export * from "./familyEvents";
 export * from "./reminders";
 export * from "./mealPlans";
+export * from "./familyNotes";
+export * from "./budgetEntries";
+export * from "./emergencyContacts";
+export * from "./homeSettings";
+export * from "./documentFiles";
