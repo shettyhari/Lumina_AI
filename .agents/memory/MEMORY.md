@@ -1,0 +1,1 @@
+- [Multi-LLM Provider Architecture](multi-llm-providers.md) — per-user encrypted keys, provider routing by model ID prefix, 402 before SSE headers, SiOpenai doesn't exist in react-icons v5

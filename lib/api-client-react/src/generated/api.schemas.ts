@@ -102,3 +102,24 @@ export interface ConversationActivity {
   updatedAt: string;
 }
 
+export interface ModelInfo {
+  id: string;
+  name: string;
+  provider: string;
+  description: string;
+  requiresKey: boolean;
+  /** @nullable */
+  contextWindow?: number | null;
+  supportsStreaming: boolean;
+}
+
+export interface UserApiKeyEntry {
+  provider: string;
+  maskedKey: string;
+  createdAt: string;
+}
+
+export interface ApiKeyInput {
+  key: string;
+}
+

@@ -7,6 +7,7 @@
  */
 
 export * from './apiError';
+export * from './apiKeyInput';
 export * from './conversationActivity';
 export * from './geminiConversation';
 export * from './geminiConversationInput';
@@ -17,6 +18,8 @@ export * from './geminiImageOutput';
 export * from './geminiMessage';
 export * from './geminiMessageInput';
 export * from './healthStatus';
+export * from './modelInfo';
+export * from './userApiKeyEntry';
 export * from './userProfile';
 export * from './userProfileUpdate';
 export * from './userStats';

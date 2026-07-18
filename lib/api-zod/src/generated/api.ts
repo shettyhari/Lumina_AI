@@ -226,3 +226,57 @@ export const GetPinnedConversationsResponseItem = zod.object({
 export const GetPinnedConversationsResponse = zod.array(GetPinnedConversationsResponseItem)
 
 
+/**
+ * @summary List all available AI models with provider info
+ */
+export const ListModelsResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "provider": zod.string(),
+  "description": zod.string(),
+  "requiresKey": zod.boolean(),
+  "contextWindow": zod.number().nullish(),
+  "supportsStreaming": zod.boolean()
+})
+export const ListModelsResponse = zod.array(ListModelsResponseItem)
+
+
+/**
+ * @summary List configured API key providers (keys are masked)
+ */
+export const ListUserApiKeysResponseItem = zod.object({
+  "provider": zod.string(),
+  "maskedKey": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListUserApiKeysResponse = zod.array(ListUserApiKeysResponseItem)
+
+
+/**
+ * @summary Save or update an API key for a provider
+ */
+export const UpsertUserApiKeyParams = zod.object({
+  "provider": zod.coerce.string()
+})
+
+export const UpsertUserApiKeyBody = zod.object({
+  "key": zod.string()
+})
+
+export const UpsertUserApiKeyResponse = zod.object({
+  "provider": zod.string(),
+  "maskedKey": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove an API key for a provider
+ */
+export const DeleteUserApiKeyParams = zod.object({
+  "provider": zod.coerce.string()
+})
+
+export const DeleteUserApiKeyResponse = zod.void()
+
+
