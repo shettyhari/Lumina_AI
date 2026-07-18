@@ -58,6 +58,16 @@ router.get("/user/status", requireAuth, async (req, res): Promise<void> => {
       featureFlags: '{"imageGen":true,"voiceChat":true,"personas":true,"memories":true}',
     }).returning();
   } else {
+    // Bootstrap: if no admin exists yet and this user is pending, auto-promote them.
+    // This handles the case where the production DB was seeded from dev with no admin row
+    // matching the current Clerk user ID.
+    const [existingAdmin] = await db.select().from(familyMembers).where(eq(familyMembers.role, "admin"));
+    if (!existingAdmin && member.status !== "approved") {
+      [member] = await db.update(familyMembers)
+        .set({ role: "admin", status: "approved" })
+        .where(eq(familyMembers.clerkUserId, clerkUserId))
+        .returning();
+    }
     // Update profile info if provided and not yet stored
     const updates: Record<string, unknown> = {};
     if (name && !member.displayName) updates.displayName = name;
