@@ -13,7 +13,6 @@ import DashboardPage from "./pages/dashboard";
 import SettingsPage from "./pages/settings";
 import MemoryPage from "./pages/memory";
 import PersonasPage from "./pages/personas";
-import PendingPage from "./pages/pending";
 import AdminPage from "./pages/admin";
 import FamilyRoomPage from "./pages/family-room";
 import ShoppingPage from "./pages/shopping";
@@ -163,8 +162,6 @@ function FamilyStatusGate({ children }: { children: ReactNode }) {
     );
   }
 
-  if (status === "rejected") return <PendingPage rejected />;
-  if (status === "pending") return <PendingPage />;
 
   return <>{children}</>;
 }

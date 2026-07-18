@@ -23,7 +23,7 @@ interface FamilyStatusContextType {
 const defaultFlags: FeatureFlags = { imageGen: true, voiceChat: true, personas: true, memories: true };
 
 const FamilyStatusContext = createContext<FamilyStatusContextType>({
-  status: "pending",
+  status: "approved",
   role: "member",
   isAdmin: false,
   featureFlags: defaultFlags,

@@ -47,24 +47,21 @@ router.get("/user/status", requireAuth, async (req, res): Promise<void> => {
 
   if (!member) {
     const [existingAdmin] = await db.select().from(familyMembers).where(eq(familyMembers.role, "admin"));
-    const isFirstAdmin = !existingAdmin;
+    const isFirst = !existingAdmin;
     [member] = await db.insert(familyMembers).values({
       clerkUserId,
-      role: isFirstAdmin ? "admin" : "member",
-      status: isFirstAdmin ? "approved" : "pending",
+      role: isFirst ? "admin" : "member",
+      status: "approved",
       displayName: name ?? null,
       email: email ?? null,
       avatarUrl: avatar ?? null,
       featureFlags: '{"imageGen":true,"voiceChat":true,"personas":true,"memories":true}',
     }).returning();
   } else {
-    // Bootstrap: if no admin exists yet and this user is pending, auto-promote them.
-    // This handles the case where the production DB was seeded from dev with no admin row
-    // matching the current Clerk user ID.
-    const [existingAdmin] = await db.select().from(familyMembers).where(eq(familyMembers.role, "admin"));
-    if (!existingAdmin && member.status !== "approved") {
+    // Auto-approve any previously pending member
+    if (member.status !== "approved") {
       [member] = await db.update(familyMembers)
-        .set({ role: "admin", status: "approved" })
+        .set({ status: "approved" })
         .where(eq(familyMembers.clerkUserId, clerkUserId))
         .returning();
     }
