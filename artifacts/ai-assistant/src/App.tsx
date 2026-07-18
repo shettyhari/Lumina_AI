@@ -26,6 +26,15 @@ import BudgetPage from "./pages/budget";
 import EmergencyPage from "./pages/emergency";
 import WeatherPage from "./pages/weather";
 import DocumentsPage from "./pages/documents";
+import MaintenancePage from "./pages/maintenance";
+import BillsPage from "./pages/bills";
+import InventoryPage from "./pages/inventory";
+import RewardsPage from "./pages/rewards";
+import WishlistPage from "./pages/wishlist";
+import PetsPage from "./pages/pets";
+import PantryPage from "./pages/pantry";
+import BriefingPage from "./pages/briefing";
+import PhotosPage from "./pages/photos";
 import Layout from "./components/layout";
 import { FamilyStatusProvider, useFamilyStatus } from "./contexts/family-context";
 
@@ -228,6 +237,15 @@ function ClerkProviderWithRoutes() {
             <Route path="/emergency" component={() => <ProtectedRoute component={EmergencyPage} />} />
             <Route path="/weather" component={() => <ProtectedRoute component={WeatherPage} />} />
             <Route path="/documents" component={() => <ProtectedRoute component={DocumentsPage} />} />
+            <Route path="/maintenance" component={() => <ProtectedRoute component={MaintenancePage} />} />
+            <Route path="/bills" component={() => <ProtectedRoute component={BillsPage} />} />
+            <Route path="/inventory" component={() => <ProtectedRoute component={InventoryPage} />} />
+            <Route path="/rewards" component={() => <ProtectedRoute component={RewardsPage} />} />
+            <Route path="/wishlist" component={() => <ProtectedRoute component={WishlistPage} />} />
+            <Route path="/pets" component={() => <ProtectedRoute component={PetsPage} />} />
+            <Route path="/pantry" component={() => <ProtectedRoute component={PantryPage} />} />
+            <Route path="/briefing" component={() => <ProtectedRoute component={BriefingPage} />} />
+            <Route path="/photos" component={() => <ProtectedRoute component={PhotosPage} />} />
 
             <Route>
               <div className="flex h-[100dvh] items-center justify-center flex-col gap-4 text-center">

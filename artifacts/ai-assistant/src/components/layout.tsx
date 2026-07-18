@@ -6,6 +6,7 @@ import {
   Plus, Pin, Menu, X, MessageCircle, LogOut, Brain, Sparkles, Shield,
   Bell, Users, ShoppingCart, CheckSquare, Calendar, ChefHat,
   StickyNote, DollarSign, PhoneCall, CloudSun, FolderOpen,
+  Wrench, Receipt, Package, Trophy, Gift, PawPrint, ShoppingBasket, Sun, Camera,
 } from "lucide-react";
 import {
   useGetRecentActivity, getGetRecentActivityQueryKey,
@@ -64,6 +65,21 @@ export default function Layout({ children }: { children: ReactNode }) {
     { href: "/emergency", icon: PhoneCall, label: "Emergency" },
     { href: "/weather", icon: CloudSun, label: "Weather" },
     { href: "/documents", icon: FolderOpen, label: "Documents" },
+    { href: "/photos", icon: Camera, label: "Photos" },
+  ];
+
+  const propertyItems = [
+    { href: "/maintenance", icon: Wrench, label: "Maintenance" },
+    { href: "/bills", icon: Receipt, label: "Bills" },
+    { href: "/inventory", icon: Package, label: "Inventory" },
+  ];
+
+  const familyPlusItems = [
+    { href: "/briefing", icon: Sun, label: "Briefing" },
+    { href: "/rewards", icon: Trophy, label: "Rewards" },
+    { href: "/wishlist", icon: Gift, label: "Wishlist" },
+    { href: "/pets", icon: PawPrint, label: "Pets" },
+    { href: "/pantry", icon: ShoppingBasket, label: "Pantry" },
   ];
 
   const SidebarContent = () => (
@@ -135,6 +151,36 @@ export default function Layout({ children }: { children: ReactNode }) {
                   )}>
                     <item.icon className="h-4 w-4" />
                     {item.label}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Property section */}
+          <div className="mt-2 mb-1">
+            <p className="px-3 mb-1 text-[10px] font-medium text-muted-foreground/40 uppercase tracking-wider">Property</p>
+            {propertyItems.map((item) => {
+              const isActive = location === item.href;
+              return (
+                <Link key={item.href} href={item.href} onClick={() => setIsSidebarOpen(false)}>
+                  <div className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer", isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground")}>
+                    <item.icon className="h-4 w-4" />{item.label}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Family+ section */}
+          <div className="mt-2 mb-1">
+            <p className="px-3 mb-1 text-[10px] font-medium text-muted-foreground/40 uppercase tracking-wider">Family+</p>
+            {familyPlusItems.map((item) => {
+              const isActive = location === item.href;
+              return (
+                <Link key={item.href} href={item.href} onClick={() => setIsSidebarOpen(false)}>
+                  <div className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer", isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground")}>
+                    <item.icon className="h-4 w-4" />{item.label}
                   </div>
                 </Link>
               );

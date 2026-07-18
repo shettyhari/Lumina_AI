@@ -19,25 +19,25 @@ import emergencyRouter from "./emergency";
 import weatherRouter from "./weather";
 import documentsRouter from "./documents";
 import storageRouter from "./storage";
+import maintenanceRouter from "./maintenance";
+import billsRouter from "./bills";
+import inventoryRouter from "./inventory";
+import rewardsRouter from "./rewards";
+import wishlistRouter from "./wishlist";
+import petsRouter from "./pets";
+import pantryRouter from "./pantry";
+import briefingRouter from "./briefing";
 import { requireApproved } from "../middlewares/requireApproved";
 
 const router: IRouter = Router();
 
-// Paths that bypass approval gating (but still need auth if downstream requires it)
 const OPEN_PATHS = new Set(["/healthz", "/user/status"]);
 
-/**
- * Global auth + approval gate.
- * Extracts clerkUserId from the Clerk session and runs requireApproved
- * for all paths except the open whitelist.
- */
 router.use(async (req: Request, res: Response, next: NextFunction) => {
   const userId = getAuth(req)?.userId;
-  if (!userId) { next(); return; } // Unauthenticated — downstream routes return 401
+  if (!userId) { next(); return; }
   (req as any).clerkUserId = userId;
-
   if (OPEN_PATHS.has(req.path)) { next(); return; }
-
   await requireApproved(req, res, next);
 });
 
@@ -60,5 +60,13 @@ router.use(emergencyRouter);
 router.use(weatherRouter);
 router.use(documentsRouter);
 router.use(storageRouter);
+router.use(maintenanceRouter);
+router.use(billsRouter);
+router.use(inventoryRouter);
+router.use(rewardsRouter);
+router.use(wishlistRouter);
+router.use(petsRouter);
+router.use(pantryRouter);
+router.use(briefingRouter);
 
 export default router;
