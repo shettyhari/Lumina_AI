@@ -124,7 +124,8 @@ describe("detectBudgetLogHint", () => {
   });
 
   it("returns low-confidence hint (asks user to confirm) for unknown category", () => {
-    const h = detectBudgetLogHint("I spent $30 on a gift for mom");
+    // "random stuff" matches no known category → Other → low confidence
+    const h = detectBudgetLogHint("I spent $30 on random stuff");
     assert.ok(h, "should return a hint");
     assert.ok(h!.includes("Confirmation Required"), "low-confidence hint should say Confirmation Required");
     assert.ok(h!.includes("DO NOT record"), "should instruct AI not to auto-log");
@@ -146,6 +147,87 @@ describe("detectBudgetLogHint", () => {
     if (h!.includes("[Budget Log Action]")) {
       assert.ok(h!.includes("Budget"), "should mention Budget page for corrections");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Income category detection — new patterns (task #16)
+// ---------------------------------------------------------------------------
+
+describe("income category detection", () => {
+  // Helper: extract what detectBudgetLogHint would categorise
+  function classify(msg: string) {
+    const h = detectBudgetLogHint(msg);
+    if (!h) return null;
+    const m = h.match(/Category:\s*([^\n]+)/);
+    return m ? m[1].trim() : null;
+  }
+
+  // ── Freelance ──────────────────────────────────────────────────────────────
+  it("categorises 'received $500 from freelance work' as Freelance", () => {
+    assert.equal(classify("I received $500 from freelance work today"), "Freelance");
+  });
+
+  it("categorises 'earned $800 for consulting' as Freelance", () => {
+    assert.equal(classify("I earned $800 for consulting yesterday"), "Freelance");
+  });
+
+  it("categorises 'client paid me $500' as Freelance", () => {
+    assert.equal(classify("my client paid me $500"), "Freelance");
+  });
+
+  // ── Reimbursement ──────────────────────────────────────────────────────────
+  it("categorises 'insurance reimbursed us $300' as Reimbursement", () => {
+    assert.equal(classify("insurance reimbursed us $300"), "Reimbursement");
+  });
+
+  it("categorises 'company reimbursed me $150' as Reimbursement", () => {
+    assert.equal(classify("my company reimbursed me $150"), "Reimbursement");
+  });
+
+  it("categorises 'received $200 from reimbursement' as Reimbursement", () => {
+    assert.equal(classify("I received $200 from reimbursement today"), "Reimbursement");
+  });
+
+  // ── Investment ─────────────────────────────────────────────────────────────
+  it("categorises 'received $100 as dividend' as Investment", () => {
+    assert.equal(classify("I received $100 as dividend income today"), "Investment");
+  });
+
+  // ── Rental ─────────────────────────────────────────────────────────────────
+  it("categorises 'rental income of $1200' as Rental", () => {
+    assert.equal(classify("rental income of $1200 arrived"), "Rental");
+  });
+
+  it("categorises 'received $1200 from rental income' as Rental", () => {
+    assert.equal(classify("I received $1200 from rental income today"), "Rental");
+  });
+
+  // ── Salary ─────────────────────────────────────────────────────────────────
+  it("categorises 'got paid $3000 today' as Salary", () => {
+    assert.equal(classify("got paid $3000 today"), "Salary");
+  });
+
+  it("categorises 'my salary of $4000 arrived' as Salary", () => {
+    assert.equal(classify("my salary of $4000 arrived"), "Salary");
+  });
+
+  it("categorises 'received $2500 as bonus' as Salary", () => {
+    assert.equal(classify("I received $2500 as bonus"), "Salary");
+  });
+
+  // ── Gift ───────────────────────────────────────────────────────────────────
+  it("categorises 'received $100 as a gift' as Gift", () => {
+    assert.equal(classify("I received $100 as a gift today"), "Gift");
+  });
+
+  // ── Confidence gates still apply ──────────────────────────────────────────
+  it("reimbursement income is NOT blocked by confidence gate (no longer ambiguous)", () => {
+    assert.equal(isBudgetEntryBlockedByConfidence("insurance reimbursed us $300"), false);
+  });
+
+  it("high-confidence freelance income is NOT blocked", () => {
+    assert.equal(isBudgetEntryBlockedByConfidence("I received $500 from freelance work today"), false);
   });
 });
 
@@ -173,8 +255,8 @@ describe("isBudgetEntryBlockedByConfidence", () => {
   });
 
   it("returns true for low-confidence expense (unknown category)", () => {
-    // "a gift for mom" → category=Other → low confidence → blocked
-    assert.equal(isBudgetEntryBlockedByConfidence("I spent $30 on a gift for mom"), true);
+    // "random stuff" matches no known category → Other → low confidence → blocked
+    assert.equal(isBudgetEntryBlockedByConfidence("I spent $30 on random stuff"), true);
   });
 
   it("returns true when ambiguous signal 'owed' is present in a matching message", () => {

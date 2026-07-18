@@ -163,7 +163,7 @@ export const TOOL_DECLARATIONS = [
       properties: {
         type: { type: "string", enum: ["expense", "income"], description: "Entry type" },
         amount: { type: "number", description: "Amount in dollars" },
-        category: { type: "string", description: "Category (e.g. Groceries, Transport, Entertainment, Utilities, Salary, Other)" },
+        category: { type: "string", description: "Category (expenses: Groceries, Utilities, Housing, Transportation, Dining, Healthcare, Education, Subscriptions, Clothing, Insurance, Entertainment; income: Salary, Freelance, Reimbursement, Investment, Rental, Gift; Other)" },
         description: { type: "string", description: "Optional description" },
         entry_date: { type: "string", description: "Date in YYYY-MM-DD format (default: today)" },
       },

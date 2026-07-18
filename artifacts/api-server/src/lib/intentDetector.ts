@@ -284,11 +284,13 @@ export async function getBudgetContext(
 // ── Budget logging ────────────────────────────────────────────────────────────
 
 /**
- * Phrases that signal the money reference is NOT a household expense the user
- * wants logged: reimbursements, loans, refunds, etc.
+ * Phrases that signal the money reference is NOT a household expense/income the
+ * user wants logged: debts, loans, hypothetical questions, etc.
+ * NOTE: "reimburse" is intentionally excluded — receiving a reimbursement IS
+ * legitimate income and is handled by the Reimbursement category below.
  */
 const AMBIGUOUS_BUDGET_SIGNALS =
-  /\b(?:back|owed|reimburse\w*|refund\w*|loan|lend\w*|lent|borrow\w*|pay\s+back|paid\s+back|advance|question|if\s+i|should\s+i|can\s+i)\b/i;
+  /\b(?:back|owed|refund\w*|loan|lend\w*|lent|borrow\w*|pay\s+back|paid\s+back|advance|question|if\s+i|should\s+i|can\s+i)\b/i;
 
 /**
  * Score confidence that a matched budget intent is genuine.
@@ -321,8 +323,11 @@ const INCOME_PATTERNS = [
   /(?:got\s+paid|received\s+payment)\s+\$?([\d,]+(?:\.\d{1,2})?)(?:\s+(?:today|from|for)\s+(.+?))?(?:\s*\.?$)/i,
 ];
 
-// Keyword → category mapping for expense descriptions
+// Keyword → category mapping for expense and income descriptions.
+// Order matters — first match wins. Income-specific categories come before the
+// generic Salary catch-all so that e.g. "freelance" maps to Freelance, not Salary.
 const CATEGORY_KEYWORDS: Array<{ pattern: RegExp; category: string }> = [
+  // ── Expenses ────────────────────────────────────────────────────────────────
   { pattern: /\b(groceries|grocery|supermarket|food|produce|vegetables?|fruits?)\b/i, category: "Groceries" },
   { pattern: /\b(electricity|electric|power|gas\s+bill|water\s+bill|internet|phone\s+bill|utility|utilities)\b/i, category: "Utilities" },
   { pattern: /\b(rent|mortgage|lease|housing)\b/i, category: "Housing" },
@@ -334,7 +339,14 @@ const CATEGORY_KEYWORDS: Array<{ pattern: RegExp; category: string }> = [
   { pattern: /\b(clothes|clothing|shoes|apparel|fashion|shopping)\b/i, category: "Clothing" },
   { pattern: /\b(insurance|policy|premium)\b/i, category: "Insurance" },
   { pattern: /\b(entertainment|movie|cinema|theater|concert|event|ticket)\b/i, category: "Entertainment" },
-  { pattern: /\b(salary|paycheck|wages?|payroll|freelance|income|bonus)\b/i, category: "Salary" },
+  // ── Income ──────────────────────────────────────────────────────────────────
+  { pattern: /\b(freelance|consulting|contractor|contract\s+work|side\s+hustle|gig\s+work|client\s+work|client)\b/i, category: "Freelance" },
+  { pattern: /\b(reimburse[ds]?|reimbursement|expense\s+report)\b/i, category: "Reimbursement" },
+  { pattern: /\b(dividend|interest\s+income|stock\s+gain|investment\s+return|capital\s+gain|portfolio\s+return)\b/i, category: "Investment" },
+  { pattern: /\b(rental\s+income|rent\s+income|property\s+income|airbnb|vrbo|tenant\s+payment)\b/i, category: "Rental" },
+  { pattern: /\b(gift|cash\s+gift|birthday\s+money|holiday\s+money|monetary\s+gift)\b/i, category: "Gift" },
+  // ── Generic salary / catch-all (must come after Freelance) ─────────────────
+  { pattern: /\b(salary|paycheck|wages?|payroll|income|bonus|commission)\b/i, category: "Salary" },
 ];
 
 function inferCategory(description: string): string {
@@ -402,32 +414,61 @@ function detectBudgetLogIntent(msg: string): Extract<IntentAction, { type: "budg
   }
 
   // Try income patterns
-  // Pattern: "received $1000 from salary" / "got $2000 as bonus"
+
+  // ip1: "received $1000 from salary" / "got $2000 as bonus" / "earned $500 from freelance work"
   const ip1 = msg.match(/(?:i\s+)?(?:received|got|earned)\s+\$?([\d,]+(?:\.\d{1,2})?)\s+(?:from|as|for)\s+(.+?)(?:\s+today|\s+yesterday|\.?\s*$)/i);
   if (ip1) {
     const amount = parseAmount(ip1[1]);
     if (!isNaN(amount) && amount > 0) {
       const description = ip1[2].trim().replace(/\.$/, "");
-      const category = inferCategory(description) || "Salary";
+      // Infer from description first; fall back to scanning the full message for context
+      const category = inferCategory(description) || inferCategory(msg) || "Salary";
       return { type: "budget", entryType: "income", amount, category, description, entryDate, confidence: scoreBudgetConfidence(msg, category) };
     }
   }
 
-  // Pattern: "got paid $2000 today"
-  const ip2 = msg.match(/(?:got\s+paid|received\s+(?:my\s+)?(?:paycheck|salary|wages?))\s+(?:of\s+)?\$?([\d,]+(?:\.\d{1,2})?)(?:\s+(?:today|yesterday))?/i);
+  // ip2: "[someone] paid me/us $amount [for/from ...]" — e.g. "my client paid me $500"
+  const ip2 = msg.match(/(.+?)\s+paid\s+(?:me|us)\s+\$?([\d,]+(?:\.\d{1,2})?)(?:\s+(?:for|from|today|yesterday)\b(.+?))?(?:\.?\s*$)/i);
   if (ip2) {
-    const amount = parseAmount(ip2[1]);
+    const amount = parseAmount(ip2[2]);
     if (!isNaN(amount) && amount > 0) {
-      return { type: "budget", entryType: "income", amount, category: "Salary", description: "Paycheck", entryDate, confidence: scoreBudgetConfidence(msg, "Salary") };
+      // Use full message for category; description is derived from the payer/context
+      const category = inferCategory(msg) || "Salary";
+      const description = (ip2[3] ? ip2[3].trim() : ip2[1].trim()).replace(/\.$/, "") || "Payment received";
+      return { type: "budget", entryType: "income", amount, category, description, entryDate, confidence: scoreBudgetConfidence(msg, category) };
     }
   }
 
-  // Pattern: "my salary of $3000 arrived"
-  const ip3 = msg.match(/(?:my\s+)?(?:salary|paycheck|income|wages?)\s+(?:of\s+|:\s*)?\$?([\d,]+(?:\.\d{1,2})?)(?:\s+(?:came\s+in|arrived|deposited|today))?/i);
+  // ip3: "[someone] reimbursed me/us [$amount]" — e.g. "insurance reimbursed us $300 for the hospital"
+  const ip3 = msg.match(/(?:.+?\s+)?reimburse[ds]\s+(?:me|us)\s+(?:for\s+.+?\s+)?\$?([\d,]+(?:\.\d{1,2})?)/i);
   if (ip3) {
     const amount = parseAmount(ip3[1]);
     if (!isNaN(amount) && amount > 0) {
-      return { type: "budget", entryType: "income", amount, category: "Salary", description: "Salary", entryDate, confidence: scoreBudgetConfidence(msg, "Salary") };
+      return { type: "budget", entryType: "income", amount, category: "Reimbursement", description: "Reimbursement received", entryDate, confidence: scoreBudgetConfidence(msg, "Reimbursement") };
+    }
+  }
+
+  // ip4: "got paid $2000 today" / "received my paycheck of $3000"
+  // These phrases are semantically paycheck/salary — default to Salary when no
+  // other income keyword (e.g. "freelance", "bonus") is present in the message.
+  const ip4 = msg.match(/(?:got\s+paid|received\s+(?:my\s+)?(?:paycheck|salary|wages?))\s+(?:of\s+)?\$?([\d,]+(?:\.\d{1,2})?)(?:\s+(?:today|yesterday))?/i);
+  if (ip4) {
+    const amount = parseAmount(ip4[1]);
+    if (!isNaN(amount) && amount > 0) {
+      const inferred = inferCategory(msg);
+      const category = inferred !== "Other" ? inferred : "Salary";
+      return { type: "budget", entryType: "income", amount, category, description: "Paycheck", entryDate, confidence: scoreBudgetConfidence(msg, category) };
+    }
+  }
+
+  // ip5: "my salary/paycheck/rental income of $3000 arrived" — named income type with amount
+  const ip5 = msg.match(/(?:my\s+)?(?:salary|paycheck|wages?|rental\s+income|freelance\s+income|investment\s+income|income)\s+(?:of\s+|:\s*)?\$?([\d,]+(?:\.\d{1,2})?)(?:\s+(?:came\s+in|arrived|deposited|today|yesterday))?/i);
+  if (ip5) {
+    const amount = parseAmount(ip5[1]);
+    if (!isNaN(amount) && amount > 0) {
+      const category = inferCategory(msg) || "Salary";
+      const description = msg.match(/\b(rental|freelance|investment)\b/i)?.[1] ?? "Salary";
+      return { type: "budget", entryType: "income", amount, category, description, entryDate, confidence: scoreBudgetConfidence(msg, category) };
     }
   }
 
