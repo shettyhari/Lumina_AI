@@ -25,42 +25,116 @@ export function isBudgetQuestion(msg: string): boolean {
   return BUDGET_PATTERNS.some((p) => p.test(msg));
 }
 
-export async function getBudgetContext(callerClerkUserId: string): Promise<string> {
-  // Verify caller is an approved family member and collect all approved member IDs
-  // so we only return entries that belong to this family.
-  const approvedMembers = await db
-    .select({ clerkUserId: familyMembers.clerkUserId })
-    .from(familyMembers)
-    .where(eq(familyMembers.status, "approved"));
+const MONTH_NAMES: Record<string, number> = {
+  january: 1, jan: 1,
+  february: 2, feb: 2,
+  march: 3, mar: 3,
+  april: 4, apr: 4,
+  may: 5,
+  june: 6, jun: 6,
+  july: 7, jul: 7,
+  august: 8, aug: 8,
+  september: 9, sep: 9, sept: 9,
+  october: 10, oct: 10,
+  november: 11, nov: 11,
+  december: 12, dec: 12,
+};
 
-  const approvedIds = approvedMembers.map((m) => m.clerkUserId);
+export type BudgetMonthTarget =
+  | { kind: "single"; year: number; month: number }
+  | { kind: "range"; startYear: number; startMonth: number; endYear: number; endMonth: number };
 
-  // Caller must be an approved member to access family budget context
-  if (!approvedIds.includes(callerClerkUserId)) {
-    return "[Budget Context]\nYou are not yet an approved family member. Budget data is not available.";
+/**
+ * Detect which month(s) a budget question is referring to.
+ * Returns null when the question is about the current month (default behaviour).
+ */
+export function detectBudgetMonth(msg: string): BudgetMonthTarget | null {
+  const lower = msg.toLowerCase();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-based
+
+  // "last month"
+  if (/last\s+month/i.test(msg)) {
+    let y = currentYear;
+    let m = currentMonth - 1;
+    if (m < 1) { m = 12; y--; }
+    return { kind: "single", year: y, month: m };
   }
 
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const monthLabel = `${year}-${month}`;
-  const start = `${monthLabel}-01`;
-  const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
-  const end = `${monthLabel}-${String(lastDay).padStart(2, "0")}`;
+  // "two months ago", "3 months ago"
+  const monthsAgoMatch = msg.match(/(\d+|two|three|four|five|six)\s+months?\s+ago/i);
+  if (monthsAgoMatch) {
+    const wordNums: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6 };
+    const n = wordNums[monthsAgoMatch[1].toLowerCase()] ?? parseInt(monthsAgoMatch[1]);
+    let m = currentMonth - n;
+    let y = currentYear;
+    while (m < 1) { m += 12; y--; }
+    return { kind: "single", year: y, month: m };
+  }
 
-  const entries = await db
+  // Q1 / Q2 / Q3 / Q4 (optionally with year)
+  const quarterMatch = msg.match(/\bq([1-4])\b(?:\s+(\d{4}))?/i);
+  if (quarterMatch) {
+    const q = parseInt(quarterMatch[1]);
+    const y = quarterMatch[2] ? parseInt(quarterMatch[2]) : currentYear;
+    const startMonth = (q - 1) * 3 + 1;
+    const endMonth = startMonth + 2;
+    return { kind: "range", startYear: y, startMonth, endYear: y, endMonth };
+  }
+
+  // Named month with optional year: "in June", "June 2024", "last June"
+  const monthPattern = new RegExp(
+    `\\b(${Object.keys(MONTH_NAMES).join("|")})(?:\\s+(\\d{4}))?\\b`,
+    "i",
+  );
+  const namedMatch = lower.match(monthPattern);
+  if (namedMatch) {
+    const monthNum = MONTH_NAMES[namedMatch[1].toLowerCase()]!;
+    let y = namedMatch[2] ? parseInt(namedMatch[2]) : currentYear;
+    // If the named month is in the future this year, assume last year
+    if (y === currentYear && monthNum > currentMonth) y--;
+    return { kind: "single", year: y, month: monthNum };
+  }
+
+  // "this month" — explicitly current month; return null (use default)
+  if (/this\s+month/i.test(msg)) return null;
+
+  return null;
+}
+
+function monthLabel(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function monthDateRange(year: number, month: number): { start: string; end: string; label: string } {
+  const label = monthLabel(year, month);
+  const start = `${label}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const end = `${label}-${String(lastDay).padStart(2, "0")}`;
+  return { start, end, label };
+}
+
+async function fetchEntriesForRange(
+  startDate: string,
+  endDate: string,
+  approvedIds: string[],
+) {
+  return db
     .select()
     .from(budgetEntries)
     .where(
       and(
-        gte(budgetEntries.entryDate, start),
-        lte(budgetEntries.entryDate, end),
+        gte(budgetEntries.entryDate, startDate),
+        lte(budgetEntries.entryDate, endDate),
         inArray(budgetEntries.clerkUserId, approvedIds),
       ),
     );
+}
 
+function buildMonthSummary(entries: typeof budgetEntries.$inferSelect[], label: string): string[] {
   if (entries.length === 0) {
-    return `[Budget Context for ${monthLabel}]\nNo budget entries recorded for this month yet.`;
+    return [`[Budget Context for ${label}]`, `No budget entries recorded for this period.`];
   }
 
   let totalIncome = 0;
@@ -76,9 +150,9 @@ export async function getBudgetContext(callerClerkUserId: string): Promise<strin
     else byCategory[e.category].expense += amt;
   }
 
-  const fmt = (n: number) => `${n.toFixed(2)}`;
+  const fmt = (n: number) => n.toFixed(2);
   const lines: string[] = [
-    `[Budget Context for ${monthLabel}]`,
+    `[Budget Context for ${label}]`,
     `Total Income: ${fmt(totalIncome)}`,
     `Total Expenses: ${fmt(totalExpenses)}`,
     `Net Balance: ${fmt(totalIncome - totalExpenses)}`,
@@ -99,7 +173,54 @@ export async function getBudgetContext(callerClerkUserId: string): Promise<strin
     );
   }
 
-  return lines.join("\n");
+  return lines;
+}
+
+export async function getBudgetContext(
+  callerClerkUserId: string,
+  target?: BudgetMonthTarget | null,
+): Promise<string> {
+  // Verify caller is an approved family member and collect all approved member IDs
+  // so we only return entries that belong to this family.
+  const approvedMembers = await db
+    .select({ clerkUserId: familyMembers.clerkUserId })
+    .from(familyMembers)
+    .where(eq(familyMembers.status, "approved"));
+
+  const approvedIds = approvedMembers.map((m) => m.clerkUserId);
+
+  // Caller must be an approved member to access family budget context
+  if (!approvedIds.includes(callerClerkUserId)) {
+    return "[Budget Context]\nYou are not yet an approved family member. Budget data is not available.";
+  }
+
+  // Default: current month
+  if (!target) {
+    const now = new Date();
+    const { start, end, label } = monthDateRange(now.getFullYear(), now.getMonth() + 1);
+    const entries = await fetchEntriesForRange(start, end, approvedIds);
+    return buildMonthSummary(entries, label).join("\n");
+  }
+
+  if (target.kind === "single") {
+    const { start, end, label } = monthDateRange(target.year, target.month);
+    const entries = await fetchEntriesForRange(start, end, approvedIds);
+    return buildMonthSummary(entries, label).join("\n");
+  }
+
+  // Range: collect each month separately so the AI sees per-month breakdowns
+  const sections: string[] = [];
+  let y = target.startYear;
+  let m = target.startMonth;
+  while (y < target.endYear || (y === target.endYear && m <= target.endMonth)) {
+    const { start, end, label } = monthDateRange(y, m);
+    const entries = await fetchEntriesForRange(start, end, approvedIds);
+    sections.push(...buildMonthSummary(entries, label));
+    sections.push("");
+    m++;
+    if (m > 12) { m = 1; y++; }
+  }
+  return sections.join("\n");
 }
 
 // ── Shopping list ─────────────────────────────────────────────────────────────

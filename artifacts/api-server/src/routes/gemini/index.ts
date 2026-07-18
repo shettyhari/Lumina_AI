@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, conversations, messages, users, userApiKeys, aiMemories } from "@workspace/db";
 import { detectAndExecuteRelay } from "../../lib/relayDetector";
-import { detectIntent, executeIntent, isBudgetQuestion, getBudgetContext } from "../../lib/intentDetector";
+import { detectIntent, executeIntent, isBudgetQuestion, getBudgetContext, detectBudgetMonth } from "../../lib/intentDetector";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { generateImage } from "@workspace/integrations-gemini-ai/image";
 import OpenAI from "openai";
@@ -299,7 +299,8 @@ router.post("/gemini/conversations/:id/messages", requireAuth, async (req, res):
   // Inject budget context if the user is asking a budget question
   if (isBudgetQuestion(parsed.data.content)) {
     try {
-      const budgetContext = await getBudgetContext(clerkUserId);
+      const budgetMonthTarget = detectBudgetMonth(parsed.data.content);
+      const budgetContext = await getBudgetContext(clerkUserId, budgetMonthTarget);
       systemPrompt = (systemPrompt || "") + `\n\n${budgetContext}\n\nUse the budget data above to answer the user's question accurately. Refer to specific numbers from the data.`;
     } catch (err) {
       req.log.warn({ err }, "Failed to fetch budget context");
