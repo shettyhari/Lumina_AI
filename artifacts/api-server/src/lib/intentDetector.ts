@@ -1,4 +1,5 @@
-import { db, shoppingItems, chores, familyEvents, reminders } from "@workspace/db";
+import { db, shoppingItems, chores, familyEvents, reminders, budgetEntries, familyMembers } from "@workspace/db";
+import { and, gte, lte, inArray, eq } from "drizzle-orm";
 
 export type IntentAction =
   | { type: "shopping"; items: string[] }
@@ -6,6 +7,100 @@ export type IntentAction =
   | { type: "chore"; title: string }
   | { type: "event"; title: string; startAt: Date }
   | null;
+
+// ── Budget questions ───────────────────────────────────────────────────────────
+const BUDGET_PATTERNS = [
+  /how\s+much\s+(?:did\s+we|have\s+we|did\s+(?:the\s+)?family)\s+spend/i,
+  /(?:what(?:'s|\s+is)\s+(?:our|the)\s+(?:budget|balance|spending|expenses?))/i,
+  /(?:show|give|tell)\s+(?:me\s+)?(?:our|the|this\s+month'?s?)\s+budget/i,
+  /(?:how\s+much\s+(?:money\s+)?(?:do\s+we\s+have|is\s+left|remains?|remaining))/i,
+  /(?:budget|spending|expenses?|income)\s+(?:for\s+)?(?:this\s+month|this\s+week|today)/i,
+  /(?:what\s+did\s+we\s+spend\s+on)/i,
+  /(?:our|the\s+family)\s+(?:budget|finances|spending|expenses?)/i,
+  /(?:total\s+(?:spent|expenses?|income|spending))/i,
+  /(?:how\s+are\s+we\s+doing\s+(?:financially|with\s+(?:the\s+)?budget|with\s+money))/i,
+];
+
+export function isBudgetQuestion(msg: string): boolean {
+  return BUDGET_PATTERNS.some((p) => p.test(msg));
+}
+
+export async function getBudgetContext(callerClerkUserId: string): Promise<string> {
+  // Verify caller is an approved family member and collect all approved member IDs
+  // so we only return entries that belong to this family.
+  const approvedMembers = await db
+    .select({ clerkUserId: familyMembers.clerkUserId })
+    .from(familyMembers)
+    .where(eq(familyMembers.status, "approved"));
+
+  const approvedIds = approvedMembers.map((m) => m.clerkUserId);
+
+  // Caller must be an approved member to access family budget context
+  if (!approvedIds.includes(callerClerkUserId)) {
+    return "[Budget Context]\nYou are not yet an approved family member. Budget data is not available.";
+  }
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const monthLabel = `${year}-${month}`;
+  const start = `${monthLabel}-01`;
+  const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+  const end = `${monthLabel}-${String(lastDay).padStart(2, "0")}`;
+
+  const entries = await db
+    .select()
+    .from(budgetEntries)
+    .where(
+      and(
+        gte(budgetEntries.entryDate, start),
+        lte(budgetEntries.entryDate, end),
+        inArray(budgetEntries.clerkUserId, approvedIds),
+      ),
+    );
+
+  if (entries.length === 0) {
+    return `[Budget Context for ${monthLabel}]\nNo budget entries recorded for this month yet.`;
+  }
+
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  const byCategory: Record<string, { income: number; expense: number }> = {};
+
+  for (const e of entries) {
+    const amt = parseFloat(e.amount as string);
+    if (e.type === "income") totalIncome += amt;
+    else totalExpenses += amt;
+    if (!byCategory[e.category]) byCategory[e.category] = { income: 0, expense: 0 };
+    if (e.type === "income") byCategory[e.category].income += amt;
+    else byCategory[e.category].expense += amt;
+  }
+
+  const fmt = (n: number) => `${n.toFixed(2)}`;
+  const lines: string[] = [
+    `[Budget Context for ${monthLabel}]`,
+    `Total Income: ${fmt(totalIncome)}`,
+    `Total Expenses: ${fmt(totalExpenses)}`,
+    `Net Balance: ${fmt(totalIncome - totalExpenses)}`,
+    ``,
+    `Breakdown by category:`,
+  ];
+
+  for (const [cat, { income, expense }] of Object.entries(byCategory)) {
+    if (income > 0) lines.push(`  ${cat} (income): ${fmt(income)}`);
+    if (expense > 0) lines.push(`  ${cat} (expense): ${fmt(expense)}`);
+  }
+
+  lines.push(``, `Individual entries (${entries.length} total):`);
+  for (const e of entries) {
+    const amt = parseFloat(e.amount as string);
+    lines.push(
+      `  [${e.entryDate}] ${e.type === "income" ? "+" : "-"}${fmt(amt)} | ${e.category}${e.description ? ` — ${e.description}` : ""}`,
+    );
+  }
+
+  return lines.join("\n");
+}
 
 // ── Shopping list ─────────────────────────────────────────────────────────────
 const SHOPPING_PATTERNS = [
