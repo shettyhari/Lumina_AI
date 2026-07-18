@@ -7,7 +7,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { inferMonthYear, detectBudgetMonth } from "./intentDetector.js";
+import { inferMonthYear, detectBudgetMonth, scoreBudgetConfidence, detectBudgetLogHint, isBudgetEntryBlockedByConfidence } from "./intentDetector.js";
 
 // ---------------------------------------------------------------------------
 // inferMonthYear — pure function tests
@@ -64,6 +64,139 @@ describe("inferMonthYear", () => {
     const r = inferMonthYear(1, CY, CM); // January, current month = July
     assert.equal(r.year, CY);
     assert.equal(r.assumedPriorYear, false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scoreBudgetConfidence — pure function tests
+// ---------------------------------------------------------------------------
+
+describe("scoreBudgetConfidence", () => {
+  it("returns high when $ sign + known category", () => {
+    assert.equal(scoreBudgetConfidence("I spent $47 on groceries today", "Groceries"), "high");
+  });
+
+  it("returns high for utility bill with $ sign", () => {
+    assert.equal(scoreBudgetConfidence("paid the electricity bill — $120", "Utilities"), "high");
+  });
+
+  it("returns low when no $ sign even with known category", () => {
+    assert.equal(scoreBudgetConfidence("I spent 50 on groceries", "Groceries"), "low");
+  });
+
+  it("returns low when category is Other even with $ sign", () => {
+    assert.equal(scoreBudgetConfidence("I spent $50 on a gift for mom", "Other"), "low");
+  });
+
+  it("returns low when ambiguous signal 'back' is present", () => {
+    assert.equal(scoreBudgetConfidence("got paid back $10", "Salary"), "low");
+  });
+
+  it("returns low when ambiguous signal 'owed' is present", () => {
+    assert.equal(scoreBudgetConfidence("I paid $10 I owed to Sarah", "Other"), "low");
+  });
+
+  it("returns low when ambiguous signal 'reimburse' is present", () => {
+    assert.equal(scoreBudgetConfidence("I need to reimburse $200 for the hotel", "Other"), "low");
+  });
+
+  it("returns low when ambiguous signal 'refund' is present", () => {
+    assert.equal(scoreBudgetConfidence("I got a $50 refund", "Other"), "low");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectBudgetLogHint — hint text branches based on confidence
+// ---------------------------------------------------------------------------
+
+describe("detectBudgetLogHint", () => {
+  it("returns null when no budget pattern matches", () => {
+    assert.equal(detectBudgetLogHint("Tell me about the weather"), null);
+  });
+
+  it("returns high-confidence hint for clear expense with $ and known category", () => {
+    const h = detectBudgetLogHint("I spent $47 on groceries today");
+    assert.ok(h, "should return a hint");
+    assert.ok(h!.includes("[Budget Log Action]"), "high-confidence hint should say Budget Log Action");
+    assert.ok(!h!.includes("Confirmation Required"), "should not say confirmation required");
+    assert.ok(h!.includes("47.00"), "should include amount");
+    assert.ok(h!.includes("Groceries"), "should include category");
+  });
+
+  it("returns low-confidence hint (asks user to confirm) for unknown category", () => {
+    const h = detectBudgetLogHint("I spent $30 on a gift for mom");
+    assert.ok(h, "should return a hint");
+    assert.ok(h!.includes("Confirmation Required"), "low-confidence hint should say Confirmation Required");
+    assert.ok(h!.includes("DO NOT record"), "should instruct AI not to auto-log");
+    assert.ok(h!.includes("30.00"), "should include amount");
+  });
+
+  it("returns low-confidence hint when ambiguous signal present", () => {
+    // "paid back" → ambiguous → low confidence even if category matches
+    const h = detectBudgetLogHint("she paid back $200 for rent");
+    // May or may not match a pattern at all; if it does it must be low confidence
+    if (h !== null) {
+      assert.ok(h.includes("Confirmation Required"), "ambiguous phrase must produce low-confidence hint");
+    }
+  });
+
+  it("high-confidence hint mentions budget page for undo", () => {
+    const h = detectBudgetLogHint("I spent $120 on electricity today");
+    assert.ok(h, "should return a hint");
+    if (h!.includes("[Budget Log Action]")) {
+      assert.ok(h!.includes("Budget"), "should mention Budget page for corrections");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isBudgetEntryBlockedByConfidence — server-side gate tests
+// ---------------------------------------------------------------------------
+
+describe("isBudgetEntryBlockedByConfidence", () => {
+  it("returns false when message has no budget pattern", () => {
+    assert.equal(isBudgetEntryBlockedByConfidence("Tell me about the weather"), false);
+  });
+
+  it("returns false for empty string", () => {
+    assert.equal(isBudgetEntryBlockedByConfidence(""), false);
+  });
+
+  it("returns false for high-confidence expense ($ + known category)", () => {
+    // High confidence → NOT blocked → tool should proceed
+    assert.equal(isBudgetEntryBlockedByConfidence("I spent $47 on groceries today"), false);
+  });
+
+  it("returns false for a follow-up confirmation message (no budget pattern match)", () => {
+    // User says "yes, log it" — no pattern matches → not blocked → tool allowed
+    assert.equal(isBudgetEntryBlockedByConfidence("Yes, please log it as Groceries"), false);
+  });
+
+  it("returns true for low-confidence expense (unknown category)", () => {
+    // "a gift for mom" → category=Other → low confidence → blocked
+    assert.equal(isBudgetEntryBlockedByConfidence("I spent $30 on a gift for mom"), true);
+  });
+
+  it("returns true when ambiguous signal 'owed' is present in a matching message", () => {
+    // "for rent that I owed" — ep1 pattern matches (paid $amount for …),
+    // but AMBIGUOUS_BUDGET_SIGNALS fires on "owed" → low confidence → blocked
+    const msg = "I paid $200 for rent that I owed";
+    assert.equal(isBudgetEntryBlockedByConfidence(msg), true);
+  });
+
+  it("returns true when ambiguous signal 'back' is present with $ amount", () => {
+    const msg = "got $50 back for the return";
+    // If this matches a budget pattern, it must be blocked
+    const result = isBudgetEntryBlockedByConfidence(msg);
+    // Pattern may or may not match; if it does it must be blocked
+    if (detectBudgetLogHint(msg) !== null) {
+      assert.equal(result, true, "ambiguous 'back' phrase must be blocked");
+    }
+  });
+
+  it("returns false for clear paycheck income (high confidence)", () => {
+    // "got paid $3000 today" → Salary category + $ sign → high confidence → not blocked
+    assert.equal(isBudgetEntryBlockedByConfidence("got paid $3000 today"), false);
   });
 });
 

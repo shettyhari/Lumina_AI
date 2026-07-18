@@ -6,7 +6,7 @@ export type IntentAction =
   | { type: "reminder"; message: string; remindAt: Date }
   | { type: "chore"; title: string }
   | { type: "event"; title: string; startAt: Date }
-  | { type: "budget"; entryType: "income" | "expense"; amount: number; category: string; description: string; entryDate: string }
+  | { type: "budget"; entryType: "income" | "expense"; amount: number; category: string; description: string; entryDate: string; confidence: "high" | "low" }
   | null;
 
 // ── Budget questions ───────────────────────────────────────────────────────────
@@ -282,6 +282,32 @@ export async function getBudgetContext(
 }
 
 // ── Budget logging ────────────────────────────────────────────────────────────
+
+/**
+ * Phrases that signal the money reference is NOT a household expense the user
+ * wants logged: reimbursements, loans, refunds, etc.
+ */
+const AMBIGUOUS_BUDGET_SIGNALS =
+  /\b(?:back|owed|reimburse\w*|refund\w*|loan|lend\w*|lent|borrow\w*|pay\s+back|paid\s+back|advance|question|if\s+i|should\s+i|can\s+i)\b/i;
+
+/**
+ * Score confidence that a matched budget intent is genuine.
+ *
+ * HIGH  = explicit "$" sign + a recognised category keyword (not "Other")
+ *         + no ambiguous phrases. These are auto-inserted and the AI confirms.
+ * LOW   = category is "Other", or ambiguous language is present.
+ *         These are NOT inserted — the AI asks the user to confirm instead.
+ */
+export function scoreBudgetConfidence(
+  msg: string,
+  category: string,
+): "high" | "low" {
+  if (AMBIGUOUS_BUDGET_SIGNALS.test(msg)) return "low";
+  const hasDollarSign = /\$[\d,]+/.test(msg);
+  const hasKnownCategory = category !== "Other";
+  return hasDollarSign && hasKnownCategory ? "high" : "low";
+}
+
 const EXPENSE_PATTERNS = [
   /(?:i\s+)?(?:spent|paid|purchased|bought)\s+\$?([\d,]+(?:\.\d{1,2})?)\s+(?:on|for)\s+(.+?)(?:\s+today|\s+yesterday|\s+this\s+week|\s+just\s+now|\.?$)/i,
   /(?:i\s+)?(?:paid|spent)\s+(?:the\s+)?(.+?)\s+(?:bill|invoice)(?:\s*[—\-]\s*|\s+for\s+|\s+of\s+|\s*:\s*)\$?([\d,]+(?:\.\d{1,2})?)/i,
@@ -339,6 +365,8 @@ function detectEntryDate(msg: string): string {
 }
 
 function detectBudgetLogIntent(msg: string): Extract<IntentAction, { type: "budget" }> | null {
+  const entryDate = detectEntryDate(msg);
+
   // Try expense patterns
   // Pattern 1: "spent $47 on groceries", "paid $120 for electricity"
   const ep1 = msg.match(/(?:i\s+)?(?:spent|paid|purchased|bought)\s+\$?([\d,]+(?:\.\d{1,2})?)\s+(?:on|for)\s+(.+?)(?:\s+today|\s+yesterday|\s+this\s+week|\s+just\s+now|\.?\s*$)/i);
@@ -346,7 +374,8 @@ function detectBudgetLogIntent(msg: string): Extract<IntentAction, { type: "budg
     const amount = parseAmount(ep1[1]);
     if (!isNaN(amount) && amount > 0) {
       const description = ep1[2].trim().replace(/\.$/, "");
-      return { type: "budget", entryType: "expense", amount, category: inferCategory(description), description, entryDate: detectEntryDate(msg) };
+      const category = inferCategory(description);
+      return { type: "budget", entryType: "expense", amount, category, description, entryDate, confidence: scoreBudgetConfidence(msg, category) };
     }
   }
 
@@ -356,7 +385,8 @@ function detectBudgetLogIntent(msg: string): Extract<IntentAction, { type: "budg
     const amount = parseAmount(ep2[2]);
     if (!isNaN(amount) && amount > 0) {
       const description = ep2[1].trim() + " bill";
-      return { type: "budget", entryType: "expense", amount, category: inferCategory(description), description, entryDate: detectEntryDate(msg) };
+      const category = inferCategory(description);
+      return { type: "budget", entryType: "expense", amount, category, description, entryDate, confidence: scoreBudgetConfidence(msg, category) };
     }
   }
 
@@ -366,7 +396,8 @@ function detectBudgetLogIntent(msg: string): Extract<IntentAction, { type: "budg
     const amount = parseAmount(ep3[1]);
     if (!isNaN(amount) && amount > 0) {
       const description = ep3[2].trim().replace(/\.$/, "");
-      return { type: "budget", entryType: "expense", amount, category: inferCategory(description), description, entryDate: detectEntryDate(msg) };
+      const category = inferCategory(description);
+      return { type: "budget", entryType: "expense", amount, category, description, entryDate, confidence: scoreBudgetConfidence(msg, category) };
     }
   }
 
@@ -377,7 +408,8 @@ function detectBudgetLogIntent(msg: string): Extract<IntentAction, { type: "budg
     const amount = parseAmount(ip1[1]);
     if (!isNaN(amount) && amount > 0) {
       const description = ip1[2].trim().replace(/\.$/, "");
-      return { type: "budget", entryType: "income", amount, category: inferCategory(description) || "Income", description, entryDate: detectEntryDate(msg) };
+      const category = inferCategory(description) || "Salary";
+      return { type: "budget", entryType: "income", amount, category, description, entryDate, confidence: scoreBudgetConfidence(msg, category) };
     }
   }
 
@@ -386,7 +418,7 @@ function detectBudgetLogIntent(msg: string): Extract<IntentAction, { type: "budg
   if (ip2) {
     const amount = parseAmount(ip2[1]);
     if (!isNaN(amount) && amount > 0) {
-      return { type: "budget", entryType: "income", amount, category: "Salary", description: "Paycheck", entryDate: detectEntryDate(msg) };
+      return { type: "budget", entryType: "income", amount, category: "Salary", description: "Paycheck", entryDate, confidence: scoreBudgetConfidence(msg, "Salary") };
     }
   }
 
@@ -395,7 +427,7 @@ function detectBudgetLogIntent(msg: string): Extract<IntentAction, { type: "budg
   if (ip3) {
     const amount = parseAmount(ip3[1]);
     if (!isNaN(amount) && amount > 0) {
-      return { type: "budget", entryType: "income", amount, category: "Salary", description: "Salary", entryDate: detectEntryDate(msg) };
+      return { type: "budget", entryType: "income", amount, category: "Salary", description: "Salary", entryDate, confidence: scoreBudgetConfidence(msg, "Salary") };
     }
   }
 
@@ -463,14 +495,58 @@ function parseShoppingItems(raw: string): string[] {
 }
 
 /**
- * Returns a system-prompt hint if the message looks like a budget log request,
- * so the AI can confirm the exact amount and category it recorded.
+ * Returns true when the original chat message matched a budget pattern but
+ * confidence was LOW (ambiguous phrasing or unknown category). In that case
+ * the AI was already instructed to ask the user for confirmation, so any
+ * corresponding tool call to add_budget_entry should be blocked server-side.
+ *
+ * Returns false when:
+ *  - The message matched no budget pattern at all (safe to let AI call the tool
+ *    freely, e.g. on a follow-up confirmation like "yes, log it as Groceries")
+ *  - The match was high confidence (proceed normally)
+ */
+export function isBudgetEntryBlockedByConfidence(originalMessage: string): boolean {
+  if (!originalMessage) return false;
+  const hint = detectBudgetLogHint(originalMessage);
+  return hint !== null && hint.includes("Confirmation Required");
+}
+
+/**
+ * Returns a system-prompt hint if the message looks like a budget log request.
+ *
+ * HIGH confidence → the entry will be auto-inserted; AI confirms it.
+ * LOW confidence  → entry is NOT inserted; AI asks the user to confirm.
  */
 export function detectBudgetLogHint(msg: string): string | null {
   const intent = detectBudgetLogIntent(msg);
   if (!intent) return null;
   const sign = intent.entryType === "income" ? "+" : "-";
-  return `[Budget Log Action]\nThe system will automatically record the following budget entry from this message:\n  Type: ${intent.entryType}\n  Amount: ${sign}${intent.amount.toFixed(2)}\n  Category: ${intent.category}\n  Description: ${intent.description}\n  Date: ${intent.entryDate}\nIn your response, confirm that you've logged this entry, mentioning the exact amount (${intent.amount.toFixed(2)}), category (${intent.category}), and date. Be brief and friendly.`;
+
+  if (intent.confidence === "low") {
+    return (
+      `[Budget Log Check — Confirmation Required]\n` +
+      `A possible ${intent.entryType} of ${sign}${intent.amount.toFixed(2)} was detected in this message, ` +
+      `but confidence is LOW (the category is unclear or the phrasing is ambiguous).\n` +
+      `DO NOT record anything automatically.\n` +
+      `Instead, tell the user you noticed a potential ${intent.entryType} of ${intent.amount.toFixed(2)} ` +
+      `and ask them: (1) if they'd like it logged, and (2) what category it falls under ` +
+      `(e.g. Groceries, Housing, Transportation, Dining, Healthcare, Entertainment, etc.). ` +
+      `Mention they can also add it directly from the Budget page. Be friendly and brief.`
+    );
+  }
+
+  return (
+    `[Budget Log Action]\n` +
+    `The system will automatically record the following budget entry:\n` +
+    `  Type: ${intent.entryType}\n` +
+    `  Amount: ${sign}${intent.amount.toFixed(2)}\n` +
+    `  Category: ${intent.category}\n` +
+    `  Description: ${intent.description}\n` +
+    `  Date: ${intent.entryDate}\n` +
+    `In your response, confirm that you've logged this entry, mentioning the exact amount ` +
+    `(${intent.amount.toFixed(2)}), category (${intent.category}), and date. ` +
+    `Also mention they can delete it from the Budget page if it's incorrect. Be brief and friendly.`
+  );
 }
 
 export async function detectIntent(clerkUserId: string, msg: string): Promise<IntentAction> {
@@ -524,6 +600,10 @@ export async function executeIntent(clerkUserId: string, action: IntentAction): 
   }
 
   if (action.type === "budget") {
+    // Low-confidence budget entries are NOT inserted automatically.
+    // The AI was already instructed (via detectBudgetLogHint) to ask the user
+    // to confirm before logging, so silently skip here.
+    if (action.confidence === "low") return;
     await db.insert(budgetEntries).values({
       clerkUserId,
       type: action.entryType,

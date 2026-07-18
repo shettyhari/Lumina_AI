@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, conversations, messages, users, userApiKeys, aiMemories } from "@workspace/db";
 import { detectAndExecuteRelay } from "../../lib/relayDetector";
-import { detectIntent, executeIntent, isBudgetQuestion, getBudgetContext, detectBudgetMonth, detectBudgetLogHint } from "../../lib/intentDetector";
+import { isBudgetQuestion, getBudgetContext, detectBudgetMonth, detectBudgetLogHint } from "../../lib/intentDetector";
 import { TOOL_DECLARATIONS, executeTool } from "../../lib/agentTools";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { generateImage } from "@workspace/integrations-gemini-ai/image";
@@ -79,6 +79,7 @@ async function streamGeminiAgentic(
   clerkUserId: string,
   sendEvent: (obj: object) => void,
   reasoningMode = false,
+  originalMessage = "",
 ): Promise<string> {
   const contents: any[] = buildGeminiContents(chatMessages);
 
@@ -133,7 +134,7 @@ Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
     for (const part of funcCalls) {
       const { name, args } = part.functionCall;
       sendEvent({ toolCall: { name, args: args ?? {} } });
-      const result = await executeTool(clerkUserId, name, args ?? {});
+      const result = await executeTool(clerkUserId, name, args ?? {}, { originalMessage });
       sendEvent({ toolResult: { name, success: result.success, summary: result.summary } });
       funcResponseParts.push({
         functionResponse: {
@@ -433,6 +434,7 @@ router.post("/gemini/conversations/:id/messages", requireAuth, async (req, res):
         model, chatMessages, systemPrompt || undefined, clerkUserId,
         (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`),
         reasoningMode,
+        parsed.data.content,
       );
     } else if (provider === "openai") {
       const key = await getUserApiKey(clerkUserId, "openai");

@@ -5,6 +5,7 @@
 
 import { db, shoppingItems, chores, reminders, familyEvents, budgetEntries, familyNotes, familyMembers, familyMessages, pantryItems } from "@workspace/db";
 import { eq, and, gte, lte, desc, ilike, inArray } from "drizzle-orm";
+import { isBudgetEntryBlockedByConfidence } from "./intentDetector.js";
 
 // ─── Type helpers ─────────────────────────────────────────────────────────────
 
@@ -372,7 +373,24 @@ async function execGetCalendarEvents(clerkUserId: string, args: Args): Promise<T
   return { name: "get_calendar_events", success: true, summary, data: rows };
 }
 
-async function execAddBudgetEntry(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+async function execAddBudgetEntry(
+  clerkUserId: string,
+  args: Args,
+  context?: { originalMessage?: string },
+): Promise<ToolResultEvent> {
+  // Confidence gate: if the triggering message matched a budget pattern with
+  // LOW confidence the AI was already told to ask the user for confirmation.
+  // Block the actual DB insert so nothing is silently recorded.
+  if (context?.originalMessage && isBudgetEntryBlockedByConfidence(context.originalMessage)) {
+    return {
+      name: "add_budget_entry",
+      success: false,
+      summary:
+        "Budget entry not recorded — the intent was ambiguous. " +
+        "The user needs to confirm the amount and category before this can be logged.",
+    };
+  }
+
   const type = args.type as string;
   const amount = String(args.amount as number);
   const category = (args.category as string) ?? "Other";
@@ -380,7 +398,7 @@ async function execAddBudgetEntry(clerkUserId: string, args: Args): Promise<Tool
   const entryDate = (args.entry_date as string) ?? new Date().toISOString().slice(0, 10);
   await db.insert(budgetEntries).values({ clerkUserId, type, amount, category, description, entryDate });
   const sign = type === "income" ? "+" : "-";
-  return { name: "add_budget_entry", success: true, summary: `Recorded ${type}: ${sign}$${args.amount} for ${category}${description ? ` (${description})` : ""}` };
+  return { name: "add_budget_entry", success: true, summary: `Recorded ${type}: ${sign}${args.amount} for ${category}${description ? ` (${description})` : ""}` };
 }
 
 async function execGetBudgetSummary(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
@@ -492,7 +510,18 @@ async function execSendFamilyMessage(clerkUserId: string, args: Args): Promise<T
 
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 
-export async function executeTool(clerkUserId: string, name: string, args: Args): Promise<ToolResultEvent> {
+export interface ToolContext {
+  /** The original user message that triggered this agentic turn. Used by
+   *  write-path tools to enforce server-side confidence gates. */
+  originalMessage?: string;
+}
+
+export async function executeTool(
+  clerkUserId: string,
+  name: string,
+  args: Args,
+  context?: ToolContext,
+): Promise<ToolResultEvent> {
   try {
     switch (name) {
       case "add_shopping_items":      return await execAddShoppingItems(clerkUserId, args);
@@ -505,7 +534,7 @@ export async function executeTool(clerkUserId: string, name: string, args: Args)
       case "complete_chore":          return await execCompleteChore(clerkUserId, args);
       case "add_calendar_event":      return await execAddCalendarEvent(clerkUserId, args);
       case "get_calendar_events":     return await execGetCalendarEvents(clerkUserId, args);
-      case "add_budget_entry":        return await execAddBudgetEntry(clerkUserId, args);
+      case "add_budget_entry":        return await execAddBudgetEntry(clerkUserId, args, context);
       case "get_budget_summary":      return await execGetBudgetSummary(clerkUserId, args);
       case "create_note":             return await execCreateNote(clerkUserId, args);
       case "get_notes":               return await execGetNotes(clerkUserId, args);
