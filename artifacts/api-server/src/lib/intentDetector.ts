@@ -42,8 +42,51 @@ const MONTH_NAMES: Record<string, number> = {
 };
 
 export type BudgetMonthTarget =
-  | { kind: "single"; year: number; month: number }
+  | { kind: "single"; year: number; month: number; assumedPriorYear?: boolean }
   | { kind: "range"; startYear: number; startMonth: number; endYear: number; endMonth: number };
+
+/**
+ * Words that signal the user is asking about a future period rather than a past one.
+ * Presence of any of these means a month name that is "in the future" this year
+ * should stay in the current year, not roll back to last year.
+ */
+const FUTURE_SIGNALS =
+  /\b(?:will|next|upcoming|plan(?:ned)?|project(?:ed)?|forecast|expect(?:ed)?|anticipat(?:e|ed)|future|going\s+to|budget\s+for\s+(?:next|upcoming))\b/i;
+
+/**
+ * Infer the calendar year for a named-month reference.
+ *
+ * Pure function — no side-effects, no Date() calls — easy to unit-test independently.
+ *
+ * Rules (applied in order):
+ *  1. If an explicit year was provided, trust it exactly.
+ *  2. If the month is the current month or in the past, use currentYear.
+ *  3. If the month is in the future this year AND future-intent signals are present,
+ *     keep currentYear (the user is asking about an upcoming month).
+ *  4. If the month is in the future this year AND no future-intent signals,
+ *     fall back to currentYear-1 and set assumedPriorYear=true so the caller can
+ *     add a clarifying note to the AI context header.
+ */
+export function inferMonthYear(
+  monthNum: number,
+  currentYear: number,
+  currentMonth: number,
+  explicitYear?: number,
+  hasFutureIntent?: boolean,
+): { year: number; assumedPriorYear: boolean } {
+  if (explicitYear !== undefined) {
+    return { year: explicitYear, assumedPriorYear: false };
+  }
+  if (monthNum <= currentMonth) {
+    return { year: currentYear, assumedPriorYear: false };
+  }
+  // Month is in the future this year
+  if (hasFutureIntent) {
+    return { year: currentYear, assumedPriorYear: false };
+  }
+  // Ambiguous — default to prior year and flag it
+  return { year: currentYear - 1, assumedPriorYear: true };
+}
 
 /**
  * Detect which month(s) a budget question is referring to.
@@ -92,10 +135,12 @@ export function detectBudgetMonth(msg: string): BudgetMonthTarget | null {
   const namedMatch = lower.match(monthPattern);
   if (namedMatch) {
     const monthNum = MONTH_NAMES[namedMatch[1].toLowerCase()]!;
-    let y = namedMatch[2] ? parseInt(namedMatch[2]) : currentYear;
-    // If the named month is in the future this year, assume last year
-    if (y === currentYear && monthNum > currentMonth) y--;
-    return { kind: "single", year: y, month: monthNum };
+    const explicitYear = namedMatch[2] ? parseInt(namedMatch[2]) : undefined;
+    const hasFutureIntent = FUTURE_SIGNALS.test(msg);
+    const { year, assumedPriorYear } = inferMonthYear(
+      monthNum, currentYear, currentMonth, explicitYear, hasFutureIntent,
+    );
+    return { kind: "single", year, month: monthNum, assumedPriorYear };
   }
 
   // "this month" — explicitly current month; return null (use default)
@@ -133,9 +178,21 @@ async function fetchEntriesForRange(
     );
 }
 
-function buildMonthSummary(entries: typeof budgetEntries.$inferSelect[], label: string): string[] {
+function buildMonthSummary(
+  entries: typeof budgetEntries.$inferSelect[],
+  label: string,
+  assumedPriorYear?: boolean,
+): string[] {
+  const header = [`[Budget Context for ${label}]`];
+  if (assumedPriorYear) {
+    // Tell the AI explicitly so it can relay this to the user
+    header.push(
+      `Note: The month name was ambiguous (no year specified and the month hasn't arrived yet this year).` +
+      ` Showing ${label} (last year's data). If the user meant the upcoming month, they should specify the year or say "next".`,
+    );
+  }
   if (entries.length === 0) {
-    return [`[Budget Context for ${label}]`, `No budget entries recorded for this period.`];
+    return [...header, `No budget entries recorded for this period.`];
   }
 
   let totalIncome = 0;
@@ -153,7 +210,7 @@ function buildMonthSummary(entries: typeof budgetEntries.$inferSelect[], label: 
 
   const fmt = (n: number) => n.toFixed(2);
   const lines: string[] = [
-    `[Budget Context for ${label}]`,
+    ...header,
     `Total Income: ${fmt(totalIncome)}`,
     `Total Expenses: ${fmt(totalExpenses)}`,
     `Net Balance: ${fmt(totalIncome - totalExpenses)}`,
@@ -206,7 +263,7 @@ export async function getBudgetContext(
   if (target.kind === "single") {
     const { start, end, label } = monthDateRange(target.year, target.month);
     const entries = await fetchEntriesForRange(start, end, approvedIds);
-    return buildMonthSummary(entries, label).join("\n");
+    return buildMonthSummary(entries, label, target.assumedPriorYear).join("\n");
   }
 
   // Range: collect each month separately so the AI sees per-month breakdowns
