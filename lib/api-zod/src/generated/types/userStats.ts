@@ -10,5 +10,6 @@ export interface UserStats {
   totalConversations: number;
   totalMessages: number;
   imagesGenerated: number;
-  joinedAt: Date;
+  memoriesCount: number;
+  personasCount: number;
 }

@@ -10,4 +10,7 @@ export interface GeminiMessageInput {
   content: string;
   model?: string;
   systemPrompt?: string;
+  imageBase64?: string;
+  imageMimeType?: string;
+  reasoningMode?: boolean;
 }

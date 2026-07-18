@@ -14,9 +14,13 @@ import {
   getListModelsQueryKey,
   useListUserApiKeys,
   getListUserApiKeysQueryKey,
+  useExportConversation,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Sparkles, MoreVertical, Trash2, Edit2, Pin, ChevronDown, AlertTriangle, Bot, Mic } from "lucide-react";
+import {
+  Send, Sparkles, MoreVertical, Trash2, Edit2, Pin, ChevronDown,
+  AlertTriangle, Bot, Mic, Paperclip, X, Brain, Download, Image as ImageIcon
+} from "lucide-react";
 import { SiAnthropic, SiGoogle } from "react-icons/si";
 import { Link as WouterLink } from "wouter";
 import { cn } from "@/lib/utils";
@@ -42,14 +46,8 @@ const PROVIDER_COLORS: Record<string, string> = {
 // ─── Model Selector ───────────────────────────────────────────────────────────
 
 function ModelSelector({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  disabled: boolean;
-}) {
+  value, onChange, disabled,
+}: { value: string; onChange: (v: string) => void; disabled: boolean }) {
   const { data: models } = useListModels({ query: { queryKey: getListModelsQueryKey() } });
   const { data: apiKeys } = useListUserApiKeys({ query: { queryKey: getListUserApiKeysQueryKey() } });
   const [open, setOpen] = useState(false);
@@ -63,7 +61,6 @@ function ModelSelector({
 
   const currentModel = models?.find(m => m.id === value);
 
-  // Group models
   const groups = useMemo(() => {
     if (!models) return [];
     const providerOrder = ["gemini", "openai", "anthropic", "openrouter"];
@@ -83,10 +80,7 @@ function ModelSelector({
   }, []);
 
   const providerLabel: Record<string, string> = {
-    gemini: "Google Gemini",
-    openai: "OpenAI",
-    anthropic: "Anthropic",
-    openrouter: "OpenRouter",
+    gemini: "Google Gemini", openai: "OpenAI", anthropic: "Anthropic", openrouter: "OpenRouter",
   };
 
   return (
@@ -117,18 +111,12 @@ function ModelSelector({
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   {providerLabel[group.provider]}
                 </span>
-                {!group.available && (
-                  <span className="ml-auto text-[10px] text-muted-foreground bg-muted/20 px-1.5 py-0.5 rounded-full">Key required</span>
-                )}
+                {!group.available && <span className="ml-auto text-[10px] text-muted-foreground bg-muted/20 px-1.5 py-0.5 rounded-full">Key required</span>}
               </div>
               {group.models.map(model => (
                 <button
                   key={model.id}
-                  onClick={() => {
-                    if (!group.available) return;
-                    onChange(model.id);
-                    setOpen(false);
-                  }}
+                  onClick={() => { if (!group.available) return; onChange(model.id); setOpen(false); }}
                   disabled={!group.available}
                   data-testid={`option-model-${model.id}`}
                   className={cn(
@@ -142,19 +130,13 @@ function ModelSelector({
                     {value === model.id && <span className="text-xs text-primary">Active</span>}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{model.description}</p>
-                  {model.contextWindow && (
-                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                      {(model.contextWindow / 1000).toFixed(0)}K context
-                    </p>
-                  )}
+                  {model.contextWindow && <p className="text-[10px] text-muted-foreground/60 mt-0.5">{(model.contextWindow / 1000).toFixed(0)}K context</p>}
                 </button>
               ))}
               {!group.available && (
                 <div className="px-3 pb-2">
                   <WouterLink href="/settings">
-                    <span className="text-xs text-primary hover:underline cursor-pointer">
-                      Add {providerLabel[group.provider]} key in Settings →
-                    </span>
+                    <span className="text-xs text-primary hover:underline cursor-pointer">Add {providerLabel[group.provider]} key in Settings →</span>
                   </WouterLink>
                 </div>
               )}
@@ -166,21 +148,104 @@ function ModelSelector({
   );
 }
 
+// ─── Mermaid diagram block ─────────────────────────────────────────────────────
+
+function MermaidBlock({ code }: { code: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        // @ts-ignore
+        const mermaid = (await import("https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs" as any)).default;
+        mermaid.initialize({ startOnLoad: false, theme: "dark" });
+        const { svg } = await mermaid.render(`mermaid-${Date.now()}`, code.trim());
+        if (!cancelled && ref.current) ref.current.innerHTML = svg;
+      } catch {
+        if (!cancelled) setError(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [code]);
+
+  if (error) return <pre className="text-xs text-muted-foreground bg-black/30 rounded-lg p-3 overflow-x-auto">{code}</pre>;
+  return <div ref={ref} className="my-3 bg-black/20 rounded-xl p-3 overflow-x-auto flex justify-center" />;
+}
+
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 
-const MessageBubble = ({ role, content, isStreaming }: { role: string; content: string; isStreaming?: boolean }) => {
+function parseBlocks(content: string): Array<{ type: "text" | "mermaid" | "code"; value: string; lang?: string }> {
+  const blocks: Array<{ type: "text" | "mermaid" | "code"; value: string; lang?: string }> = [];
+  const regex = /```(\w*)\n?([\s\S]*?)```/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > last) blocks.push({ type: "text", value: content.slice(last, match.index) });
+    const lang = match[1].toLowerCase();
+    if (lang === "mermaid") {
+      blocks.push({ type: "mermaid", value: match[2] });
+    } else {
+      blocks.push({ type: "code", value: match[2], lang: match[1] });
+    }
+    last = match.index + match[0].length;
+  }
+  if (last < content.length) blocks.push({ type: "text", value: content.slice(last) });
+  return blocks;
+}
+
+function MessageContent({ content }: { content: string }) {
+  const blocks = parseBlocks(content);
+  return (
+    <>
+      {blocks.map((b, i) => {
+        if (b.type === "mermaid") return <MermaidBlock key={i} code={b.value} />;
+        if (b.type === "code") return (
+          <pre key={i} className="bg-black/50 border border-white/10 rounded-lg p-3 overflow-x-auto text-xs my-2 text-foreground/90">
+            {b.lang && <span className="text-muted-foreground text-[10px] block mb-1">{b.lang}</span>}
+            {b.value}
+          </pre>
+        );
+        return <span key={i} className="whitespace-pre-wrap">{b.value}</span>;
+      })}
+    </>
+  );
+}
+
+const MessageBubble = ({
+  role, content, imageData, isStreaming, wasReasoning,
+}: {
+  role: string; content: string; imageData?: string | null; isStreaming?: boolean; wasReasoning?: boolean;
+}) => {
   const isUser = role === "user";
   return (
     <div className={cn("flex w-full mb-6", isUser ? "justify-end" : "justify-start")}>
       <div className={cn(
-        "max-w-[85%] rounded-2xl px-5 py-4 whitespace-pre-wrap break-words leading-relaxed",
-        isUser
-          ? "bg-primary/20 text-foreground border border-primary/20"
-          : "bg-card text-card-foreground border border-border shadow-sm",
+        "max-w-[85%] rounded-2xl px-5 py-4 break-words leading-relaxed",
+        isUser ? "bg-primary/20 text-foreground border border-primary/20" : "bg-card text-card-foreground border border-border shadow-sm",
       )}>
-        {isUser ? content : (
-          <div className="prose prose-sm dark:prose-invert max-w-none text-foreground prose-p:leading-relaxed prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10">
-            {content || (isStreaming ? <span className="animate-pulse text-muted-foreground">...</span> : "")}
+        {imageData && (
+          <img
+            src={imageData}
+            alt="Attached"
+            className="max-w-full max-h-48 rounded-lg mb-3 object-contain border border-border/50"
+          />
+        )}
+        {isUser ? (
+          <span className="whitespace-pre-wrap">{content}</span>
+        ) : (
+          <div className="prose prose-sm dark:prose-invert max-w-none text-foreground prose-p:leading-relaxed">
+            {!content && isStreaming ? (
+              <span className="animate-pulse text-muted-foreground">...</span>
+            ) : (
+              <MessageContent content={content} />
+            )}
+            {wasReasoning && (
+              <div className="flex items-center gap-1.5 mt-2 text-xs text-violet-400/70">
+                <Brain className="w-3 h-3" /> Reasoning mode
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -188,7 +253,7 @@ const MessageBubble = ({ role, content, isStreaming }: { role: string; content: 
   );
 };
 
-// ─── Empty state suggestions ──────────────────────────────────────────────────
+// ─── Suggestions ──────────────────────────────────────────────────────────────
 
 const SUGGESTIONS = [
   "Explain quantum computing simply",
@@ -204,6 +269,7 @@ export default function ChatPage() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const conversationId = id ? parseInt(id) : null;
   const isNew = !conversationId;
@@ -217,7 +283,9 @@ export default function ChatPage() {
   const [editTitle, setEditTitle] = useState("");
   const [streamError, setStreamError] = useState<{ message: string; provider?: string } | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
-  // Track whether current session originated from voice so TTS fires
+  const [reasoningMode, setReasoningMode] = useState(false);
+  const [attachedImage, setAttachedImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
   const voiceSessionRef = useRef(false);
 
   const { data: profile } = useGetUserProfile({ query: { queryKey: getGetUserProfileQueryKey() } });
@@ -238,25 +306,63 @@ export default function ChatPage() {
     handleSendVoice(text);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const voice = useVoiceAgent({
-    onTranscript: handleVoiceTranscript,
-    wakeWords: ["hey lumina", "lumina"],
-  });
+  const voice = useVoiceAgent({ onTranscript: handleVoiceTranscript, wakeWords: ["hey lumina", "lumina"] });
 
-  const handleOpenVoice = () => {
-    setVoiceOpen(true);
-    voice.toggleWake(); // enter wake mode
-  };
-
+  const handleOpenVoice = () => { setVoiceOpen(true); voice.toggleWake(); };
   const handleCloseVoice = () => {
-    voice.stopListening();
-    voice.stopSpeaking();
-    // Fully disable: if currently in wake/listening/speaking, reset to idle
-    setVoiceOpen(false);
-    voiceSessionRef.current = false;
+    voice.stopListening(); voice.stopSpeaking();
+    setVoiceOpen(false); voiceSessionRef.current = false;
   };
 
-  // ─── Shared send logic (used by text + voice) ──────────────────────────
+  // ── Image attachment ──────────────────────────────────────────────────
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const preview = URL.createObjectURL(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      const [header, base64] = dataUrl.split(",");
+      const mimeType = header.match(/:(.*?);/)?.[1] ?? "image/jpeg";
+      setAttachedImage({ base64, mimeType, preview });
+    };
+    reader.readAsDataURL(file);
+    // reset so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const removeAttachment = () => {
+    if (attachedImage) URL.revokeObjectURL(attachedImage.preview);
+    setAttachedImage(null);
+  };
+
+  // ── Export ────────────────────────────────────────────────────────────
+
+  const handleExport = async () => {
+    if (!conversationId) return;
+    setExportLoading(true);
+    setShowOptions(false);
+    try {
+      const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const resp = await fetch(`${basePath}/api/gemini/conversations/${conversationId}/export`, {
+        credentials: "include",
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const blob = new Blob([data.markdown], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${data.title.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  // ─── Shared send logic ──────────────────────────────────────────────────
 
   const handleSendCore = async (msg: string, fromVoice = false) => {
     if (!msg || isStreaming) return;
@@ -277,7 +383,9 @@ export default function ChatPage() {
       }
     }
 
+    const imageToSend = attachedImage;
     setInput("");
+    setAttachedImage(null);
     setIsStreaming(true);
     setStreamingContent("");
 
@@ -285,7 +393,11 @@ export default function ChatPage() {
     if (capturedConvId && messages) {
       queryClient.setQueryData(getListGeminiMessagesQueryKey(capturedConvId), [
         ...messages,
-        { id: Date.now(), conversationId: capturedConvId, role: "user", content: msg, imageData: null, createdAt: new Date().toISOString() },
+        {
+          id: Date.now(), conversationId: capturedConvId, role: "user", content: msg,
+          imageData: imageToSend ? `data:${imageToSend.mimeType};base64,${imageToSend.base64}` : null,
+          createdAt: new Date().toISOString(),
+        },
       ]);
     }
 
@@ -293,16 +405,26 @@ export default function ChatPage() {
 
     try {
       const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const body: Record<string, unknown> = {
+        content: msg, model,
+        systemPrompt: profile?.systemPrompt || undefined,
+        reasoningMode,
+      };
+      if (imageToSend) {
+        body.imageBase64 = imageToSend.base64;
+        body.imageMimeType = imageToSend.mimeType;
+      }
+
       const response = await fetch(`${basePath}/api/gemini/conversations/${targetConvId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: msg, model, systemPrompt: profile?.systemPrompt || undefined }),
+        body: JSON.stringify(body),
         credentials: "include",
       });
 
       if (response.status === 402) {
-        const body = await response.json();
-        setStreamError({ message: body.error, provider: body.provider });
+        const b = await response.json();
+        setStreamError({ message: b.error, provider: b.provider });
         setIsStreaming(false);
         if (fromVoice) voice.setThinking(false);
         return;
@@ -326,10 +448,7 @@ export default function ChatPage() {
               const data = JSON.parse(line.slice(6));
               if (data.done) break;
               if (data.error) setStreamError({ message: data.error });
-              if (data.content) {
-                fullResponse += data.content;
-                setStreamingContent(prev => prev + data.content);
-              }
+              if (data.content) { fullResponse += data.content; setStreamingContent(prev => prev + data.content); }
             } catch { /* ignore */ }
           }
         }
@@ -345,7 +464,6 @@ export default function ChatPage() {
         queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
         if (!capturedConvId) setLocation(`/chat/${targetConvId}`);
       }
-      // Speak response if triggered by voice
       if (fromVoice && fullResponse && voiceSessionRef.current) {
         voice.speak(fullResponse);
       } else if (fromVoice) {
@@ -354,30 +472,12 @@ export default function ChatPage() {
     }
   };
 
-  // Public send from text input
-  const handleSend = (text?: string) => {
-    const msg = (text ?? input).trim();
-    handleSendCore(msg, false);
-  };
+  const handleSend = (text?: string) => handleSendCore((text ?? input).trim(), false);
+  const handleSendVoice = (text: string) => handleSendCore(text.trim(), true);
 
-  // Send triggered by voice transcript (marks voice session)
-  const handleSendVoice = (text: string) => {
-    handleSendCore(text.trim(), true);
-  };
-
-  // ──────────────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (profile?.preferredModel && isNew) setModel(profile.preferredModel);
-  }, [profile, isNew]);
-
-  useEffect(() => {
-    if (conversation) setEditTitle(conversation.title);
-  }, [conversation]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingContent]);
+  useEffect(() => { if (profile?.preferredModel && isNew) setModel(profile.preferredModel); }, [profile, isNew]);
+  useEffect(() => { if (conversation) setEditTitle(conversation.title); }, [conversation]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streamingContent]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -410,14 +510,8 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full w-full">
-      {/* Voice orb overlay */}
       {voiceOpen && (
-        <VoiceOrb
-          state={voice.state}
-          interimText={voice.interimText}
-          onClose={handleCloseVoice}
-          onStopSpeaking={voice.stopSpeaking}
-        />
+        <VoiceOrb state={voice.state} interimText={voice.interimText} onClose={handleCloseVoice} onStopSpeaking={voice.stopSpeaking} />
       )}
 
       {/* Header */}
@@ -451,12 +545,15 @@ export default function ChatPage() {
               <MoreVertical className="w-4 h-4" />
             </button>
             {showOptions && (
-              <div className="absolute right-0 mt-1 w-48 bg-popover border border-popover-border rounded-xl shadow-xl py-1 z-50 animate-in fade-in zoom-in duration-200">
+              <div className="absolute right-0 mt-1 w-52 bg-popover border border-popover-border rounded-xl shadow-xl py-1 z-50 animate-in fade-in zoom-in duration-200">
                 <button onClick={togglePin} className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-accent flex items-center gap-2">
                   <Pin className="w-4 h-4" /> {conversation.pinned ? "Unpin" : "Pin to sidebar"}
                 </button>
                 <button onClick={() => { setIsEditingTitle(true); setShowOptions(false); }} className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-accent flex items-center gap-2">
                   <Edit2 className="w-4 h-4" /> Rename
+                </button>
+                <button onClick={handleExport} disabled={exportLoading} className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-accent flex items-center gap-2">
+                  <Download className="w-4 h-4" /> {exportLoading ? "Exporting..." : "Export as Markdown"}
                 </button>
                 <button onClick={handleDelete} className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-destructive/10 flex items-center gap-2">
                   <Trash2 className="w-4 h-4" /> Delete
@@ -495,10 +592,20 @@ export default function ChatPage() {
 
         <div className="max-w-3xl mx-auto">
           {messages?.map(msg => (
-            <MessageBubble key={msg.id} role={msg.role} content={msg.content} />
+            <MessageBubble
+              key={msg.id}
+              role={msg.role}
+              content={msg.content}
+              imageData={msg.imageData}
+            />
           ))}
           {isStreaming && (
-            <MessageBubble role="assistant" content={streamingContent} isStreaming={!streamingContent} />
+            <MessageBubble
+              role="assistant"
+              content={streamingContent}
+              isStreaming={!streamingContent}
+              wasReasoning={reasoningMode}
+            />
           )}
 
           {/* Error banner */}
@@ -526,6 +633,22 @@ export default function ChatPage() {
       {/* Input bar */}
       <div className="shrink-0 px-4 md:px-8 pb-6 pt-2">
         <div className="max-w-3xl mx-auto">
+          {/* Image attachment preview */}
+          {attachedImage && (
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <div className="relative">
+                <img src={attachedImage.preview} alt="Attachment" className="h-14 w-14 rounded-lg object-cover border border-border/50" />
+                <button
+                  onClick={removeAttachment}
+                  className="absolute -top-1.5 -right-1.5 bg-background border border-border rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+              <span className="text-xs text-muted-foreground">Image attached</span>
+            </div>
+          )}
+
           <form
             onSubmit={e => { e.preventDefault(); handleSend(); }}
             className="relative bg-card/80 backdrop-blur-sm border border-border/60 rounded-2xl shadow-lg focus-within:border-primary/50 focus-within:shadow-primary/10 focus-within:shadow-lg transition-all"
@@ -547,9 +670,49 @@ export default function ChatPage() {
               }}
             />
             <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between">
-              <ModelSelector value={model} onChange={setModel} disabled={isStreaming} />
+              {/* Left: model selector + reasoning toggle */}
               <div className="flex items-center gap-2">
-                {/* Mic / voice button */}
+                <ModelSelector value={model} onChange={setModel} disabled={isStreaming} />
+                <button
+                  type="button"
+                  onClick={() => setReasoningMode(r => !r)}
+                  title={reasoningMode ? "Reasoning mode on" : "Enable reasoning mode"}
+                  className={cn(
+                    "flex items-center gap-1 text-xs rounded-lg px-2 py-1.5 transition-colors border",
+                    reasoningMode
+                      ? "bg-violet-500/20 border-violet-500/40 text-violet-400"
+                      : "bg-muted/20 border-border/30 text-muted-foreground hover:text-foreground hover:border-violet-500/30"
+                  )}
+                >
+                  <Brain className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{reasoningMode ? "Reasoning" : "Reason"}</span>
+                </button>
+              </div>
+
+              {/* Right: attach + mic + send */}
+              <div className="flex items-center gap-2">
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Attach image"
+                  className={cn(
+                    "flex items-center justify-center w-9 h-9 rounded-xl border transition-all",
+                    attachedImage
+                      ? "bg-primary/20 border-primary/50 text-primary"
+                      : "bg-muted/30 border-border/40 text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/10"
+                  )}
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+
                 {voice.isSupported && (
                   <button
                     type="button"
@@ -568,7 +731,7 @@ export default function ChatPage() {
                 )}
                 <button
                   type="submit"
-                  disabled={!input.trim() || isStreaming}
+                  disabled={(!input.trim() && !attachedImage) || isStreaming}
                   data-testid="button-send-message"
                   className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >

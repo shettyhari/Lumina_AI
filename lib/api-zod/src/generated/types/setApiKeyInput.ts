@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
-  timestamp: string;
+export interface SetApiKeyInput {
+  provider: string;
+  key: string;
 }

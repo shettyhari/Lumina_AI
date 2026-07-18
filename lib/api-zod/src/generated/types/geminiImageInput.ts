@@ -8,4 +8,6 @@
 
 export interface GeminiImageInput {
   prompt: string;
+  style?: string;
+  aspectRatio?: string;
 }

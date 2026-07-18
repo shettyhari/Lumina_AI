@@ -13,7 +13,8 @@ import * as zod from 'zod';
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
-  "status": zod.string()
+  "status": zod.string(),
+  "timestamp": zod.string()
 })
 
 
@@ -27,7 +28,9 @@ export const GetUserProfileResponse = zod.object({
   "preferredModel": zod.string(),
   "systemPrompt": zod.string().nullish(),
   "theme": zod.string(),
-  "createdAt": zod.coerce.date()
+  "imagesGenerated": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
 
 
@@ -48,7 +51,9 @@ export const UpdateUserProfileResponse = zod.object({
   "preferredModel": zod.string(),
   "systemPrompt": zod.string().nullish(),
   "theme": zod.string(),
-  "createdAt": zod.coerce.date()
+  "imagesGenerated": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
 
 
@@ -59,12 +64,49 @@ export const GetUserStatsResponse = zod.object({
   "totalConversations": zod.number(),
   "totalMessages": zod.number(),
   "imagesGenerated": zod.number(),
-  "joinedAt": zod.coerce.date()
+  "memoriesCount": zod.number(),
+  "personasCount": zod.number()
 })
 
 
 /**
- * @summary List all conversations
+ * @summary List configured API key providers (keys are masked)
+ */
+export const ListUserApiKeysResponseItem = zod.object({
+  "provider": zod.string(),
+  "maskedKey": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListUserApiKeysResponse = zod.array(ListUserApiKeysResponseItem)
+
+
+/**
+ * @summary Set API key for a provider
+ */
+export const SetUserApiKeyBody = zod.object({
+  "provider": zod.string(),
+  "key": zod.string()
+})
+
+export const SetUserApiKeyResponse = zod.object({
+  "provider": zod.string(),
+  "maskedKey": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete API key for a provider
+ */
+export const DeleteUserApiKeyParams = zod.object({
+  "provider": zod.coerce.string()
+})
+
+export const DeleteUserApiKeyResponse = zod.void()
+
+
+/**
+ * @summary List all conversations for the authenticated user
  */
 export const ListGeminiConversationsResponseItem = zod.object({
   "id": zod.number(),
@@ -95,7 +137,7 @@ export const CreateGeminiConversationResponse = zod.object({
 
 
 /**
- * @summary Get conversation with messages
+ * @summary Get conversation by ID with messages
  */
 export const GetGeminiConversationParams = zod.object({
   "id": zod.coerce.number()
@@ -120,7 +162,7 @@ export const GetGeminiConversationResponse = zod.object({
 
 
 /**
- * @summary Update conversation (rename, pin, etc.)
+ * @summary Update a conversation (title, pinned)
  */
 export const UpdateGeminiConversationParams = zod.object({
   "id": zod.coerce.number()
@@ -170,7 +212,7 @@ export const ListGeminiMessagesResponse = zod.array(ListGeminiMessagesResponseIt
 
 
 /**
- * @summary Send a message and receive an AI response (SSE stream)
+ * @summary Send a message and receive streaming AI response
  */
 export const SendGeminiMessageParams = zod.object({
   "id": zod.coerce.number()
@@ -179,17 +221,36 @@ export const SendGeminiMessageParams = zod.object({
 export const SendGeminiMessageBody = zod.object({
   "content": zod.string(),
   "model": zod.string().optional(),
-  "systemPrompt": zod.string().optional()
+  "systemPrompt": zod.string().optional(),
+  "imageBase64": zod.string().optional(),
+  "imageMimeType": zod.string().optional(),
+  "reasoningMode": zod.boolean().optional()
 })
 
 export const SendGeminiMessageResponse = zod.unknown()
 
 
 /**
+ * @summary Export conversation as Markdown
+ */
+export const ExportConversationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ExportConversationResponse = zod.object({
+  "title": zod.string(),
+  "markdown": zod.string(),
+  "exportedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Generate an image from a text prompt
  */
 export const GenerateGeminiImageBody = zod.object({
-  "prompt": zod.string()
+  "prompt": zod.string(),
+  "style": zod.string().optional(),
+  "aspectRatio": zod.string().optional()
 })
 
 export const GenerateGeminiImageResponse = zod.object({
@@ -227,6 +288,16 @@ export const GetPinnedConversationsResponse = zod.array(GetPinnedConversationsRe
 
 
 /**
+ * @summary Get AI-generated daily digest from recent conversations
+ */
+export const GetAiDigestResponse = zod.object({
+  "summary": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "conversationCount": zod.number()
+})
+
+
+/**
  * @summary List all available AI models with provider info
  */
 export const ListModelsResponseItem = zod.object({
@@ -242,41 +313,108 @@ export const ListModelsResponse = zod.array(ListModelsResponseItem)
 
 
 /**
- * @summary List configured API key providers (keys are masked)
+ * @summary List all AI memories for the user
  */
-export const ListUserApiKeysResponseItem = zod.object({
-  "provider": zod.string(),
-  "maskedKey": zod.string(),
+export const ListAiMemoriesResponseItem = zod.object({
+  "id": zod.number(),
+  "content": zod.string(),
   "createdAt": zod.coerce.date()
 })
-export const ListUserApiKeysResponse = zod.array(ListUserApiKeysResponseItem)
+export const ListAiMemoriesResponse = zod.array(ListAiMemoriesResponseItem)
 
 
 /**
- * @summary Save or update an API key for a provider
+ * @summary Create a new AI memory
  */
-export const UpsertUserApiKeyParams = zod.object({
-  "provider": zod.coerce.string()
+export const CreateAiMemoryBody = zod.object({
+  "content": zod.string()
 })
 
-export const UpsertUserApiKeyBody = zod.object({
-  "key": zod.string()
-})
-
-export const UpsertUserApiKeyResponse = zod.object({
-  "provider": zod.string(),
-  "maskedKey": zod.string(),
+export const CreateAiMemoryResponse = zod.object({
+  "id": zod.number(),
+  "content": zod.string(),
   "createdAt": zod.coerce.date()
 })
 
 
 /**
- * @summary Remove an API key for a provider
+ * @summary Delete an AI memory
  */
-export const DeleteUserApiKeyParams = zod.object({
-  "provider": zod.coerce.string()
+export const DeleteAiMemoryParams = zod.object({
+  "id": zod.coerce.number()
 })
 
-export const DeleteUserApiKeyResponse = zod.void()
+export const DeleteAiMemoryResponse = zod.void()
+
+
+/**
+ * @summary List AI personas for the user
+ */
+export const ListAiPersonasResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "emoji": zod.string(),
+  "systemPrompt": zod.string(),
+  "isDefault": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListAiPersonasResponse = zod.array(ListAiPersonasResponseItem)
+
+
+/**
+ * @summary Create a new AI persona
+ */
+export const CreateAiPersonaBody = zod.object({
+  "name": zod.string(),
+  "emoji": zod.string().optional(),
+  "systemPrompt": zod.string(),
+  "isDefault": zod.boolean().optional()
+})
+
+export const CreateAiPersonaResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "emoji": zod.string(),
+  "systemPrompt": zod.string(),
+  "isDefault": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update an AI persona
+ */
+export const UpdateAiPersonaParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateAiPersonaBody = zod.object({
+  "name": zod.string().optional(),
+  "emoji": zod.string().optional(),
+  "systemPrompt": zod.string().optional(),
+  "isDefault": zod.boolean().optional()
+})
+
+export const UpdateAiPersonaResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "emoji": zod.string(),
+  "systemPrompt": zod.string(),
+  "isDefault": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete an AI persona
+ */
+export const DeleteAiPersonaParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteAiPersonaResponse = zod.void()
 
 

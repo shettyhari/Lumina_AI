@@ -7,6 +7,7 @@
  */
 export interface HealthStatus {
   status: string;
+  timestamp: string;
 }
 
 export interface ApiError {
@@ -22,7 +23,9 @@ export interface UserProfile {
   /** @nullable */
   systemPrompt?: string | null;
   theme: string;
+  imagesGenerated: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface UserProfileUpdate {
@@ -36,7 +39,8 @@ export interface UserStats {
   totalConversations: number;
   totalMessages: number;
   imagesGenerated: number;
-  joinedAt: string;
+  memoriesCount: number;
+  personasCount: number;
 }
 
 export interface GeminiConversation {
@@ -71,6 +75,9 @@ export interface GeminiMessageInput {
   content: string;
   model?: string;
   systemPrompt?: string;
+  imageBase64?: string;
+  imageMimeType?: string;
+  reasoningMode?: boolean;
 }
 
 export interface GeminiConversationWithMessages {
@@ -85,6 +92,8 @@ export interface GeminiConversationWithMessages {
 
 export interface GeminiImageInput {
   prompt: string;
+  style?: string;
+  aspectRatio?: string;
 }
 
 export interface GeminiImageOutput {
@@ -100,6 +109,18 @@ export interface ConversationActivity {
   lastMessage?: string | null;
   messageCount: number;
   updatedAt: string;
+}
+
+export interface ConversationExport {
+  title: string;
+  markdown: string;
+  exportedAt: string;
+}
+
+export interface AiDigest {
+  summary: string;
+  generatedAt: string;
+  conversationCount: number;
 }
 
 export interface ModelInfo {
@@ -121,5 +142,44 @@ export interface UserApiKeyEntry {
 
 export interface ApiKeyInput {
   key: string;
+}
+
+export interface SetApiKeyInput {
+  provider: string;
+  key: string;
+}
+
+export interface AiMemory {
+  id: number;
+  content: string;
+  createdAt: string;
+}
+
+export interface AiMemoryInput {
+  content: string;
+}
+
+export interface AiPersona {
+  id: number;
+  name: string;
+  emoji: string;
+  systemPrompt: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiPersonaInput {
+  name: string;
+  emoji?: string;
+  systemPrompt: string;
+  isDefault?: boolean;
+}
+
+export interface AiPersonaUpdate {
+  name?: string;
+  emoji?: string;
+  systemPrompt?: string;
+  isDefault?: boolean;
 }
 

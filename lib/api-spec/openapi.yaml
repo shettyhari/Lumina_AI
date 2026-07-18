@@ -16,6 +16,8 @@ tags:
     description: Conversation management
   - name: user
     description: User profile and preferences
+  - name: ai
+    description: AI memory and personas
 paths:
   /healthz:
     get:
@@ -80,23 +82,72 @@ paths:
       summary: Get user activity statistics
       responses:
         "200":
-          description: User stats
+          description: User statistics
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserStats"
         "401":
           description: Unauthorized
+
+  /user/api-keys:
+    get:
+      operationId: listUserApiKeys
+      tags: [user]
+      summary: List configured API key providers (keys are masked)
+      responses:
+        "200":
+          description: List of configured providers
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserApiKeyEntry"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: setUserApiKey
+      tags: [user]
+      summary: Set API key for a provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetApiKeyInput"
+      responses:
+        "200":
+          description: Key saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserApiKeyEntry"
+        "401":
+          description: Unauthorized
+
+  /user/api-keys/{provider}:
+    delete:
+      operationId: deleteUserApiKey
+      tags: [user]
+      summary: Delete API key for a provider
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
 
   /gemini/conversations:
     get:
       operationId: listGeminiConversations
       tags: [gemini]
-      summary: List all conversations
+      summary: List all conversations for the authenticated user
       responses:
         "200":
           description: List of conversations
@@ -106,6 +157,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/GeminiConversation"
+        "401":
+          description: Unauthorized
     post:
       operationId: createGeminiConversation
       tags: [gemini]
@@ -123,12 +176,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GeminiConversation"
+        "401":
+          description: Unauthorized
 
   /gemini/conversations/{id}:
     get:
       operationId: getGeminiConversation
       tags: [gemini]
-      summary: Get conversation with messages
+      summary: Get conversation by ID with messages
       parameters:
         - name: id
           in: path
@@ -144,14 +199,10 @@ paths:
                 $ref: "#/components/schemas/GeminiConversationWithMessages"
         "404":
           description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
     patch:
       operationId: updateGeminiConversation
       tags: [gemini]
-      summary: Update conversation (rename, pin, etc.)
+      summary: Update a conversation (title, pinned)
       parameters:
         - name: id
           in: path
@@ -173,10 +224,6 @@ paths:
                 $ref: "#/components/schemas/GeminiConversation"
         "404":
           description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
     delete:
       operationId: deleteGeminiConversation
       tags: [gemini]
@@ -190,12 +237,6 @@ paths:
       responses:
         "204":
           description: Deleted
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
 
   /gemini/conversations/{id}/messages:
     get:
@@ -210,7 +251,7 @@ paths:
             type: integer
       responses:
         "200":
-          description: List of messages
+          description: Messages list
           content:
             application/json:
               schema:
@@ -220,7 +261,7 @@ paths:
     post:
       operationId: sendGeminiMessage
       tags: [gemini]
-      summary: Send a message and receive an AI response (SSE stream)
+      summary: Send a message and receive streaming AI response
       parameters:
         - name: id
           in: path
@@ -235,9 +276,30 @@ paths:
               $ref: "#/components/schemas/GeminiMessageInput"
       responses:
         "200":
-          description: SSE stream of assistant response chunks
+          description: Streaming response (text/event-stream)
           content:
             text/event-stream: {}
+
+  /gemini/conversations/{id}/export:
+    get:
+      operationId: exportConversation
+      tags: [gemini]
+      summary: Export conversation as Markdown
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Markdown export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationExport"
+        "404":
+          description: Not found
 
   /gemini/generate-image:
     post:
@@ -288,6 +350,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/GeminiConversation"
 
+  /gemini/digest:
+    get:
+      operationId: getAiDigest
+      tags: [gemini]
+      summary: Get AI-generated daily digest from recent conversations
+      responses:
+        "200":
+          description: Daily digest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiDigest"
+        "401":
+          description: Unauthorized
+
   /models:
     get:
       operationId: listModels
@@ -303,76 +380,136 @@ paths:
                 items:
                   $ref: "#/components/schemas/ModelInfo"
 
-  /user/api-keys:
+  /ai/memories:
     get:
-      operationId: listUserApiKeys
-      tags: [user]
-      summary: List configured API key providers (keys are masked)
+      operationId: listAiMemories
+      tags: [ai]
+      summary: List all AI memories for the user
       responses:
         "200":
-          description: List of configured providers
+          description: List of memories
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/UserApiKeyEntry"
+                  $ref: "#/components/schemas/AiMemory"
         "401":
           description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-
-  /user/api-keys/{provider}:
-    put:
-      operationId: upsertUserApiKey
-      tags: [user]
-      summary: Save or update an API key for a provider
-      parameters:
-        - name: provider
-          in: path
-          required: true
-          schema:
-            type: string
+    post:
+      operationId: createAiMemory
+      tags: [ai]
+      summary: Create a new AI memory
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ApiKeyInput"
+              $ref: "#/components/schemas/AiMemoryInput"
       responses:
-        "200":
-          description: Saved
+        "201":
+          description: Created memory
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserApiKeyEntry"
+                $ref: "#/components/schemas/AiMemory"
         "401":
           description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
+
+  /ai/memories/{id}:
     delete:
-      operationId: deleteUserApiKey
-      tags: [user]
-      summary: Remove an API key for a provider
+      operationId: deleteAiMemory
+      tags: [ai]
+      summary: Delete an AI memory
       parameters:
-        - name: provider
+        - name: id
           in: path
           required: true
           schema:
-            type: string
+            type: integer
       responses:
         "204":
           description: Deleted
         "401":
           description: Unauthorized
+
+  /ai/personas:
+    get:
+      operationId: listAiPersonas
+      tags: [ai]
+      summary: List AI personas for the user
+      responses:
+        "200":
+          description: List of personas
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                type: array
+                items:
+                  $ref: "#/components/schemas/AiPersona"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createAiPersona
+      tags: [ai]
+      summary: Create a new AI persona
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiPersonaInput"
+      responses:
+        "201":
+          description: Created persona
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiPersona"
+        "401":
+          description: Unauthorized
+
+  /ai/personas/{id}:
+    patch:
+      operationId: updateAiPersona
+      tags: [ai]
+      summary: Update an AI persona
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiPersonaUpdate"
+      responses:
+        "200":
+          description: Updated persona
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiPersona"
+        "401":
+          description: Unauthorized
+    delete:
+      operationId: deleteAiPersona
+      tags: [ai]
+      summary: Delete an AI persona
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
 
 components:
   schemas:
@@ -381,8 +518,11 @@ components:
       properties:
         status:
           type: string
+        timestamp:
+          type: string
       required:
         - status
+        - timestamp
 
     ApiError:
       type: object
@@ -407,7 +547,12 @@ components:
           type: ["string", "null"]
         theme:
           type: string
+        imagesGenerated:
+          type: integer
         createdAt:
+          type: string
+          format: date-time
+        updatedAt:
           type: string
           format: date-time
       required:
@@ -415,7 +560,9 @@ components:
         - clerkUserId
         - preferredModel
         - theme
+        - imagesGenerated
         - createdAt
+        - updatedAt
 
     UserProfileUpdate:
       type: object
@@ -438,14 +585,16 @@ components:
           type: integer
         imagesGenerated:
           type: integer
-        joinedAt:
-          type: string
-          format: date-time
+        memoriesCount:
+          type: integer
+        personasCount:
+          type: integer
       required:
         - totalConversations
         - totalMessages
         - imagesGenerated
-        - joinedAt
+        - memoriesCount
+        - personasCount
 
     GeminiConversation:
       type: object
@@ -520,6 +669,12 @@ components:
           type: string
         systemPrompt:
           type: string
+        imageBase64:
+          type: string
+        imageMimeType:
+          type: string
+        reasoningMode:
+          type: boolean
       required:
         - content
 
@@ -558,6 +713,10 @@ components:
       properties:
         prompt:
           type: string
+        style:
+          type: string
+        aspectRatio:
+          type: string
       required:
         - prompt
 
@@ -594,6 +753,36 @@ components:
         - pinned
         - messageCount
         - updatedAt
+
+    ConversationExport:
+      type: object
+      properties:
+        title:
+          type: string
+        markdown:
+          type: string
+        exportedAt:
+          type: string
+          format: date-time
+      required:
+        - title
+        - markdown
+        - exportedAt
+
+    AiDigest:
+      type: object
+      properties:
+        summary:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        conversationCount:
+          type: integer
+      required:
+        - summary
+        - generatedAt
+        - conversationCount
 
     ModelInfo:
       type: object
@@ -642,3 +831,92 @@ components:
           type: string
       required:
         - key
+
+    SetApiKeyInput:
+      type: object
+      properties:
+        provider:
+          type: string
+        key:
+          type: string
+      required:
+        - provider
+        - key
+
+    AiMemory:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - content
+        - createdAt
+
+    AiMemoryInput:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    AiPersona:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        emoji:
+          type: string
+        systemPrompt:
+          type: string
+        isDefault:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - emoji
+        - systemPrompt
+        - isDefault
+        - createdAt
+        - updatedAt
+
+    AiPersonaInput:
+      type: object
+      properties:
+        name:
+          type: string
+        emoji:
+          type: string
+        systemPrompt:
+          type: string
+        isDefault:
+          type: boolean
+      required:
+        - name
+        - systemPrompt
+
+    AiPersonaUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        emoji:
+          type: string
+        systemPrompt:
+          type: string
+        isDefault:
+          type: boolean

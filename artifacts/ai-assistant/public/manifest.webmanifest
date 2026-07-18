@@ -1,0 +1,34 @@
+{
+  "name": "Lumina AI",
+  "short_name": "Lumina",
+  "description": "Your personal AI assistant — chat, image generation, voice, memory, and more.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0c1120",
+  "theme_color": "#5b4fff",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "New Chat",
+      "short_name": "Chat",
+      "url": "./chat",
+      "icons": [{ "src": "logo.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Image Generation",
+      "short_name": "Images",
+      "url": "./image-gen",
+      "icons": [{ "src": "logo.svg", "sizes": "any" }]
+    }
+  ]
+}

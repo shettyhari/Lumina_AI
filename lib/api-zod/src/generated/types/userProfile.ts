@@ -15,5 +15,7 @@ export interface UserProfile {
   /** @nullable */
   systemPrompt?: string | null;
   theme: string;
+  imagesGenerated: number;
   createdAt: Date;
+  updatedAt: Date;
 }

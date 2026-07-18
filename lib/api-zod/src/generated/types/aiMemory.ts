@@ -6,7 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
-  timestamp: string;
+export interface AiMemory {
+  id: number;
+  content: string;
+  createdAt: Date;
 }

@@ -1,38 +1,46 @@
 ---
 name: Multi-LLM Provider Architecture
-description: How multiple LLM providers (Gemini, OpenAI, Anthropic, OpenRouter) are integrated with per-user encrypted API keys
+description: Per-user encrypted keys, provider routing by model ID prefix, 402 before SSE headers, icon pitfalls, schema naming conventions
 ---
 
-## Provider Routing
+## Provider routing
+- `gemini-*` → built-in Gemini via `@workspace/integrations-gemini-ai`
+- `gpt-*` → OpenAI (user API key required)
+- `claude-*` → Anthropic (user API key required)
+- `openrouter/*` → OpenRouter (user API key required)
+- If paid provider and no key: return HTTP 402 JSON **before** setting SSE headers
 
-`artifacts/api-server/src/lib/modelRegistry.ts` defines all supported models. The provider is detected by model ID prefix:
-- `gemini-*` → Gemini (built-in, uses Replit AI Integrations proxy — no user key needed)
-- `gpt-*` / `o1` / `o3-*` → OpenAI (requires user key)
-- `claude-*` → Anthropic (requires user key)
-- `openrouter/*` → OpenRouter (requires user key, strip `openrouter/` prefix before calling API)
+## Image generation
+- Correct model: `"gemini-2.0-flash-preview-image-generation"` (NOT `"gemini-2.5-flash-image"`)
+- Uses `Modality.TEXT` + `Modality.IMAGE` response modalities
 
-OpenRouter uses the OpenAI SDK with `baseURL: "https://openrouter.ai/api/v1"`.
+## API key storage
+- AES-256-GCM encryption via `artifacts/api-server/src/lib/crypto.ts`
+- Endpoint: `POST /api/user/api-keys` with body `{ provider, key }` (changed from `PUT /user/api-keys/:provider`)
+- Schema names after codegen: `SetUserApiKeyBody`, `SetUserApiKeyResponse` (NOT `Upsert*`)
 
-**Why:** Keeps model routing centralized and extensible — add a new model by adding one entry to MODELS array.
+## Frontend icons
+- `SiOpenai` does NOT exist in react-icons v5 → use `Bot` from lucide-react
+- `SiAnthropic`, `SiGoogle` do exist in react-icons v5
 
-**How to apply:** Any new model must be added to `modelRegistry.ts`. Frontend reads from `/api/models` endpoint so no frontend changes needed.
+## API server build
+- Uses esbuild bundler — cannot import `zod` or `zod/v4` directly in route files
+- All schema validation must use `@workspace/api-zod` schemas or inline plain JS validation
+- Zod schemas in routes cause "Could not resolve" build errors
 
-## API Key Storage
+## Codegen
+- OpenAPI spec lives in `lib/api-spec/openapi.yaml`
+- Run codegen: `cd lib/api-spec && pnpm run codegen`
+- Generates both `@workspace/api-zod` (Zod schemas) and `@workspace/api-client-react` (React Query hooks)
+- After codegen, route imports must match newly generated schema names exactly
 
-`lib/db/src/schema/userApiKeys.ts` — table `user_api_keys` with `(clerk_user_id, provider, encrypted_key)`.
+## Memory + Persona injection
+- AI memories injected into every chat's system prompt server-side (backend handles it)
+- Active persona's systemPrompt is the base; memories appended as `[User Memory]\n1. ...`
+- DB tables: `ai_memories` (clerkUserId, content), `ai_personas` (clerkUserId, name, emoji, systemPrompt, isDefault)
 
-Keys are AES-256-GCM encrypted using `SESSION_SECRET` via `artifacts/api-server/src/lib/crypto.ts`. The derived key uses `scryptSync` with a static salt `"lumina-api-keys-salt-v1"`.
+## Vision (image in chat)
+- Frontend: FileReader converts image → base64; POST sends `imageBase64` (bare base64, no prefix) + `imageMimeType`
+- Backend: reassembles `data:<mime>;base64,<data>` for storage; passes `inlineData` to Gemini API
 
-**Why:** Keys are user data (they paid for them), must be encrypted at rest, and must be retrievable (not hashed) since we need to pass them to the provider SDK.
-
-**How to apply:** Always use `encryptApiKey`/`decryptApiKey` from `crypto.ts`. Never store plaintext keys. The `SESSION_SECRET` env var must be set for this to work.
-
-## Streaming Error for Missing Keys
-
-When a user tries to use a non-Gemini model without an API key, the backend returns HTTP 402 (not SSE) before setting SSE headers. Frontend checks `response.status === 402` before reading the stream body, shows an inline error banner with a link to Settings.
-
-**Why:** SSE can't carry HTTP error codes after the stream opens. The 402 check must happen before `setHeader("Content-Type", "text/event-stream")`.
-
-## react-icons Icon Names
-
-In react-icons v5, `SiOpenai` does NOT exist. Use `Bot` from lucide-react instead. Available SI icons for providers: `SiGoogle`, `SiAnthropic`, `SiOpenrouter`.
+**Why:** Gemini's native image input requires `inlineData` format; OpenAI uses `image_url` with full data URL

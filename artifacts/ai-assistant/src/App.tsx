@@ -11,6 +11,8 @@ import ChatPage from "./pages/chat";
 import ImageGenPage from "./pages/image-gen";
 import DashboardPage from "./pages/dashboard";
 import SettingsPage from "./pages/settings";
+import MemoryPage from "./pages/memory";
+import PersonasPage from "./pages/personas";
 import Layout from "./components/layout";
 
 const clerkPubKey = publishableKeyFromHost(
@@ -103,10 +105,7 @@ function ClerkQueryClientCacheInvalidator() {
   useEffect(() => {
     const unsubscribe = addListener(({ user }) => {
       const userId = user?.id ?? null;
-      if (
-        prevUserIdRef.current !== undefined &&
-        prevUserIdRef.current !== userId
-      ) {
+      if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) {
         queryClientInstance.clear();
       }
       prevUserIdRef.current = userId;
@@ -120,12 +119,8 @@ function ClerkQueryClientCacheInvalidator() {
 function HomeRedirect() {
   return (
     <>
-      <Show when="signed-in">
-        <Redirect to="/chat" />
-      </Show>
-      <Show when="signed-out">
-        <LandingPage />
-      </Show>
+      <Show when="signed-in"><Redirect to="/chat" /></Show>
+      <Show when="signed-out"><LandingPage /></Show>
     </>
   );
 }
@@ -133,14 +128,8 @@ function HomeRedirect() {
 function ProtectedRoute({ component: Component }: { component: React.ComponentType<any> }) {
   return (
     <>
-      <Show when="signed-in">
-        <Layout>
-          <Component />
-        </Layout>
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/" />
-      </Show>
+      <Show when="signed-in"><Layout><Component /></Layout></Show>
+      <Show when="signed-out"><Redirect to="/" /></Show>
     </>
   );
 }
@@ -156,18 +145,8 @@ function ClerkProviderWithRoutes() {
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       localization={{
-        signIn: {
-          start: {
-            title: "Welcome back",
-            subtitle: "Sign in to access your intelligence",
-          },
-        },
-        signUp: {
-          start: {
-            title: "Join Lumina",
-            subtitle: "Step into your personal AI space",
-          },
-        },
+        signIn: { start: { title: "Welcome back", subtitle: "Sign in to access your intelligence" } },
+        signUp: { start: { title: "Join Lumina", subtitle: "Step into your personal AI space" } },
       }}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
@@ -178,13 +157,15 @@ function ClerkProviderWithRoutes() {
           <Route path="/" component={HomeRedirect} />
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
-          
+
           <Route path="/chat" component={() => <ProtectedRoute component={ChatPage} />} />
           <Route path="/chat/:id" component={() => <ProtectedRoute component={ChatPage} />} />
           <Route path="/image-gen" component={() => <ProtectedRoute component={ImageGenPage} />} />
+          <Route path="/memory" component={() => <ProtectedRoute component={MemoryPage} />} />
+          <Route path="/personas" component={() => <ProtectedRoute component={PersonasPage} />} />
           <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
           <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
-          
+
           <Route>
             <div className="flex h-[100dvh] items-center justify-center flex-col gap-4 text-center">
               <h1 className="text-4xl font-bold text-iridescent">404</h1>
@@ -198,11 +179,7 @@ function ClerkProviderWithRoutes() {
 }
 
 function App() {
-  // Enforce dark mode on mount
-  useEffect(() => {
-    document.documentElement.classList.add('dark');
-  }, []);
-
+  useEffect(() => { document.documentElement.classList.add('dark'); }, []);
   return (
     <WouterRouter base={basePath}>
       <ClerkProviderWithRoutes />
