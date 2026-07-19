@@ -6,7 +6,7 @@ import {
   Plus, Pin, Menu, X, MessageCircle, LogOut, Brain, Sparkles, Shield,
   Bell, Users, ShoppingCart, CheckSquare, Calendar, ChefHat,
   StickyNote, DollarSign, PhoneCall, CloudSun, FolderOpen,
-  Wrench, Receipt, Package, Trophy, Gift, PawPrint, ShoppingBasket, Sun, Camera,
+  Wrench, Receipt, Package, Trophy, Gift, PawPrint, ShoppingBasket, Sun, Camera, Cloud,
 } from "lucide-react";
 import {
   useGetRecentActivity, getGetRecentActivityQueryKey,
@@ -66,6 +66,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     { href: "/weather", icon: CloudSun, label: "Weather" },
     { href: "/documents", icon: FolderOpen, label: "Documents" },
     { href: "/photos", icon: Camera, label: "Photos" },
+    { href: "/cloud-storage", icon: Cloud, label: "Cloud Storage" },
   ];
 
   const propertyItems = [

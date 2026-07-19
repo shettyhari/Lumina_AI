@@ -34,6 +34,7 @@ import PetsPage from "./pages/pets";
 import PantryPage from "./pages/pantry";
 import BriefingPage from "./pages/briefing";
 import PhotosPage from "./pages/photos";
+import CloudStoragePage from "./pages/cloud-storage";
 import Layout from "./components/layout";
 import { FamilyStatusProvider, useFamilyStatus } from "./contexts/family-context";
 
@@ -243,6 +244,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/pantry" component={() => <ProtectedRoute component={PantryPage} />} />
             <Route path="/briefing" component={() => <ProtectedRoute component={BriefingPage} />} />
             <Route path="/photos" component={() => <ProtectedRoute component={PhotosPage} />} />
+            <Route path="/cloud-storage" component={() => <ProtectedRoute component={CloudStoragePage} />} />
 
             <Route>
               <div className="flex h-[100dvh] items-center justify-center flex-col gap-4 text-center">

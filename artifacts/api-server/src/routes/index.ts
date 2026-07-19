@@ -27,6 +27,7 @@ import wishlistRouter from "./wishlist";
 import petsRouter from "./pets";
 import pantryRouter from "./pantry";
 import briefingRouter from "./briefing";
+import cloudStorageRouter from "./cloud-storage";
 import { requireApproved } from "../middlewares/requireApproved";
 
 const router: IRouter = Router();
@@ -68,5 +69,6 @@ router.use(wishlistRouter);
 router.use(petsRouter);
 router.use(pantryRouter);
 router.use(briefingRouter);
+router.use(cloudStorageRouter);
 
 export default router;
