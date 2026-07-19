@@ -16,7 +16,7 @@ function enrichRoomMsg(
   const m = msg.clerkUserId ? memberMap[msg.clerkUserId] : null;
   return {
     ...msg,
-    senderName: msg.role === "assistant" ? "Lumina" : (m?.displayName ?? "Member"),
+    senderName: msg.role === "assistant" ? "Lina" : (m?.displayName ?? "Member"),
     senderAvatarUrl: msg.role === "assistant" ? null : (m?.avatarUrl ?? null),
   };
 }
@@ -151,11 +151,11 @@ router.post("/family/room/messages", requireAuth, async (req, res): Promise<void
     .values({ clerkUserId, content: content.trim(), role: "user" })
     .returning();
 
-  // Check for @Lumina mention
-  const hasLuminaMention = /@lumina\b/i.test(content);
+  // Check for @Lina mention
+  const hasLinaMention = /@lina\b/i.test(content);
   let aiMsg: typeof familyRoomMessages.$inferSelect | null = null;
 
-  if (hasLuminaMention) {
+  if (hasLinaMention) {
     try {
       // Build recent room context for AI
       const recent = await db
@@ -180,7 +180,7 @@ router.post("/family/room/messages", requireAuth, async (req, res): Promise<void
         contents: history,
         config: {
           systemInstruction:
-            "You are Lumina, a warm and helpful family AI assistant in a shared family chat room. Keep responses friendly, concise, and useful. Address the family member who mentioned you.",
+            "You are Lina, a warm and helpful family AI assistant in a shared family chat room. Keep responses friendly, concise, and useful. Address the family member who mentioned you.",
           maxOutputTokens: 1024,
         },
       });

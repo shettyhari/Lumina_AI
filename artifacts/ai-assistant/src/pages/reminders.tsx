@@ -119,7 +119,7 @@ export default function RemindersPage() {
       {upcoming.length === 0 && triggered.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 text-muted-foreground py-16">
           <Bell className="h-12 w-12 opacity-20" />
-          <p className="text-sm">No reminders yet.<br />Create one above or ask Lumina in chat.</p>
+          <p className="text-sm">No reminders yet.<br />Create one above or ask Lina in chat.</p>
         </div>
       ) : (
         <div className="space-y-2">

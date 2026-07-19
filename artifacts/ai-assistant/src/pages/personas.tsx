@@ -101,7 +101,7 @@ export default function PersonasPage() {
               AI Personas
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Give Lumina a personality. The default persona's prompt is used in every chat.
+              Give Lina a personality. The default persona's prompt is used in every chat.
             </p>
           </div>
           <button

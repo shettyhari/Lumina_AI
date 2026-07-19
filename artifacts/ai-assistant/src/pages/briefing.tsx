@@ -53,7 +53,7 @@ export default function BriefingPage() {
           <div className="rounded-full bg-primary/10 p-1.5">
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
-          <span className="text-xs font-medium text-primary uppercase tracking-wider">Lumina AI Briefing</span>
+          <span className="text-xs font-medium text-primary uppercase tracking-wider">Lina AI Briefing</span>
           {data?.cached && <span className="text-xs text-muted-foreground">(cached)</span>}
         </div>
 

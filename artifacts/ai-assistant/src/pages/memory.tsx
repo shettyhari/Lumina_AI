@@ -68,7 +68,7 @@ export default function MemoryPage() {
               AI Memory
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Things Lumina always remembers across every conversation.
+              Things Lina always remembers across every conversation.
             </p>
           </div>
           <button
@@ -155,7 +155,7 @@ export default function MemoryPage() {
               <div>
                 <h3 className="font-semibold text-foreground">No memories yet</h3>
                 <p className="text-muted-foreground text-sm mt-1 max-w-sm mx-auto">
-                  Add things you want Lumina to always know — your preferences, context, and anything that makes responses more personal.
+                  Add things you want Lina to always know — your preferences, context, and anything that makes responses more personal.
                 </p>
               </div>
 

@@ -80,11 +80,12 @@ async function streamGeminiAgentic(
   sendEvent: (obj: object) => void,
   reasoningMode = false,
   originalMessage = "",
+  webSearch = false,
 ): Promise<string> {
   const contents: any[] = buildGeminiContents(chatMessages);
 
   const agentSystemPrompt = (systemPrompt || "") +
-    `\n\nYou are Lumina, an agentic AI home assistant for a family. You have access to tools that let you take real actions:
+    `\n\nYou are Lina, an agentic AI home assistant for a family. You have access to tools that let you take real actions:
 - Manage the shopping list (add items, check them off, view the list)
 - Set and view reminders
 - Manage chores (add, complete, list)
@@ -100,9 +101,12 @@ You can chain multiple tools in one response when it makes sense (e.g. check the
 
 Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`;
 
+  const toolsList: any[] = [{ functionDeclarations: TOOL_DECLARATIONS }];
+  if (webSearch) toolsList.push({ googleSearch: {} });
+
   const config: Record<string, unknown> = {
     maxOutputTokens: 8192,
-    tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+    tools: toolsList,
   };
   if (agentSystemPrompt) config.systemInstruction = agentSystemPrompt;
   if (reasoningMode) (config as any).thinkingConfig = { thinkingBudget: 2048 };
@@ -253,7 +257,7 @@ async function streamOpenRouter(
   const client = new OpenAI({
     apiKey,
     baseURL: "https://openrouter.ai/api/v1",
-    defaultHeaders: { "HTTP-Referer": "https://lumina-ai.replit.app" },
+    defaultHeaders: { "HTTP-Referer": "https://lina-ai.replit.app" },
   });
 
   const orModelId = model.startsWith("openrouter/") ? model.slice("openrouter/".length) : model;
@@ -443,11 +447,13 @@ router.post("/gemini/conversations/:id/messages", requireAuth, async (req, res):
 
     if (provider === "gemini") {
       // Agentic loop: native function calling with tool use
+      const webSearch = (req.body as any)?.webSearch === true;
       fullResponse = await streamGeminiAgentic(
         model, chatMessages, systemPrompt || undefined, clerkUserId,
         (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`),
         reasoningMode,
         parsed.data.content,
+        webSearch,
       );
     } else if (provider === "openai") {
       const key = await getUserApiKey(clerkUserId, "openai");
@@ -500,12 +506,12 @@ router.get("/gemini/conversations/:id/export", requireAuth, async (req, res): Pr
 
   const lines: string[] = [
     `# ${conv.title}`,
-    `*Exported from Lumina AI on ${new Date().toLocaleDateString()}*`,
+    `*Exported from Lina AI on ${new Date().toLocaleDateString()}*`,
     "",
   ];
 
   for (const msg of msgs) {
-    const role = msg.role === "user" ? "**You**" : "**Lumina**";
+    const role = msg.role === "user" ? "**You**" : "**Lina**";
     lines.push(`### ${role}`);
     if (msg.imageData) lines.push(`*[Image attached]*\n`);
     lines.push(msg.content);
@@ -548,7 +554,7 @@ router.get("/gemini/digest", requireAuth, async (req, res): Promise<void> => {
 
   if (recent.length === 0) {
     res.json({
-      summary: "No recent conversations to summarize. Start chatting with Lumina to get your daily digest!",
+      summary: "No recent conversations to summarize. Start chatting with Lina to get your daily digest!",
       generatedAt: new Date().toISOString(),
       conversationCount: 0,
     });
@@ -582,7 +588,7 @@ router.get("/gemini/digest", requireAuth, async (req, res): Promise<void> => {
     });
   } catch (err) {
     res.json({
-      summary: `You've had ${recent.length} recent conversations with Lumina. Keep exploring!`,
+      summary: `You've had ${recent.length} recent conversations with Lina. Keep exploring!`,
       generatedAt: new Date().toISOString(),
       conversationCount: recent.length,
     });

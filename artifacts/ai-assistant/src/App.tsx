@@ -202,7 +202,7 @@ function ClerkProviderWithRoutes() {
       signUpUrl={`${basePath}/sign-up`}
       localization={{
         signIn: { start: { title: "Welcome back", subtitle: "Sign in to access your intelligence" } },
-        signUp: { start: { title: "Join Lumina", subtitle: "Step into your personal AI space" } },
+        signUp: { start: { title: "Join Lina", subtitle: "Step into your personal AI space" } },
       }}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}

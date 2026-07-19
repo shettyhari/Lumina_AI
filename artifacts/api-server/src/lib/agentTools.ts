@@ -1,5 +1,5 @@
 /**
- * Agentic tool definitions and executors for Lumina AI.
+ * Agentic tool definitions and executors for Lina AI.
  * Gemini function-calling declarations + server-side DB executors.
  */
 

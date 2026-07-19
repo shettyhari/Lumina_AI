@@ -19,8 +19,8 @@ const STATE_META: Record<VoiceState, { label: string; hint: string; ringColor: s
     orbColor: "bg-muted/50",
   },
   wake: {
-    label: 'Listening for \u201cHey Lumina\u201d',
-    hint: 'Say \u201cHey Lumina\u201d to start talking',
+    label: 'Listening for \u201cHey Lina\u201d',
+    hint: 'Say \u201cHey Lina\u201d to start talking',
     ringColor: "border-primary/40",
     orbColor: "bg-primary/10",
   },

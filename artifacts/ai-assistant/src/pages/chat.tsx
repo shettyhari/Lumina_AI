@@ -20,7 +20,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Send, Sparkles, MoreVertical, Trash2, Edit2, Pin, ChevronDown,
   AlertTriangle, Bot, Mic, Paperclip, X, Brain, Download, Image as ImageIcon,
-  Wrench, CheckCircle2, XCircle, Loader2
+  Wrench, CheckCircle2, XCircle, Loader2, Globe
 } from "lucide-react";
 import { SiAnthropic, SiGoogle } from "react-icons/si";
 import { Link as WouterLink } from "wouter";
@@ -285,7 +285,7 @@ type ToolEvent =
 // Persists tool events across the component remount that happens when a new
 // conversation is created (setLocation navigates from /chat → /chat/:id).
 // sessionStorage survives navigation but is cleared on tab close.
-const PENDING_TOOL_EVENTS_KEY = "lumina_pending_tool_events";
+const PENDING_TOOL_EVENTS_KEY = "lina_pending_tool_events";
 function savePendingToolEvents(events: ToolEvent[]) {
   try { sessionStorage.setItem(PENDING_TOOL_EVENTS_KEY, JSON.stringify(events)); } catch { /* ignore */ }
 }
@@ -359,6 +359,7 @@ export default function ChatPage() {
   const [streamError, setStreamError] = useState<{ message: string; provider?: string } | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [reasoningMode, setReasoningMode] = useState(false);
+  const [webSearch, setWebSearch] = useState(false);
   const [attachedImage, setAttachedImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [relayToast, setRelayToast] = useState<string | null>(null);
@@ -388,7 +389,7 @@ export default function ChatPage() {
     handleSendVoice(text);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const voice = useVoiceAgent({ onTranscript: handleVoiceTranscript, wakeWords: ["hey lumina", "lumina"] });
+  const voice = useVoiceAgent({ onTranscript: handleVoiceTranscript, wakeWords: ["hey lina", "lina"] });
 
   const handleOpenVoice = () => { setVoiceOpen(true); voice.toggleWake(); };
   const handleCloseVoice = () => {
@@ -493,6 +494,7 @@ export default function ChatPage() {
         content: msg, model,
         systemPrompt: profile?.systemPrompt || undefined,
         reasoningMode,
+        webSearch: webSearch && model.startsWith("gemini"),
       };
       if (imageToSend) {
         body.imageBase64 = imageToSend.base64;
@@ -782,7 +784,7 @@ export default function ChatPage() {
               }}
             />
             <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between">
-              {/* Left: model selector + reasoning toggle */}
+              {/* Left: model selector + reasoning + web search toggles */}
               <div className="flex items-center gap-2">
                 <ModelSelector value={model} onChange={setModel} disabled={isStreaming} />
                 <button
@@ -798,6 +800,22 @@ export default function ChatPage() {
                 >
                   <Brain className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">{reasoningMode ? "Reasoning" : "Reason"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWebSearch(w => !w)}
+                  title={webSearch ? "Web search on — Lina will search Google for current info" : "Enable web search"}
+                  disabled={!model.startsWith("gemini")}
+                  className={cn(
+                    "flex items-center gap-1 text-xs rounded-lg px-2 py-1.5 transition-colors border",
+                    webSearch
+                      ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-400"
+                      : "bg-muted/20 border-border/30 text-muted-foreground hover:text-foreground hover:border-cyan-500/30",
+                    !model.startsWith("gemini") && "opacity-40 cursor-not-allowed"
+                  )}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{webSearch ? "Search" : "Search"}</span>
                 </button>
               </div>
 
@@ -857,7 +875,7 @@ export default function ChatPage() {
             </div>
           </form>
           <p className="text-center text-xs text-muted-foreground/50 mt-2">
-            Lumina may make mistakes — always verify important information.
+            Lina may make mistakes — always verify important information.
           </p>
         </div>
       </div>

@@ -164,7 +164,7 @@ export default function FamilyRoomPage() {
           <div>
             <h1 className="font-semibold text-foreground">Family Room</h1>
             <p className="text-xs text-muted-foreground">
-              {members?.length ?? 0} member{(members?.length ?? 0) !== 1 ? "s" : ""} · mention @Lumina for AI help
+              {members?.length ?? 0} member{(members?.length ?? 0) !== 1 ? "s" : ""} · mention @Lina for AI help
             </p>
           </div>
         </div>
@@ -185,7 +185,7 @@ export default function FamilyRoomPage() {
                 No messages yet. Say hello to the family!
               </p>
               <p className="text-muted-foreground/60 text-xs mt-1">
-                Tip: mention @Lumina to get AI assistance in the chat.
+                Tip: mention @Lina to get AI assistance in the chat.
               </p>
             </div>
           )}
@@ -208,7 +208,7 @@ export default function FamilyRoomPage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
               }}
-              placeholder="Message the family… (mention @Lumina for AI help)"
+              placeholder="Message the family… (mention @Lina for AI help)"
               rows={1}
               className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none max-h-32 py-1"
               style={{ minHeight: "1.5rem" }}
@@ -247,7 +247,7 @@ export default function FamilyRoomPage() {
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
             <div>
-              <p className="text-xs font-medium text-foreground">Lumina</p>
+              <p className="text-xs font-medium text-foreground">Lina</p>
               <p className="text-[10px] text-muted-foreground">AI Assistant</p>
             </div>
           </div>

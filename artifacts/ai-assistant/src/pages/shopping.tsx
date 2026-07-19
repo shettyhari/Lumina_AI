@@ -132,7 +132,7 @@ export default function ShoppingPage() {
       ) : items.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 text-muted-foreground py-16">
           <ShoppingCart className="h-12 w-12 opacity-20" />
-          <p className="text-sm">Your shopping list is empty.<br />Add items above or ask Lumina in chat.</p>
+          <p className="text-sm">Your shopping list is empty.<br />Add items above or ask Lina in chat.</p>
         </div>
       ) : (
         <div className="space-y-6">

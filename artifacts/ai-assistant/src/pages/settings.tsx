@@ -206,7 +206,7 @@ export default function SettingsPage() {
             <Settings2 className="w-8 h-8 text-primary" />
             Settings
           </h1>
-          <p className="text-muted-foreground">Customize your Lumina experience.</p>
+          <p className="text-muted-foreground">Customize your Lina experience.</p>
         </div>
 
         {/* Profile */}
@@ -239,7 +239,7 @@ export default function SettingsPage() {
           <p className="text-sm text-muted-foreground">
             {stats?.memoriesCount
               ? `You have ${stats.memoriesCount} memor${stats.memoriesCount === 1 ? "y" : "ies"} — these are injected into every conversation.`
-              : "No memories yet. Add things you want Lumina to always remember across every chat."}
+              : "No memories yet. Add things you want Lina to always remember across every chat."}
           </p>
         </div>
 
@@ -258,7 +258,7 @@ export default function SettingsPage() {
           </div>
           <p className="text-sm text-muted-foreground">
             {stats?.personasCount
-              ? `You have ${stats.personasCount} persona${stats.personasCount === 1 ? "" : "s"}. Set one as default to customize Lumina's personality.`
+              ? `You have ${stats.personasCount} persona${stats.personasCount === 1 ? "" : "s"}. Set one as default to customize Lina's personality.`
               : "No personas yet. Create custom AI personalities with unique names, emojis, and instructions."}
           </p>
         </div>

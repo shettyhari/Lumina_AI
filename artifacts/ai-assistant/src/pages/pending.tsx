@@ -35,9 +35,9 @@ export default function PendingPage({ rejected = false }: { rejected?: boolean }
         {/* Logo */}
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-iridescent shadow-lg">
-            <img src="/logo.svg" alt="Lumina" className="w-4 h-4 object-contain" />
+            <img src="/logo.svg" alt="Lina" className="w-4 h-4 object-contain" />
           </div>
-          <span className="text-lg font-semibold text-foreground">Lumina AI</span>
+          <span className="text-lg font-semibold text-foreground">Lina AI</span>
         </div>
 
         {/* Heading */}

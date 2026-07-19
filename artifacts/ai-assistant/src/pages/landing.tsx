@@ -12,9 +12,9 @@ export default function LandingPage() {
       <nav className="relative z-10 flex items-center justify-between px-6 py-6 max-w-7xl mx-auto w-full">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-iridescent shadow-xl shadow-primary/20">
-            <img src={`${import.meta.env.BASE_URL}logo.svg`.replace('//', '/')} alt="Lumina Logo" className="w-6 h-6" />
+            <img src={`${import.meta.env.BASE_URL}logo.svg`.replace('//', '/')} alt="Lina Logo" className="w-6 h-6" />
           </div>
-          <span className="text-xl font-bold tracking-tight text-white">Lumina</span>
+          <span className="text-xl font-bold tracking-tight text-white">Lina</span>
         </div>
         <div className="flex items-center gap-4">
           <Link href="/sign-in">
@@ -34,7 +34,7 @@ export default function LandingPage() {
       <main className="flex-1 relative z-10 flex flex-col items-center justify-center text-center px-4 pt-20 pb-32">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 mb-8 backdrop-blur-md">
           <Sparkles className="w-4 h-4 text-cyan-400" />
-          <span className="text-sm font-medium text-cyan-50">Introducing Lumina OS 1.0</span>
+          <span className="text-sm font-medium text-cyan-50">Introducing Lina OS 1.0</span>
         </div>
         
         <h1 className="text-5xl md:text-7xl font-bold tracking-tighter max-w-4xl leading-[1.1] mb-8">
@@ -43,7 +43,7 @@ export default function LandingPage() {
         </h1>
         
         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-12 leading-relaxed">
-          Step into a premium, thoughtful workspace. Lumina isn't just a chat interface—it's a deeply personal intelligence that listens, remembers, and responds with real substance.
+          Step into a premium, thoughtful workspace. Lina isn't just a chat interface—it's a deeply personal intelligence that listens, remembers, and responds with real substance.
         </p>
         
         <Link href="/sign-up">
@@ -84,7 +84,7 @@ export default function LandingPage() {
             </div>
             <h3 className="text-xl font-semibold mb-3 text-white">Deep Context</h3>
             <p className="text-muted-foreground leading-relaxed">
-              Lumina organizes your thoughts intuitively. Pin important conversations, search past insights, and maintain context across sessions seamlessly.
+              Lina organizes your thoughts intuitively. Pin important conversations, search past insights, and maintain context across sessions seamlessly.
             </p>
           </div>
         </div>

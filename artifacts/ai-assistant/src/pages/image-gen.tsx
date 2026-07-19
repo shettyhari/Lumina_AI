@@ -26,7 +26,7 @@ export default function ImageGenPage() {
     if (!generatedImage) return;
     const link = document.createElement('a');
     link.href = `data:${generatedImage.mimeType};base64,${generatedImage.b64_json}`;
-    link.download = `lumina-gen-${Date.now()}.${generatedImage.mimeType.split('/')[1]}`;
+    link.download = `lina-gen-${Date.now()}.${generatedImage.mimeType.split('/')[1]}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -41,7 +41,7 @@ export default function ImageGenPage() {
           <ImageIcon className="w-6 h-6 text-purple-400" />
           Visual Synthesis
         </h1>
-        <p className="text-muted-foreground text-sm mt-1">Describe an image and Lumina will create it.</p>
+        <p className="text-muted-foreground text-sm mt-1">Describe an image and Lina will create it.</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 md:p-10 flex flex-col items-center">

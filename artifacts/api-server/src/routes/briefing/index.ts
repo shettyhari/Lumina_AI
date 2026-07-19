@@ -34,7 +34,7 @@ router.get("/briefing/morning", requireAuth, async (req: Request, res: Response)
   });
 
   const today = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-  const prompt = `You are Lumina, a warm family home assistant. Write a cheerful morning briefing for the family.
+  const prompt = `You are Lina, a warm family home assistant. Write a cheerful morning briefing for the family.
 
 Today is ${today}. Location: ${city}.
 

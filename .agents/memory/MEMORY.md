@@ -1,2 +1,3 @@
 - [Multi-LLM Provider Architecture](multi-llm-providers.md) — per-user encrypted keys, provider routing by model ID prefix, 402 before SSE headers, SiOpenai doesn't exist in react-icons v5
 - [Chat ToolCallBar Navigation Bug](chat-toolcallbar-nav.md) — Wouter patches history.pushState; module-level vars aren't safe across navigation; use sessionStorage to bridge new-chat navigation
+- [AI Name Rebrand](ai-name-rebrand.md) — AI renamed from Lumina → Lina; wake words updated to "hey lina"/"lina"; sessionStorage key is "lina_pending_tool_events"; web search toggle added (Gemini only, googleSearch grounding)
