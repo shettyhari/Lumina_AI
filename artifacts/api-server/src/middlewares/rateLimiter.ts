@@ -10,6 +10,7 @@ export const aiRateLimit = rateLimit({
   limit: 30, // 30 requests per user per minute
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  validate: false,
   keyGenerator: (req) => (req as any).clerkUserId ?? req.ip ?? "anonymous",
   message: { error: "rate_limit_exceeded", message: "Too many requests — please slow down." },
   skip: (req) => req.method === "OPTIONS",
@@ -23,6 +24,7 @@ export const imageGenRateLimit = rateLimit({
   limit: 5, // 5 image generations per user per minute
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  validate: false,
   keyGenerator: (req) => (req as any).clerkUserId ?? req.ip ?? "anonymous",
   message: { error: "rate_limit_exceeded", message: "Too many image generation requests — please slow down." },
   skip: (req) => req.method === "OPTIONS",

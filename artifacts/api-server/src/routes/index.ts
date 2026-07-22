@@ -29,13 +29,14 @@ import pantryRouter from "./pantry";
 import briefingRouter from "./briefing";
 import cloudStorageRouter from "./cloud-storage";
 import { requireApproved } from "../middlewares/requireApproved";
+import { getReqUserId } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
 const OPEN_PATHS = new Set(["/healthz", "/user/status"]);
 
 router.use(async (req: Request, res: Response, next: NextFunction) => {
-  const userId = getAuth(req)?.userId;
+  const userId = getReqUserId(req);
   if (!userId) { next(); return; }
   (req as any).clerkUserId = userId;
   if (OPEN_PATHS.has(req.path)) { next(); return; }

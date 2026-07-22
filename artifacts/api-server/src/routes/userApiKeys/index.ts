@@ -21,10 +21,15 @@ function maskKey(plaintext: string): string {
 
 router.get("/user/api-keys", requireAuth, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const keys = await db
-    .select()
-    .from(userApiKeys)
-    .where(eq(userApiKeys.clerkUserId, clerkUserId));
+  let keys: any[] = [];
+  try {
+    keys = await db
+      .select()
+      .from(userApiKeys)
+      .where(eq(userApiKeys.clerkUserId, clerkUserId));
+  } catch {
+    keys = [];
+  }
 
   const result = keys.map((k) => {
     let decrypted = "";

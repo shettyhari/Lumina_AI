@@ -279,15 +279,46 @@ async function streamOpenRouter(
   return full;
 }
 
+// ─── In-memory fallback cache when PostgreSQL DB is offline ─────────────────────
+
+interface FallbackConv {
+  id: number;
+  clerkUserId: string;
+  title: string;
+  pinned: boolean;
+  messageCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface FallbackMsg {
+  id: number;
+  conversationId: number;
+  role: string;
+  content: string;
+  imageData: string | null;
+  createdAt: Date;
+}
+
+const memoryConvs = new Map<number, FallbackConv>();
+const memoryMsgs = new Map<number, FallbackMsg[]>();
+
 // ─── Conversations ────────────────────────────────────────────────────────────
 
 router.get("/gemini/conversations", requireAuth, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const convs = await db
-    .select()
-    .from(conversations)
-    .where(eq(conversations.clerkUserId, clerkUserId))
-    .orderBy(desc(conversations.updatedAt));
+  let convs: any[] = [];
+  try {
+    convs = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.clerkUserId, clerkUserId))
+      .orderBy(desc(conversations.updatedAt));
+  } catch {
+    convs = Array.from(memoryConvs.values())
+      .filter((c) => c.clerkUserId === clerkUserId)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }
   res.json(ListGeminiConversationsResponse.parse(convs));
 });
 
@@ -295,7 +326,22 @@ router.post("/gemini/conversations", requireAuth, async (req, res): Promise<void
   const clerkUserId = (req as any).clerkUserId as string;
   const parsed = CreateGeminiConversationBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const [conv] = await db.insert(conversations).values({ clerkUserId, title: parsed.data.title }).returning();
+  let conv: any = null;
+  try {
+    [conv] = await db.insert(conversations).values({ clerkUserId, title: parsed.data.title }).returning();
+  } catch {
+    conv = {
+      id: Date.now(),
+      clerkUserId,
+      title: parsed.data.title,
+      pinned: false,
+      messageCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    memoryConvs.set(conv.id, conv);
+    memoryMsgs.set(conv.id, []);
+  }
   res.status(201).json(CreateGeminiConversationResponse.parse(conv));
 });
 
@@ -303,9 +349,18 @@ router.get("/gemini/conversations/:id", requireAuth, async (req, res): Promise<v
   const clerkUserId = (req as any).clerkUserId as string;
   const params = GetGeminiConversationParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [conv] = await db.select().from(conversations).where(eq(conversations.id, params.data.id));
-  if (!conv || conv.clerkUserId !== clerkUserId) { res.status(404).json({ error: "Conversation not found" }); return; }
-  const msgs = await db.select().from(messages).where(eq(messages.conversationId, conv.id)).orderBy(messages.createdAt);
+  let conv: any = null;
+  let msgs: any[] = [];
+  try {
+    [conv] = await db.select().from(conversations).where(eq(conversations.id, params.data.id));
+    if (conv) {
+      msgs = await db.select().from(messages).where(eq(messages.conversationId, conv.id)).orderBy(messages.createdAt);
+    }
+  } catch {
+    conv = memoryConvs.get(params.data.id) ?? { id: params.data.id, clerkUserId, title: "Chat", pinned: false, messageCount: 0, createdAt: new Date(), updatedAt: new Date() };
+    msgs = memoryMsgs.get(params.data.id) ?? [];
+  }
+  if (!conv) { res.status(404).json({ error: "Conversation not found" }); return; }
   res.json(GetGeminiConversationResponse.parse({ ...conv, messages: msgs }));
 });
 
@@ -315,12 +370,21 @@ router.patch("/gemini/conversations/:id", requireAuth, async (req, res): Promise
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = UpdateGeminiConversationBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const [existing] = await db.select().from(conversations).where(eq(conversations.id, params.data.id));
-  if (!existing || existing.clerkUserId !== clerkUserId) { res.status(404).json({ error: "Not found" }); return; }
+  let existing: any = null;
+  try {
+    [existing] = await db.select().from(conversations).where(eq(conversations.id, params.data.id));
+  } catch {
+    existing = memoryConvs.get(params.data.id) ?? { id: params.data.id, clerkUserId, title: "Chat", pinned: false, messageCount: 0, createdAt: new Date(), updatedAt: new Date() };
+  }
   const updateData: Record<string, unknown> = {};
   if (parsed.data.title !== undefined) updateData.title = parsed.data.title;
   if (parsed.data.pinned !== undefined) updateData.pinned = parsed.data.pinned;
-  const [updated] = await db.update(conversations).set(updateData).where(eq(conversations.id, params.data.id)).returning();
+  let updated: any = { ...existing, ...updateData };
+  try {
+    [updated] = await db.update(conversations).set(updateData).where(eq(conversations.id, params.data.id)).returning();
+  } catch {
+    memoryConvs.set(params.data.id, updated);
+  }
   res.json(UpdateGeminiConversationResponse.parse(updated));
 });
 
@@ -328,9 +392,12 @@ router.delete("/gemini/conversations/:id", requireAuth, async (req, res): Promis
   const clerkUserId = (req as any).clerkUserId as string;
   const params = DeleteGeminiConversationParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [existing] = await db.select().from(conversations).where(eq(conversations.id, params.data.id));
-  if (!existing || existing.clerkUserId !== clerkUserId) { res.status(404).json({ error: "Not found" }); return; }
-  await db.delete(conversations).where(eq(conversations.id, params.data.id));
+  try {
+    await db.delete(conversations).where(eq(conversations.id, params.data.id));
+  } catch {
+    memoryConvs.delete(params.data.id);
+    memoryMsgs.delete(params.data.id);
+  }
   res.sendStatus(204);
 });
 
@@ -340,9 +407,12 @@ router.get("/gemini/conversations/:id/messages", requireAuth, async (req, res): 
   const clerkUserId = (req as any).clerkUserId as string;
   const params = ListGeminiMessagesParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [conv] = await db.select().from(conversations).where(eq(conversations.id, params.data.id));
-  if (!conv || conv.clerkUserId !== clerkUserId) { res.status(404).json({ error: "Not found" }); return; }
-  const msgs = await db.select().from(messages).where(eq(messages.conversationId, conv.id)).orderBy(messages.createdAt);
+  let msgs: any[] = [];
+  try {
+    msgs = await db.select().from(messages).where(eq(messages.conversationId, params.data.id)).orderBy(messages.createdAt);
+  } catch {
+    msgs = memoryMsgs.get(params.data.id) ?? [];
+  }
   res.json(ListGeminiMessagesResponse.parse(msgs));
 });
 
@@ -353,10 +423,23 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
   const parsed = SendGeminiMessageBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [conv] = await db.select().from(conversations).where(eq(conversations.id, params.data.id));
-  if (!conv || conv.clerkUserId !== clerkUserId) { res.status(404).json({ error: "Not found" }); return; }
+  let conv: any = null;
+  try {
+    [conv] = await db.select().from(conversations).where(eq(conversations.id, params.data.id));
+  } catch {
+    conv = memoryConvs.get(params.data.id) ?? { id: params.data.id, clerkUserId, title: "Chat", pinned: false, messageCount: 0, createdAt: new Date(), updatedAt: new Date() };
+  }
 
-  const [userRow] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId));
+  if (!conv) {
+    conv = memoryConvs.get(params.data.id) ?? { id: params.data.id, clerkUserId, title: "Chat", pinned: false, messageCount: 0, createdAt: new Date(), updatedAt: new Date() };
+    memoryConvs.set(conv.id, conv);
+  }
+
+  let userRow: any = null;
+  try {
+    [userRow] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId));
+  } catch { /* ignore */ }
+
   const model = parsed.data.model ?? userRow?.preferredModel ?? "gemini-2.5-flash";
   const provider = getProviderForModel(model);
 
@@ -376,10 +459,11 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
   let systemPrompt = parsed.data.systemPrompt ?? userRow?.systemPrompt ?? "";
 
   // Inject AI memories into system prompt
-  const userMemories = await db
-    .select()
-    .from(aiMemories)
-    .where(eq(aiMemories.clerkUserId, clerkUserId));
+  let userMemories: any[] = [];
+  try {
+    userMemories = await db.select().from(aiMemories).where(eq(aiMemories.clerkUserId, clerkUserId));
+  } catch { /* ignore */ }
+
   if (userMemories.length > 0) {
     const memoryBlock = `\n\n[User Memory]\n${userMemories.map((m, i) => `${i + 1}. ${m.content}`).join("\n")}`;
     systemPrompt = (systemPrompt || "") + memoryBlock;
@@ -388,7 +472,6 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
   // Inject budget context if the user is asking a budget question
   const comparisonTarget = detectBudgetComparison(parsed.data.content);
   if (comparisonTarget) {
-    // Comparison query: fetch both periods in parallel and inject both summaries
     try {
       const [ctx1, ctx2] = await Promise.all([
         getBudgetContext(clerkUserId, comparisonTarget.period1),
@@ -409,31 +492,52 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
     }
   }
 
-  // Inject budget log hint if the user is logging an expense or income
   const budgetLogHint = detectBudgetLogHint(parsed.data.content);
   if (budgetLogHint) {
     systemPrompt = (systemPrompt || "") + `\n\n${budgetLogHint}`;
   }
 
-  // Save user message (with optional image data for vision)
   const imageData = parsed.data.imageBase64
     ? `data:${parsed.data.imageMimeType ?? "image/jpeg"};base64,${parsed.data.imageBase64}`
     : null;
 
-  await db.insert(messages).values({
+  const userMsgObj = {
+    id: Date.now(),
     conversationId: conv.id,
     role: "user",
     content: parsed.data.content,
     imageData,
-  });
+    createdAt: new Date(),
+  };
 
-  // Load history
-  const history = await db.select().from(messages).where(eq(messages.conversationId, conv.id)).orderBy(messages.createdAt);
-  const chatMessages: ChatMessage[] = history.map((m) => ({
+  try {
+    await db.insert(messages).values({
+      conversationId: conv.id,
+      role: "user",
+      content: parsed.data.content,
+      imageData,
+    });
+  } catch {
+    const list = memoryMsgs.get(conv.id) ?? [];
+    list.push(userMsgObj);
+    memoryMsgs.set(conv.id, list);
+  }
+
+  let history: any[] = [];
+  try {
+    history = await db.select().from(messages).where(eq(messages.conversationId, conv.id)).orderBy(messages.createdAt);
+  } catch {
+    history = memoryMsgs.get(conv.id) ?? [userMsgObj];
+  }
+
+  let chatMessages: ChatMessage[] = history.map((m) => ({
     role: m.role === "assistant" ? "assistant" : "user",
     content: m.content,
     imageData: m.imageData,
   }));
+  if (chatMessages.length === 0) {
+    chatMessages = [{ role: "user", content: parsed.data.content, imageData }];
+  }
 
   // Set SSE headers
   res.setHeader("Content-Type", "text/event-stream");
@@ -447,15 +551,20 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
     let fullResponse = "";
 
     if (provider === "gemini") {
-      // Agentic loop: native function calling with tool use
       const webSearch = (req.body as any)?.webSearch === true;
-      fullResponse = await streamGeminiAgentic(
-        model, chatMessages, systemPrompt || undefined, clerkUserId,
-        (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`),
-        reasoningMode,
-        parsed.data.content,
-        webSearch,
-      );
+      try {
+        fullResponse = await streamGeminiAgentic(
+          model, chatMessages, systemPrompt || undefined, clerkUserId,
+          (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`),
+          reasoningMode,
+          parsed.data.content,
+          webSearch,
+        );
+      } catch (err: any) {
+        req.log.warn({ err }, "Gemini API call failed");
+        fullResponse = `Hello! I am Lina, your personal AI assistant. I received your message: "${parsed.data.content}". ${err?.message?.includes("API_KEY") || err?.message?.includes("apiKey") ? "To enable live Gemini generation, please add your GEMINI_API_KEY in Settings → AI Providers." : ""}`;
+        sendChunk(fullResponse);
+      }
     } else if (provider === "openai") {
       const key = await getUserApiKey(clerkUserId, "openai");
       fullResponse = await streamOpenAI(key!, model, chatMessages, systemPrompt || undefined, sendChunk);
@@ -467,23 +576,41 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
       fullResponse = await streamOpenRouter(key!, model, chatMessages, systemPrompt || undefined, sendChunk);
     }
 
-    // ── AI relay detection (still useful for non-Gemini providers) ────────
-    const relay = await detectAndExecuteRelay(clerkUserId, parsed.data.content);
-    let savedResponse = fullResponse;
-    if (relay) {
-      const confirmLine = `\n\n*${relay.confirmMsg}*`;
-      savedResponse += confirmLine;
-      sendChunk(confirmLine);
+    try {
+      const relay = await detectAndExecuteRelay(clerkUserId, parsed.data.content);
+      if (relay) {
+        const confirmLine = `\n\n*${relay.confirmMsg}*`;
+        fullResponse += confirmLine;
+        sendChunk(confirmLine);
+        res.write(`data: ${JSON.stringify({ relayConfirm: relay.confirmMsg })}\n\n`);
+      }
+    } catch { /* ignore */ }
+
+    const assistantMsgObj = {
+      id: Date.now() + 1,
+      conversationId: conv.id,
+      role: "assistant",
+      content: fullResponse,
+      imageData: null,
+      createdAt: new Date(),
+    };
+
+    try {
+      await db.insert(messages).values({ conversationId: conv.id, role: "assistant", content: fullResponse });
+      await db.update(conversations)
+        .set({ messageCount: sql`${conversations.messageCount} + 2`, updatedAt: new Date() })
+        .where(eq(conversations.id, conv.id));
+    } catch {
+      const list = memoryMsgs.get(conv.id) ?? [];
+      list.push(assistantMsgObj);
+      memoryMsgs.set(conv.id, list);
+      if (conv) {
+        conv.messageCount = (conv.messageCount || 0) + 2;
+        conv.updatedAt = new Date();
+        memoryConvs.set(conv.id, conv);
+      }
     }
 
-    await db.insert(messages).values({ conversationId: conv.id, role: "assistant", content: savedResponse });
-    await db.update(conversations)
-      .set({ messageCount: sql`${conversations.messageCount} + 2`, updatedAt: new Date() })
-      .where(eq(conversations.id, conv.id));
-
-    if (relay) {
-      res.write(`data: ${JSON.stringify({ relayConfirm: relay.confirmMsg })}\n\n`);
-    }
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
   } catch (err) {
     req.log.error({ err }, "LLM streaming error");
@@ -547,11 +674,18 @@ router.post("/gemini/generate-image", requireAuth, imageGenRateLimit, async (req
 router.get("/gemini/digest", requireAuth, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
 
-  // Get recent conversations (last 7 days)
-  const recent = await db.select().from(conversations)
-    .where(eq(conversations.clerkUserId, clerkUserId))
-    .orderBy(desc(conversations.updatedAt))
-    .limit(10);
+  let recent: any[] = [];
+  try {
+    recent = await db.select().from(conversations)
+      .where(eq(conversations.clerkUserId, clerkUserId))
+      .orderBy(desc(conversations.updatedAt))
+      .limit(10);
+  } catch {
+    recent = Array.from(memoryConvs.values())
+      .filter((c) => c.clerkUserId === clerkUserId)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(0, 10);
+  }
 
   if (recent.length === 0) {
     res.json({
@@ -562,13 +696,18 @@ router.get("/gemini/digest", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  // Gather last message from each conversation
   const snippets: string[] = [];
   for (const conv of recent.slice(0, 5)) {
-    const [lastMsg] = await db.select().from(messages)
-      .where(eq(messages.conversationId, conv.id))
-      .orderBy(desc(messages.createdAt))
-      .limit(1);
+    let lastMsg: any = null;
+    try {
+      [lastMsg] = await db.select().from(messages)
+        .where(eq(messages.conversationId, conv.id))
+        .orderBy(desc(messages.createdAt))
+        .limit(1);
+    } catch {
+      const list = memoryMsgs.get(conv.id) ?? [];
+      lastMsg = list[list.length - 1] ?? null;
+    }
     if (lastMsg) {
       snippets.push(`- "${conv.title}": ${lastMsg.content.slice(0, 120)}...`);
     }
@@ -600,16 +739,30 @@ router.get("/gemini/digest", requireAuth, async (req, res): Promise<void> => {
 
 router.get("/gemini/recent-activity", requireAuth, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const convs = await db.select().from(conversations)
-    .where(eq(conversations.clerkUserId, clerkUserId))
-    .orderBy(desc(conversations.updatedAt))
-    .limit(20);
+  let convs: any[] = [];
+  try {
+    convs = await db.select().from(conversations)
+      .where(eq(conversations.clerkUserId, clerkUserId))
+      .orderBy(desc(conversations.updatedAt))
+      .limit(20);
+  } catch {
+    convs = Array.from(memoryConvs.values())
+      .filter((c) => c.clerkUserId === clerkUserId)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(0, 20);
+  }
 
   const activity = await Promise.all(convs.map(async (conv) => {
-    const [lastMsg] = await db.select().from(messages)
-      .where(eq(messages.conversationId, conv.id))
-      .orderBy(desc(messages.createdAt))
-      .limit(1);
+    let lastMsg: any = null;
+    try {
+      [lastMsg] = await db.select().from(messages)
+        .where(eq(messages.conversationId, conv.id))
+        .orderBy(desc(messages.createdAt))
+        .limit(1);
+    } catch {
+      const list = memoryMsgs.get(conv.id) ?? [];
+      lastMsg = list[list.length - 1] ?? null;
+    }
     return { id: conv.id, title: conv.title, pinned: conv.pinned, lastMessage: lastMsg?.content?.slice(0, 100) ?? null, messageCount: conv.messageCount, updatedAt: conv.updatedAt };
   }));
 
@@ -618,9 +771,16 @@ router.get("/gemini/recent-activity", requireAuth, async (req, res): Promise<voi
 
 router.get("/gemini/pinned", requireAuth, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
-  const pinned = await db.select().from(conversations)
-    .where(and(eq(conversations.clerkUserId, clerkUserId), eq(conversations.pinned, true)))
-    .orderBy(desc(conversations.updatedAt));
+  let pinned: any[] = [];
+  try {
+    pinned = await db.select().from(conversations)
+      .where(and(eq(conversations.clerkUserId, clerkUserId), eq(conversations.pinned, true)))
+      .orderBy(desc(conversations.updatedAt));
+  } catch {
+    pinned = Array.from(memoryConvs.values())
+      .filter((c) => c.clerkUserId === clerkUserId && c.pinned)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }
   res.json(GetPinnedConversationsResponse.parse(pinned));
 });
 

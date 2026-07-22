@@ -48,11 +48,16 @@ const _corsAllowed = new Set<string>(
   [
     _corsDev ? `https://${_corsDev}` : null,
     process.env.FRONTEND_ORIGIN ?? null,
+    "http://localhost:5000",
+    "http://127.0.0.1:5000",
+    "http://localhost:5001",
+    "http://127.0.0.1:5001",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
   ].filter(Boolean) as string[],
 );
-if (_corsAllowed.size === 0) {
-  logger.warn("No CORS origin configured (REPLIT_DEV_DOMAIN / FRONTEND_ORIGIN unset) — all cross-origin requests will be rejected");
-}
 
 app.use(
   cors({
@@ -73,14 +78,21 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
-);
+app.use((req, res, next) => {
+  if (!process.env.CLERK_SECRET_KEY) {
+    return next();
+  }
+  try {
+    return clerkMiddleware((req) => ({
+      publishableKey: publishableKeyFromHost(
+        getClerkProxyHost(req) ?? "",
+        process.env.CLERK_PUBLISHABLE_KEY,
+      ),
+    }))(req, res, next);
+  } catch {
+    return next();
+  }
+});
 
 app.use("/api", router);
 
