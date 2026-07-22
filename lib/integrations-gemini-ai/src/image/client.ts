@@ -1,29 +1,45 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
-if (!process.env.AI_INTEGRATIONS_GEMINI_BASE_URL) {
-  throw new Error(
-    "AI_INTEGRATIONS_GEMINI_BASE_URL must be set. Did you forget to provision the Gemini AI integration?",
-  );
+function createImageClient(): GoogleGenAI {
+  const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+  const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+
+  if (!baseUrl) {
+    throw new Error(
+      "AI_INTEGRATIONS_GEMINI_BASE_URL must be set. Did you forget to provision the Gemini AI integration?",
+    );
+  }
+
+  if (!apiKey) {
+    throw new Error(
+      "AI_INTEGRATIONS_GEMINI_API_KEY must be set. Please add your Gemini API key to the environment secrets.",
+    );
+  }
+
+  return new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      apiVersion: "",
+      baseUrl,
+    },
+  });
 }
 
-if (!process.env.AI_INTEGRATIONS_GEMINI_API_KEY) {
-  throw new Error(
-    "AI_INTEGRATIONS_GEMINI_API_KEY must be set. Did you forget to provision the Gemini AI integration?",
-  );
-}
+// Lazy singleton — created on first use so the server can start without env vars
+let _imageClient: GoogleGenAI | null = null;
 
-export const ai = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-  },
-});
+function getImageClient(): GoogleGenAI {
+  if (!_imageClient) {
+    _imageClient = createImageClient();
+  }
+  return _imageClient;
+}
 
 export async function generateImage(
   prompt: string
 ): Promise<{ b64_json: string; mimeType: string }> {
-  const response = await ai.models.generateContent({
+  const client = getImageClient();
+  const response = await client.models.generateContent({
     model: "gemini-2.0-flash-preview-image-generation",
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     config: {

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   useListFamilyRoomMessages,
   getListFamilyRoomMessagesQueryKey,
@@ -8,7 +8,7 @@ import {
 import { FamilyRoomMessageEnriched } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Users, Send, Bot } from "lucide-react";
+import { Users, Send, Bot, AtSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function timeAgo(dateStr: string) {
@@ -34,6 +34,19 @@ function Avatar({ name, url, size = 8 }: { name: string; url?: string | null; si
 
 function MessageBubble({ msg, isOwn }: { msg: FamilyRoomMessageEnriched; isOwn: boolean }) {
   const isAi = msg.role === "assistant";
+
+  // Render message content with highlighted @mentions
+  const renderContent = (text: string) => {
+    const parts = text.split(/(@\w[\w\s]*)/g);
+    return parts.map((part, i) =>
+      part.startsWith("@") ? (
+        <span key={i} className="text-primary font-medium">{part}</span>
+      ) : (
+        <span key={i}>{part}</span>
+      )
+    );
+  };
+
   return (
     <div className={cn("flex gap-3 items-end", isOwn && "flex-row-reverse")}>
       <div className="shrink-0">
@@ -59,7 +72,7 @@ function MessageBubble({ msg, isOwn }: { msg: FamilyRoomMessageEnriched; isOwn: 
               : "bg-card border border-border rounded-bl-sm"
           )}
         >
-          {msg.content}
+          {renderContent(msg.content)}
         </div>
         <span className="text-[10px] text-muted-foreground/60 px-1">
           {timeAgo(msg.createdAt as unknown as string)}
@@ -69,12 +82,88 @@ function MessageBubble({ msg, isOwn }: { msg: FamilyRoomMessageEnriched; isOwn: 
   );
 }
 
+type MentionItem = {
+  id: string;
+  name: string;
+  role?: string;
+  avatarUrl?: string | null;
+  isAi?: boolean;
+};
+
+function MentionDropdown({
+  items,
+  query,
+  selectedIndex,
+  onSelect,
+}: {
+  items: MentionItem[];
+  query: string;
+  selectedIndex: number;
+  onSelect: (item: MentionItem) => void;
+}) {
+  const filtered = useMemo(
+    () =>
+      items.filter((item) =>
+        item.name.toLowerCase().includes(query.toLowerCase())
+      ),
+    [items, query]
+  );
+
+  if (filtered.length === 0) return null;
+
+  return (
+    <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-border bg-card shadow-lg overflow-hidden z-50">
+      <div className="px-2 py-1.5 border-b border-border/50">
+        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+          <AtSign className="h-3 w-3" /> Mention
+        </p>
+      </div>
+      <div className="max-h-48 overflow-y-auto">
+        {filtered.map((item, i) => (
+          <button
+            key={item.id}
+            className={cn(
+              "w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-accent transition-colors",
+              i === selectedIndex && "bg-accent"
+            )}
+            onMouseDown={(e) => {
+              e.preventDefault(); // don't blur textarea
+              onSelect(item);
+            }}
+          >
+            {item.isAi ? (
+              <div className="h-7 w-7 rounded-full bg-iridescent flex items-center justify-center shrink-0">
+                <Bot className="h-3.5 w-3.5 text-white" />
+              </div>
+            ) : (
+              <Avatar name={item.name} url={item.avatarUrl} size={7} />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+              <p className="text-[10px] text-muted-foreground capitalize">
+                {item.isAi ? "AI Assistant" : item.role ?? "member"}
+              </p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function FamilyRoomPage() {
   const { user } = useUser();
   const queryClient = useQueryClient();
   const [input, setInput] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [latestId, setLatestId] = useState<number | undefined>();
+
+  // @mention state
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionStart, setMentionStart] = useState<number>(-1);
+  const [mentionSelectedIdx, setMentionSelectedIdx] = useState(0);
 
   // Initial load
   const { data: initialMsgs, isLoading } = useListFamilyRoomMessages(
@@ -123,10 +212,104 @@ export default function FamilyRoomPage() {
   const { data: members } = useListFamilyMembers({});
   const sendMsg = useSendFamilyRoomMessage();
 
+  // Build the mention items list: Lina first, then family members
+  const mentionItems = useMemo<MentionItem[]>(() => {
+    const lina: MentionItem = { id: "lina", name: "Lina", isAi: true };
+    const memberItems: MentionItem[] = (members ?? []).map((m) => ({
+      id: m.clerkUserId,
+      name: m.displayName ?? m.email?.split("@")[0] ?? "Member",
+      role: m.role,
+      avatarUrl: m.avatarUrl,
+    }));
+    return [lina, ...memberItems];
+  }, [members]);
+
+  const filteredMentions = useMemo(
+    () =>
+      mentionItems.filter((item) =>
+        item.name.toLowerCase().includes(mentionQuery.toLowerCase())
+      ),
+    [mentionItems, mentionQuery]
+  );
+
+  // Handle textarea input — detect @mention trigger
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    const cursor = e.target.selectionStart ?? val.length;
+    setInput(val);
+
+    // Find the last @ before the cursor that hasn't been closed by a space
+    const textBeforeCursor = val.slice(0, cursor);
+    const atMatch = textBeforeCursor.match(/@(\w*)$/);
+    if (atMatch) {
+      setMentionOpen(true);
+      setMentionQuery(atMatch[1]);
+      setMentionStart(cursor - atMatch[0].length);
+      setMentionSelectedIdx(0);
+    } else {
+      setMentionOpen(false);
+      setMentionQuery("");
+      setMentionStart(-1);
+    }
+  };
+
+  const insertMention = useCallback(
+    (item: MentionItem) => {
+      const before = input.slice(0, mentionStart);
+      const after = input.slice(mentionStart + 1 + mentionQuery.length);
+      const mention = `@${item.name} `;
+      const newVal = before + mention + after;
+      setInput(newVal);
+      setMentionOpen(false);
+      setMentionQuery("");
+      setMentionStart(-1);
+
+      // Restore focus and move cursor to after the inserted mention
+      setTimeout(() => {
+        if (textareaRef.current) {
+          const newCursor = before.length + mention.length;
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(newCursor, newCursor);
+        }
+      }, 0);
+    },
+    [input, mentionStart, mentionQuery]
+  );
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionOpen && filteredMentions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionSelectedIdx((i) => (i + 1) % filteredMentions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionSelectedIdx((i) => (i - 1 + filteredMentions.length) % filteredMentions.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        insertMention(filteredMentions[mentionSelectedIdx]);
+        return;
+      }
+      if (e.key === "Escape") {
+        setMentionOpen(false);
+        return;
+      }
+    }
+
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   const handleSend = () => {
     const text = input.trim();
     if (!text || sendMsg.isPending) return;
     setInput("");
+    setMentionOpen(false);
 
     sendMsg.mutate(
       { data: { content: text } },
@@ -164,7 +347,7 @@ export default function FamilyRoomPage() {
           <div>
             <h1 className="font-semibold text-foreground">Family Room</h1>
             <p className="text-xs text-muted-foreground">
-              {members?.length ?? 0} member{(members?.length ?? 0) !== 1 ? "s" : ""} · mention @Lina for AI help
+              {members?.length ?? 0} member{(members?.length ?? 0) !== 1 ? "s" : ""} · type @ to mention someone
             </p>
           </div>
         </div>
@@ -185,7 +368,7 @@ export default function FamilyRoomPage() {
                 No messages yet. Say hello to the family!
               </p>
               <p className="text-muted-foreground/60 text-xs mt-1">
-                Tip: mention @Lina to get AI assistance in the chat.
+                Tip: type <span className="text-primary font-medium">@Lina</span> to get AI help, or <span className="text-primary font-medium">@Name</span> to mention a family member.
               </p>
             </div>
           )}
@@ -201,14 +384,21 @@ export default function FamilyRoomPage() {
 
         {/* Input */}
         <div className="shrink-0 border-t border-border/50 px-4 py-3 bg-background/50">
-          <div className="flex items-end gap-2 rounded-xl border border-border bg-card px-3 py-2">
+          <div className="relative flex items-end gap-2 rounded-xl border border-border bg-card px-3 py-2">
+            {mentionOpen && (
+              <MentionDropdown
+                items={mentionItems}
+                query={mentionQuery}
+                selectedIndex={mentionSelectedIdx}
+                onSelect={insertMention}
+              />
+            )}
             <textarea
+              ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
-              }}
-              placeholder="Message the family… (mention @Lina for AI help)"
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Message the family… (type @ to mention)"
               rows={1}
               className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none max-h-32 py-1"
               style={{ minHeight: "1.5rem" }}
@@ -228,7 +418,16 @@ export default function FamilyRoomPage() {
       <div className="hidden lg:flex w-56 flex-col border-l border-border/50 bg-sidebar/50 p-4 gap-3 shrink-0">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Members</p>
         {members?.map((m) => (
-          <div key={m.clerkUserId} className="flex items-center gap-2">
+          <button
+            key={m.clerkUserId}
+            className="flex items-center gap-2 text-left hover:opacity-80 transition-opacity"
+            onClick={() => {
+              const name = m.displayName ?? m.email?.split("@")[0] ?? "Member";
+              const mention = `@${name} `;
+              setInput((prev) => prev + mention);
+              textareaRef.current?.focus();
+            }}
+          >
             <Avatar name={m.displayName ?? m.email ?? "?"} url={m.avatarUrl} size={7} />
             <div className="min-w-0">
               <p className="text-sm font-medium text-foreground truncate">
@@ -236,13 +435,19 @@ export default function FamilyRoomPage() {
               </p>
               <p className="text-[10px] text-muted-foreground capitalize">{m.role}</p>
             </div>
-          </div>
+          </button>
         ))}
         {!members?.length && (
           <p className="text-xs text-muted-foreground">Loading…</p>
         )}
         <div className="mt-auto pt-4 border-t border-border/50">
-          <div className="flex items-center gap-2">
+          <button
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity w-full text-left"
+            onClick={() => {
+              setInput((prev) => prev + "@Lina ");
+              textareaRef.current?.focus();
+            }}
+          >
             <div className="h-7 w-7 rounded-full bg-iridescent flex items-center justify-center">
               <Bot className="h-3.5 w-3.5 text-white" />
             </div>
@@ -250,7 +455,7 @@ export default function FamilyRoomPage() {
               <p className="text-xs font-medium text-foreground">Lina</p>
               <p className="text-[10px] text-muted-foreground">AI Assistant</p>
             </div>
-          </div>
+          </button>
         </div>
       </div>
     </div>
