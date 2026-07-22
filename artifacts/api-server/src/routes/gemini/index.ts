@@ -31,6 +31,7 @@ import { and } from "drizzle-orm";
 import { requireAuth } from "../../middlewares/requireAuth";
 import { decryptApiKey } from "../../lib/crypto";
 import { getProviderForModel } from "../../lib/modelRegistry";
+import { aiRateLimit, imageGenRateLimit } from "../../middlewares/rateLimiter";
 
 const router: IRouter = Router();
 
@@ -345,7 +346,7 @@ router.get("/gemini/conversations/:id/messages", requireAuth, async (req, res): 
   res.json(ListGeminiMessagesResponse.parse(msgs));
 });
 
-router.post("/gemini/conversations/:id/messages", requireAuth, async (req, res): Promise<void> => {
+router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
   const params = SendGeminiMessageParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
@@ -527,7 +528,7 @@ router.get("/gemini/conversations/:id/export", requireAuth, async (req, res): Pr
 
 // ─── Image Generation ─────────────────────────────────────────────────────────
 
-router.post("/gemini/generate-image", requireAuth, async (req, res): Promise<void> => {
+router.post("/gemini/generate-image", requireAuth, imageGenRateLimit, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
   const parsed = GenerateGeminiImageBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }

@@ -30,12 +30,17 @@ function getRedirectUri(): string {
   throw new Error("Set GOOGLE_REDIRECT_URI or REPLIT_DEV_DOMAIN");
 }
 
+function getSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error("SESSION_SECRET is not set — cannot sign OAuth state tokens");
+  return secret;
+}
+
 /** Signs a state token: base64url( clerkUserId.timestamp.hmac ) */
 function signState(clerkUserId: string): string {
   const ts = Date.now().toString();
   const data = `${clerkUserId}.${ts}`;
-  const secret = process.env.SESSION_SECRET ?? "fallback";
-  const sig = createHmac("sha256", secret).update(data).digest("hex").slice(0, 20);
+  const sig = createHmac("sha256", getSessionSecret()).update(data).digest("hex").slice(0, 20);
   return Buffer.from(`${data}.${sig}`).toString("base64url");
 }
 
@@ -49,8 +54,7 @@ function verifyState(state: string): string | null {
     const ts = decoded.slice(secondLastDot + 1, lastDot);
     const sig = decoded.slice(lastDot + 1);
     const data = `${clerkUserId}.${ts}`;
-    const secret = process.env.SESSION_SECRET ?? "fallback";
-    const expected = createHmac("sha256", secret).update(data).digest("hex").slice(0, 20);
+    const expected = createHmac("sha256", getSessionSecret()).update(data).digest("hex").slice(0, 20);
     if (sig !== expected) return null;
     if (Date.now() - parseInt(ts) > 10 * 60 * 1000) return null;
     return clerkUserId;

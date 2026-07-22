@@ -46,26 +46,35 @@ router.get("/user/status", requireAuth, async (req, res): Promise<void> => {
   let [member] = await db.select().from(familyMembers).where(eq(familyMembers.clerkUserId, clerkUserId));
 
   if (!member) {
-    const [existingAdmin] = await db.select().from(familyMembers).where(eq(familyMembers.role, "admin"));
-    const isFirst = !existingAdmin;
-    [member] = await db.insert(familyMembers).values({
-      clerkUserId,
-      role: isFirst ? "admin" : "member",
-      status: "approved",
-      displayName: name ?? null,
-      email: email ?? null,
-      avatarUrl: avatar ?? null,
-      featureFlags: '{"imageGen":true,"voiceChat":true,"personas":true,"memories":true}',
-    }).returning();
-  } else {
-    // Auto-approve any previously pending member
-    if (member.status !== "approved") {
-      [member] = await db.update(familyMembers)
-        .set({ status: "approved" })
-        .where(eq(familyMembers.clerkUserId, clerkUserId))
-        .returning();
+    // Wrap in a transaction guarded by the DB-level partial unique index on
+    // (role) WHERE role = 'admin' — ensures only one admin row can ever exist
+    // even under concurrent sign-ups.
+    try {
+      member = await db.transaction(async (tx) => {
+        const [existingAdmin] = await tx.select().from(familyMembers).where(eq(familyMembers.role, "admin"));
+        const isFirst = !existingAdmin;
+        const [inserted] = await tx.insert(familyMembers).values({
+          clerkUserId,
+          role: isFirst ? "admin" : "member",
+          // First user (admin) is auto-approved; all others start as pending.
+          status: isFirst ? "approved" : "pending",
+          displayName: name ?? null,
+          email: email ?? null,
+          avatarUrl: avatar ?? null,
+          featureFlags: '{"imageGen":true,"voiceChat":true,"personas":true,"memories":true}',
+        }).returning();
+        return inserted;
+      });
+    } catch (err: unknown) {
+      // Concurrent insert on clerkUserId unique or admin index — re-fetch
+      const isUniqueViolation = err instanceof Error && err.message.includes("unique");
+      if (!isUniqueViolation) throw err;
+      const [existing] = await db.select().from(familyMembers).where(eq(familyMembers.clerkUserId, clerkUserId));
+      if (!existing) throw err;
+      member = existing;
     }
-    // Update profile info if provided and not yet stored
+  } else {
+    // Update profile info if provided and not yet stored (do not change status here)
     const updates: Record<string, unknown> = {};
     if (name && !member.displayName) updates.displayName = name;
     if (email && !member.email) updates.email = email;

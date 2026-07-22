@@ -1,5 +1,6 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
@@ -33,10 +34,42 @@ app.use(
   }),
 );
 
+// Security headers
+app.use(helmet());
+
 // Clerk proxy must be mounted before body parsers (streams raw bytes)
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.use(cors({ credentials: true, origin: true }));
+// CORS — fail-closed: only allow explicitly configured frontend origins.
+// If neither REPLIT_DEV_DOMAIN nor FRONTEND_ORIGIN is set, all cross-origin
+// credentialed requests are rejected rather than silently permitted.
+const _corsDev = process.env.REPLIT_DEV_DOMAIN;
+const _corsAllowed = new Set<string>(
+  [
+    _corsDev ? `https://${_corsDev}` : null,
+    process.env.FRONTEND_ORIGIN ?? null,
+  ].filter(Boolean) as string[],
+);
+if (_corsAllowed.size === 0) {
+  logger.warn("No CORS origin configured (REPLIT_DEV_DOMAIN / FRONTEND_ORIGIN unset) — all cross-origin requests will be rejected");
+}
+
+app.use(
+  cors({
+    credentials: true,
+    origin: (origin, callback) => {
+      // Allow requests with no Origin (e.g. server-to-server, curl in dev)
+      if (!origin) return callback(null, true);
+      // Fail-closed: reject if no allowed origins are configured OR origin isn't on the list
+      if (_corsAllowed.size > 0 && _corsAllowed.has(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin '${origin}' not allowed`));
+      }
+    },
+  }),
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -50,5 +83,15 @@ app.use(
 );
 
 app.use("/api", router);
+
+// Global error handler — keeps stack traces out of API responses
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  const message = err instanceof Error ? err.message : "Internal server error";
+  const status = (err as any)?.status ?? (err as any)?.statusCode ?? 500;
+  logger.error({ err }, message);
+  if (!res.headersSent) {
+    res.status(status).json({ error: message });
+  }
+});
 
 export default app;
