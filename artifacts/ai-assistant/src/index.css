@@ -64,8 +64,9 @@
   --popover-foreground: 222 47% 11%;
   --popover-border: 214 32% 91%;
   
-  --primary: 243 75% 59%;
-  --primary-foreground: 210 40% 98%;
+  /* LINA brand — magenta primary */
+  --primary: 328 82% 52%;
+  --primary-foreground: 0 0% 100%;
   
   --secondary: 214 32% 91%;
   --secondary-foreground: 222 47% 11%;
@@ -81,7 +82,7 @@
   
   --border: 214 32% 91%;
   --input: 214 32% 91%;
-  --ring: 243 75% 59%;
+  --ring: 328 82% 52%;
   
   --sidebar: 0 0% 100%;
   --sidebar-foreground: 222 47% 11%;
@@ -104,7 +105,8 @@
   --popover-foreground: 213 31% 91%;
   --popover-border: 222 47% 15%;
   
-  --primary: 243 75% 59%;
+  /* LINA brand — magenta primary */
+  --primary: 328 82% 52%;
   --primary-foreground: 0 0% 100%;
   
   --secondary: 222 47% 15%;
@@ -121,7 +123,7 @@
   
   --border: 222 47% 15%;
   --input: 222 47% 15%;
-  --ring: 243 75% 59%;
+  --ring: 328 82% 52%;
 
   --sidebar: 224 71% 3%;
   --sidebar-foreground: 213 31% 91%;
@@ -145,12 +147,14 @@
     @apply bg-background/60 backdrop-blur-xl border border-white/10 shadow-lg dark:bg-black/40;
   }
   
+  /* LINA brand gradient: purple → magenta → teal */
   .bg-iridescent {
-    @apply bg-gradient-to-br from-indigo-500 via-cyan-400 to-purple-500;
+    background: linear-gradient(135deg, #8B2FC9 0%, #E91E8C 50%, #1BBFD4 100%);
   }
   
   .text-iridescent {
-    @apply bg-clip-text text-transparent bg-gradient-to-br from-indigo-400 via-cyan-300 to-purple-400;
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #a855f7 0%, #E91E8C 50%, #22d3ee 100%);
   }
 
   .glass-input-wrapper {
@@ -172,7 +176,8 @@
   }
   
   .glass-input-wrapper:focus-within::before {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.8) 0%, rgba(6, 182, 212, 0.8) 50%, rgba(139, 92, 246, 0.8) 100%);
+    /* LINA brand focus ring: purple → magenta → teal */
+    background: linear-gradient(135deg, rgba(139, 47, 201, 0.8) 0%, rgba(233, 30, 140, 0.8) 50%, rgba(27, 191, 212, 0.8) 100%);
   }
   
   .typing-dot {
@@ -203,8 +208,8 @@
 }
 
 @keyframes voice-glow {
-  0%, 100% { box-shadow: 0 0 20px 4px rgba(99,102,241,0.15); }
-  50%       { box-shadow: 0 0 40px 12px rgba(99,102,241,0.3); }
+  0%, 100% { box-shadow: 0 0 20px 4px rgba(233,30,140,0.15); }
+  50%       { box-shadow: 0 0 40px 12px rgba(233,30,140,0.35); }
 }
 
 @layer utilities {

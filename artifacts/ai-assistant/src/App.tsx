@@ -62,7 +62,8 @@ const clerkAppearance = {
     logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
   },
   variables: {
-    colorPrimary: "hsl(243 75% 59%)",
+    /* LINA brand — magenta primary, purple/teal accents */
+    colorPrimary: "hsl(328 82% 52%)",
     colorForeground: "hsl(213 31% 91%)",
     colorMutedForeground: "hsl(215 20.2% 65.1%)",
     colorDanger: "hsl(0 62.8% 30.6%)",
@@ -89,7 +90,7 @@ const clerkAppearance = {
     formFieldSuccessText: "text-primary",
     alertText: "text-destructive",
     logoBox: "mb-6 flex justify-center",
-    logoImage: "w-12 h-12 object-contain",
+    logoImage: "w-auto h-10 max-w-[200px] object-contain",
     socialButtonsBlockButton: "border-border hover:bg-secondary/50",
     formButtonPrimary: "bg-primary text-primary-foreground hover:bg-primary/90",
     formFieldInput: "bg-input border-border text-foreground",
