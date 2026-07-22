@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { Sparkles, Zap, Shield, ArrowRight } from "lucide-react";
+import { LinaLogo } from "@/components/LinaLogo";
 
 export default function LandingPage() {
   return (
@@ -10,11 +11,8 @@ export default function LandingPage() {
 
       {/* Nav */}
       <nav className="relative z-10 flex items-center justify-between px-6 py-6 max-w-7xl mx-auto w-full">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-iridescent shadow-xl shadow-primary/20">
-            <img src={`${import.meta.env.BASE_URL}logo.svg`.replace('//', '/')} alt="Lina Logo" className="w-6 h-6" />
-          </div>
-          <span className="text-xl font-bold tracking-tight text-white">Lina</span>
+        <div className="flex items-center">
+          <LinaLogo className="h-10 w-auto" showSubtitle={false} />
         </div>
         <div className="flex items-center gap-4">
           <Link href="/sign-in">

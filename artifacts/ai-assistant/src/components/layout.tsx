@@ -1,5 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { LinaLogo } from "./LinaLogo";
 import { useClerk, useUser } from "@clerk/react";
 import {
   MessageSquare, Image as ImageIcon, LayoutDashboard, Settings,
@@ -198,15 +199,8 @@ export default function Layout({ children }: { children: ReactNode }) {
   const SidebarContent = () => (
     <div className="flex h-full flex-col bg-sidebar border-r border-sidebar-border">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-6 py-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-iridescent shadow-lg">
-          <img
-            src={`${import.meta.env.BASE_URL}logo.svg`.replace('//', '/')}
-            alt="Logo"
-            className="w-5 h-5 object-contain filter drop-shadow-md"
-          />
-        </div>
-        <span className="text-lg font-semibold tracking-tight text-foreground">Lina</span>
+      <div className="px-6 py-4">
+        <LinaLogo className="h-12 w-auto" showSubtitle={false} />
       </div>
 
       {/* New Chat */}
@@ -392,15 +386,8 @@ export default function Layout({ children }: { children: ReactNode }) {
         <div className="absolute inset-0 bg-iridescent opacity-5 pointer-events-none blur-[100px] mix-blend-screen" />
 
         <header className="flex h-14 items-center justify-between border-b border-border/50 bg-background/50 px-4 backdrop-blur-xl md:hidden z-10">
-          <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-iridescent">
-              <img
-                src={`${import.meta.env.BASE_URL}logo.svg`.replace('//', '/')}
-                alt="Logo"
-                className="w-3.5 h-3.5 object-contain"
-              />
-            </div>
-            <span className="font-semibold">Lina</span>
+          <div className="flex items-center">
+            <LinaLogo className="h-7 w-auto" showSubtitle={false} />
           </div>
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
