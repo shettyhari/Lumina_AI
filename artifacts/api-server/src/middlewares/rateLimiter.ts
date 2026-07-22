@@ -1,4 +1,4 @@
-import { rateLimit } from "express-rate-limit";
+import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 
 /**
  * Rate limiter for AI / image-generation routes.
@@ -10,7 +10,7 @@ export const aiRateLimit = rateLimit({
   limit: 30, // 30 requests per user per minute
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  keyGenerator: (req) => (req as any).clerkUserId ?? req.ip ?? "unknown",
+  keyGenerator: (req) => (req as any).clerkUserId ?? ipKeyGenerator(req),
   message: { error: "rate_limit_exceeded", message: "Too many requests — please slow down." },
   skip: (req) => req.method === "OPTIONS",
 });
@@ -23,7 +23,7 @@ export const imageGenRateLimit = rateLimit({
   limit: 5, // 5 image generations per user per minute
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  keyGenerator: (req) => (req as any).clerkUserId ?? req.ip ?? "unknown",
+  keyGenerator: (req) => (req as any).clerkUserId ?? ipKeyGenerator(req),
   message: { error: "rate_limit_exceeded", message: "Too many image generation requests — please slow down." },
   skip: (req) => req.method === "OPTIONS",
 });
