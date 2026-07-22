@@ -92,8 +92,8 @@ async function getValidAccessToken(clerkUserId: string): Promise<string | null> 
     }),
   });
   if (!resp.ok) return null;
-  const data = await resp.json();
-  const newExpiresAt = new Date(Date.now() + data.expires_in * 1000);
+  const data = await resp.json() as { access_token: string; expires_in?: number };
+  const newExpiresAt = new Date(Date.now() + (data.expires_in ?? 3600) * 1000);
   await db.update(userCloudTokens).set({
     encryptedAccessToken: encryptApiKey(data.access_token),
     expiresAt: newExpiresAt,
@@ -164,13 +164,13 @@ router.get("/cloud-storage/google/callback", async (req, res): Promise<void> => 
       return;
     }
 
-    const tokens = await tokenResp.json();
+    const tokens = await tokenResp.json() as { access_token: string; refresh_token?: string; expires_in?: number };
 
     // Get user profile
     const profileResp = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
     });
-    const profile = profileResp.ok ? await profileResp.json() : {};
+    const profile = (profileResp.ok ? await profileResp.json() : {}) as { email?: string; name?: string; picture?: string };
 
     const expiresAt = new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000);
 
@@ -275,7 +275,7 @@ router.get("/cloud-storage/google/download/:fileId", requireAuth, async (req, re
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
     if (!metaResp.ok) { res.status(404).json({ error: "File not found" }); return; }
-    const meta = await metaResp.json();
+    const meta = await metaResp.json() as { name: string; mimeType: string; size?: string };
 
     // Google Docs / Sheets / Slides need export
     const exportMimeMap: Record<string, string> = {
