@@ -15,7 +15,7 @@ A fully-featured personal AI assistant with a Gemini-style dark UI, real-time LL
 - pnpm workspaces, Node.js 24, TypeScript 5.9
 - Frontend: React + Vite, Tailwind v4, shadcn/ui, Wouter routing, Framer Motion
 - Auth: Clerk (Google OAuth + email/password), via `@clerk/react` + `@clerk/express`
-- AI: Gemini via Replit AI Integrations (`@workspace/integrations-gemini-ai`)
+- AI: Gemini via Google AI API key (`AI_INTEGRATIONS_GEMINI_API_KEY` + `AI_INTEGRATIONS_GEMINI_BASE_URL`), using `@workspace/integrations-gemini-ai`
 - DB: PostgreSQL + Drizzle ORM
 - API: Express 5 with SSE streaming for chat
 
