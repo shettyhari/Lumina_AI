@@ -16,9 +16,14 @@ import { Bot } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 
-type Provider = "openai" | "anthropic" | "openrouter";
+type Provider = "gemini" | "openai" | "anthropic" | "openrouter";
 
 const PROVIDER_META: Record<Provider, { label: string; icon: React.ReactNode; color: string; description: string; placeholder: string; docsUrl: string }> = {
+  gemini: {
+    label: "Google AI Studio (Gemini)", icon: <SiGoogle className="w-5 h-5" />, color: "text-primary",
+    description: "Access Gemini 2.5 Flash, 2.5 Pro, and Flash-Lite models with your Google AI Studio key", placeholder: "AIzaSy...",
+    docsUrl: "https://aistudio.google.com/app/apikey",
+  },
   openai: {
     label: "OpenAI", icon: <Bot className="w-5 h-5" />, color: "text-green-400",
     description: "Access GPT-4o, o3-mini, o1, and more", placeholder: "sk-proj-...",
@@ -271,26 +276,11 @@ export default function SettingsPage() {
               AI Providers
             </h3>
             <p className="text-sm text-muted-foreground mt-2">
-              Gemini models are built-in (no key needed). Add your own keys to unlock OpenAI, Anthropic, and OpenRouter models.
+              Gemini models work out-of-the-box. Add your custom Google AI Studio key or unlock OpenAI, Anthropic, and OpenRouter models below.
             </p>
           </div>
 
-          <div className="flex items-center gap-3 p-4 border border-primary/20 rounded-xl bg-primary/5">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-background/50">
-              <SiGoogle className="w-4 h-4 text-primary" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-foreground">Google Gemini</span>
-                <span className="flex items-center gap-1 text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">
-                  <CheckCircle2 className="w-3 h-3" /> Built-in
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">Gemini 2.5 Flash, Pro, and 2.0 Flash — free to use</p>
-            </div>
-          </div>
-
-          {(["openai", "anthropic", "openrouter"] as Provider[]).map(provider => (
+          {(["gemini", "openai", "anthropic", "openrouter"] as Provider[]).map(provider => (
             <ProviderKeyRow
               key={provider} provider={provider}
               maskedKey={getKeyForProvider(provider)}

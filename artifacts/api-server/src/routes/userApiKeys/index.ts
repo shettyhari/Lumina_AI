@@ -10,7 +10,7 @@ import {
 import { encryptApiKey, decryptApiKey } from "../../lib/crypto";
 import { requireAuth } from "../../middlewares/requireAuth";
 
-const VALID_PROVIDERS = ["openai", "anthropic", "openrouter"] as const;
+const VALID_PROVIDERS = ["gemini", "openai", "anthropic", "openrouter"] as const;
 
 const router: IRouter = Router();
 
