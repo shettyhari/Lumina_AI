@@ -3,6 +3,7 @@
 # compiled output
 dist
 /public
+artifacts/ai-assistant/public
 tmp
 out-tsc
 *.tsbuildinfo
@@ -48,3 +49,5 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+.vercel
+.env*
