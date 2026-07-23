@@ -159,7 +159,7 @@ function useSafeUser() {
   }, []);
 
   const isLoaded = userResult?.isLoaded || forceLoaded;
-  const isSignedIn = userResult?.isLoaded ? (userResult?.isSignedIn ?? true) : true;
+  const isSignedIn = userResult?.isSignedIn === true;
 
   return { ...userResult, isLoaded, isSignedIn };
 }
