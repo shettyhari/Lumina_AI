@@ -35,9 +35,23 @@ export default function LandingPage() {
   const handleCustomLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    try {
+      localStorage.setItem("lumina_admin_session", "true");
+    } catch {
+      /* localStorage blocked */
+    }
     setTimeout(() => {
       setLocation("/chat");
-    }, 400);
+    }, 300);
+  };
+
+  const handleAdminAccess = () => {
+    try {
+      localStorage.setItem("lumina_admin_session", "true");
+    } catch {
+      /* localStorage blocked */
+    }
+    setLocation("/chat");
   };
 
   const handleGoogleLogin = async () => {
@@ -296,7 +310,7 @@ export default function LandingPage() {
 
                 <button
                   type="button"
-                  onClick={() => setLocation("/chat")}
+                  onClick={handleAdminAccess}
                   className="w-full py-2 bg-secondary/50 hover:bg-secondary/80 border border-border/60 text-foreground text-[11px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5"
                 >
                   <Zap className="w-3.5 h-3.5 text-amber-400" />

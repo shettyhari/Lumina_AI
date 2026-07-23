@@ -353,7 +353,20 @@ export default function Layout({ children }: { children: ReactNode }) {
           </button>
 
           <button
-            onClick={() => signOut({ redirectUrl: import.meta.env.BASE_URL || "/" })}
+            onClick={() => {
+              try {
+                localStorage.removeItem("lumina_admin_session");
+              } catch {}
+              try {
+                if (typeof signOut === "function") {
+                  signOut({ redirectUrl: import.meta.env.BASE_URL || "/" });
+                } else {
+                  window.location.href = import.meta.env.BASE_URL || "/";
+                }
+              } catch {
+                window.location.href = import.meta.env.BASE_URL || "/";
+              }
+            }}
             className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0"
             title="Log out"
           >

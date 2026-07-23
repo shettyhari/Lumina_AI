@@ -159,7 +159,8 @@ function useSafeUser() {
   }, []);
 
   const isLoaded = userResult?.isLoaded || forceLoaded;
-  const isSignedIn = userResult?.isSignedIn === true;
+  const isLocalAdmin = typeof window !== 'undefined' && localStorage.getItem("lumina_admin_session") === "true";
+  const isSignedIn = userResult?.isSignedIn === true || isLocalAdmin;
 
   return { ...userResult, isLoaded, isSignedIn };
 }
