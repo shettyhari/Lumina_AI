@@ -5,6 +5,7 @@ import { detectAndExecuteRelay } from "../../lib/relayDetector";
 import { isBudgetQuestion, getBudgetContext, detectBudgetMonth, detectBudgetComparison, detectBudgetLogHint } from "../../lib/intentDetector";
 import { TOOL_DECLARATIONS, executeTool } from "../../lib/agentTools";
 import { ai } from "@workspace/integrations-gemini-ai";
+import { GoogleGenAI } from "@google/genai";
 import { generateImage } from "@workspace/integrations-gemini-ai/image";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
@@ -75,8 +76,11 @@ async function streamGeminiAgentic(
   reasoningMode = false,
   originalMessage = "",
   webSearch = false,
+  customApiKey?: string,
 ): Promise<string> {
   const contents: any[] = buildGeminiContents(chatMessages);
+  const activeKey = customApiKey || process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  const geminiClient = activeKey ? new GoogleGenAI({ apiKey: activeKey }) : ai;
 
   const agentSystemPrompt = (systemPrompt || "") +
     `\n\nYou are Lina, an agentic AI home assistant for a family. You have access to tools that let you take real actions:
@@ -110,7 +114,7 @@ Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     // Non-streaming call to detect function calls
-    const response = await ai.models.generateContent({ model, contents, config });
+    const response = await geminiClient.models.generateContent({ model, contents, config });
     const parts: any[] = response.candidates?.[0]?.content?.parts ?? [];
 
     const funcCalls = parts.filter((p: any) => p.functionCall);
@@ -544,6 +548,7 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
     let fullResponse = "";
 
     if (provider === "gemini") {
+      const userGeminiKey = await getUserApiKey(clerkUserId, "gemini");
       const webSearch = (req.body as any)?.webSearch === true;
       try {
         fullResponse = await streamGeminiAgentic(
@@ -552,10 +557,11 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
           reasoningMode,
           parsed.data.content,
           webSearch,
+          userGeminiKey || undefined,
         );
       } catch (err: any) {
         req.log.warn({ err }, "Gemini API call failed");
-        fullResponse = `Hello! I am Lina, your personal AI assistant. I received your message: "${parsed.data.content}". ${err?.message?.includes("API_KEY") || err?.message?.includes("apiKey") ? "To enable live Gemini generation, please add your GEMINI_API_KEY in Settings → AI Providers." : ""}`;
+        fullResponse = `Hello! I am Lina, your personal AI assistant. I received your message: "${parsed.data.content}". To activate live Google Gemini generation, please add your Google AI Studio API Key in Settings → AI Providers (or set GEMINI_API_KEY on Vercel).`;
         sendChunk(fullResponse);
       }
     } else if (provider === "openai") {

@@ -159,25 +159,75 @@ function useSafeUser() {
 }
 
 function SignInPage() {
+  const [, setLocation] = useLocation();
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleCustomLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      setLocation("/chat");
+    }, 400);
+  };
+
+  if (rawClerkKey) {
+    return (
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-iridescent opacity-10 pointer-events-none blur-3xl"></div>
+        <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
+          <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-iridescent opacity-10 pointer-events-none blur-3xl"></div>
-      <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
-        <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+      <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-background to-cyan-500/10 pointer-events-none blur-3xl" />
+      <div className="z-10 w-full max-w-md bg-card/60 backdrop-blur-xl border border-border/50 rounded-2xl p-8 shadow-2xl space-y-6">
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-purple-400 to-cyan-400 bg-clip-text text-transparent">Lumina AI</h1>
+          <p className="text-sm text-muted-foreground">Agentic AI Home & Family Assistant</p>
+        </div>
+
+        <form onSubmit={handleCustomLogin} className="space-y-4">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Email address or Name</label>
+            <input
+              type="text"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@lumina.local"
+              className="w-full bg-input/50 border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground transition-all"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 bg-gradient-to-r from-primary to-purple-600 text-primary-foreground font-medium rounded-xl hover:opacity-90 transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+          >
+            {loading ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
+
+        <div className="relative flex items-center justify-center border-t border-border/40 pt-4">
+          <button
+            type="button"
+            onClick={() => setLocation("/chat")}
+            className="w-full py-2.5 bg-secondary/40 border border-border/60 hover:bg-secondary/70 text-foreground text-sm font-medium rounded-xl transition-all"
+          >
+            Continue as Admin User (Demo)
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 function SignUpPage() {
-  return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-iridescent opacity-10 pointer-events-none blur-3xl"></div>
-      <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
-        <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
-      </div>
-    </div>
-  );
+  return <SignInPage />;
 }
 
 function ClerkQueryClientCacheInvalidator() {
