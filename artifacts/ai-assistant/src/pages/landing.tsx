@@ -1,92 +1,360 @@
-import { Link } from "wouter";
-import { Sparkles, Zap, Shield, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { useLocation } from "wouter";
+import {
+  Sparkles,
+  Zap,
+  Shield,
+  ArrowRight,
+  Bot,
+  Calendar,
+  ShoppingCart,
+  Wallet,
+  Users,
+  ImageIcon,
+  LogIn,
+  CheckCircle2,
+  Cpu,
+} from "lucide-react";
 import { LinaLogo } from "@/components/LinaLogo";
+import { SignIn, SignUp, useUser } from "@clerk/react";
 
 export default function LandingPage() {
+  const [, setLocation] = useLocation();
+  const { isSignedIn, isLoaded } = useUser();
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [guestName, setGuestName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // If already signed in, redirect to workspace
+  if (isLoaded && isSignedIn) {
+    setLocation("/chat");
+    return null;
+  }
+
+  const handleCustomLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setTimeout(() => {
+      setLocation("/chat");
+    }, 400);
+  };
+
+  const rawClerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/30 relative overflow-hidden flex flex-col">
-      {/* Background Effects */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-iridescent opacity-20 blur-[120px] rounded-full pointer-events-none mix-blend-screen"></div>
-      <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-indigo-500/20 blur-[150px] rounded-full pointer-events-none mix-blend-screen"></div>
+    <div className="min-h-screen bg-background text-foreground selection:bg-primary/30 relative overflow-hidden flex flex-col font-sans">
+      {/* Dynamic Background Glow Effects */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1100px] h-[550px] bg-gradient-to-r from-primary/30 via-purple-600/20 to-cyan-500/30 opacity-40 blur-[130px] rounded-full pointer-events-none mix-blend-screen" />
+      <div className="absolute top-[40%] right-[-10%] w-[600px] h-[600px] bg-indigo-500/20 blur-[160px] rounded-full pointer-events-none mix-blend-screen" />
+      <div className="absolute bottom-[10%] left-[-10%] w-[700px] h-[700px] bg-cyan-500/15 blur-[160px] rounded-full pointer-events-none mix-blend-screen" />
 
-      {/* Nav */}
-      <nav className="relative z-10 flex items-center justify-between px-6 py-6 max-w-7xl mx-auto w-full">
-        <div className="flex items-center">
-          <LinaLogo className="h-10 w-auto" showSubtitle={false} />
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/sign-in">
-            <div className="text-sm font-medium text-muted-foreground hover:text-white transition-colors cursor-pointer px-4 py-2">
+      {/* Top Navbar */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/70 border-b border-border/40">
+        <nav className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto w-full">
+          <div className="flex items-center gap-3">
+            <LinaLogo className="h-9 w-auto" showSubtitle={true} />
+          </div>
+
+          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
+            <a href="#features" className="hover:text-foreground transition-colors">Features</a>
+            <a href="#ai-models" className="hover:text-foreground transition-colors">AI Models</a>
+            <a href="#auth-section" className="hover:text-foreground transition-colors">Sign In</a>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <a
+              href="#auth-section"
+              onClick={() => setAuthMode("signin")}
+              className="text-sm font-medium px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
+            >
               Sign In
-            </div>
-          </Link>
-          <Link href="/sign-up">
-            <div className="text-sm font-medium bg-white text-black px-5 py-2.5 rounded-full hover:bg-white/90 transition-all cursor-pointer shadow-lg shadow-white/10 flex items-center gap-2">
+            </a>
+            <a
+              href="#auth-section"
+              onClick={() => setAuthMode("signup")}
+              className="text-sm font-medium bg-gradient-to-r from-primary to-purple-600 text-white px-5 py-2.5 rounded-full hover:opacity-90 transition-all shadow-lg shadow-primary/25 flex items-center gap-2"
+            >
               Get Started <ArrowRight className="w-4 h-4" />
-            </div>
-          </Link>
-        </div>
-      </nav>
+            </a>
+          </div>
+        </nav>
+      </header>
 
-      {/* Hero */}
-      <main className="flex-1 relative z-10 flex flex-col items-center justify-center text-center px-4 pt-20 pb-32">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 mb-8 backdrop-blur-md">
-          <Sparkles className="w-4 h-4 text-cyan-400" />
-          <span className="text-sm font-medium text-cyan-50">Introducing Lina OS 1.0</span>
-        </div>
-        
-        <h1 className="text-5xl md:text-7xl font-bold tracking-tighter max-w-4xl leading-[1.1] mb-8">
-          Your mind, <br className="hidden md:block" />
-          <span className="text-iridescent">amplified.</span>
-        </h1>
-        
-        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-12 leading-relaxed">
-          Step into a premium, thoughtful workspace. Lina isn't just a chat interface—it's a deeply personal intelligence that listens, remembers, and responds with real substance.
-        </p>
-        
-        <Link href="/sign-up">
-          <div className="group relative inline-flex items-center justify-center gap-2 bg-white text-black px-8 py-4 rounded-full font-medium text-lg hover:scale-105 transition-all duration-300 cursor-pointer shadow-[0_0_40px_rgba(255,255,255,0.2)]">
-            Start Thinking Together
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            <div className="absolute inset-0 rounded-full ring-1 ring-white/50 ring-offset-2 ring-offset-background group-hover:ring-offset-4 transition-all duration-300"></div>
+      {/* Hero Section */}
+      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-16 pb-20 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        {/* Left Column: Headline & Value Prop */}
+        <div className="lg:col-span-7 text-left space-y-8">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-md">
+            <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-primary">Lumina AI Platform 2.0</span>
           </div>
-        </Link>
-      </main>
 
-      {/* Features */}
-      <section className="relative z-10 bg-black/40 border-t border-white/5 backdrop-blur-xl py-24">
-        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-12">
-          <div className="flex flex-col items-start text-left">
-            <div className="h-12 w-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mb-6 border border-indigo-500/30">
-              <Zap className="w-6 h-6" />
-            </div>
-            <h3 className="text-xl font-semibold mb-3 text-white">Fluid Interaction</h3>
-            <p className="text-muted-foreground leading-relaxed">
-              Experience zero-latency streaming responses that feel like a continuous thought process. The interface disappears, leaving just you and the ideas.
-            </p>
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
+            Your Home & Family, <br />
+            <span className="bg-gradient-to-r from-primary via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+              Powered by Agentic AI.
+            </span>
+          </h1>
+
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl leading-relaxed">
+            Lumina is your all-in-one AI assistant and family operating system. From smart grocery sync and budget tracking to real-time agentic reasoning and family chat — manage everything in one unified, beautiful workspace.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-4 pt-2">
+            <a
+              href="#auth-section"
+              className="px-8 py-4 bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-semibold rounded-2xl shadow-xl shadow-primary/30 hover:scale-105 transition-all flex items-center gap-3 text-base"
+            >
+              Start Free Workspace <ArrowRight className="w-5 h-5" />
+            </a>
+            <a
+              href="#features"
+              className="px-6 py-4 bg-secondary/60 hover:bg-secondary/90 border border-border/60 text-foreground font-medium rounded-2xl transition-all text-base"
+            >
+              Explore Features
+            </a>
           </div>
-          
-          <div className="flex flex-col items-start text-left">
-            <div className="h-12 w-12 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center mb-6 border border-cyan-500/30">
-              <Sparkles className="w-6 h-6" />
+
+          <div className="pt-4 flex items-center gap-6 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>Multi-Model AI (Gemini 2.0, Claude, GPT-4)</span>
             </div>
-            <h3 className="text-xl font-semibold mb-3 text-white">Visual Synthesis</h3>
-            <p className="text-muted-foreground leading-relaxed">
-              Don't just talk—create. Generate stunning, high-resolution imagery directly within your workspace without breaking your creative flow.
-            </p>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>End-to-End Encryption</span>
+            </div>
           </div>
-          
-          <div className="flex flex-col items-start text-left">
-            <div className="h-12 w-12 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center mb-6 border border-purple-500/30">
-              <Shield className="w-6 h-6" />
+        </div>
+
+        {/* Right Column: Embedded Login & SignUp Form */}
+        <div id="auth-section" className="lg:col-span-5 relative">
+          <div className="w-full bg-card/70 backdrop-blur-2xl border border-border/80 rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden">
+            <div className="absolute -top-12 -right-12 w-40 h-40 bg-primary/20 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="flex items-center justify-between border-b border-border/40 pb-4">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("signin")}
+                  className={`text-base font-bold pb-1 transition-all ${authMode === "signin" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Sign In
+                </button>
+                <span className="text-muted-foreground/40">•</span>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("signup")}
+                  className={`text-base font-bold pb-1 transition-all ${authMode === "signup" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Create Account
+                </button>
+              </div>
+
+              <span className="text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full font-medium">Production Ready</span>
             </div>
-            <h3 className="text-xl font-semibold mb-3 text-white">Deep Context</h3>
-            <p className="text-muted-foreground leading-relaxed">
-              Lina organizes your thoughts intuitively. Pin important conversations, search past insights, and maintain context across sessions seamlessly.
+
+            {/* If Clerk key present, render Clerk auth widget */}
+            {rawClerkKey ? (
+              <div className="w-full flex flex-col items-center">
+                {authMode === "signin" ? (
+                  <SignIn routing="hash" signUpUrl="#auth-section" />
+                ) : (
+                  <SignUp routing="hash" signInUrl="#auth-section" />
+                )}
+              </div>
+            ) : (
+              /* Fallback Direct Auth Form */
+              <form onSubmit={handleCustomLogin} className="space-y-4 pt-2">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5 uppercase tracking-wider">
+                    Email Address or Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                    placeholder="you@family.com"
+                    className="w-full bg-input/40 border border-border/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/60 text-foreground transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5 uppercase tracking-wider">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••••••"
+                    className="w-full bg-input/40 border border-border/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/60 text-foreground transition-all"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-3.5 bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-semibold rounded-xl hover:opacity-95 transition-all shadow-lg shadow-primary/25 flex items-center justify-center gap-2"
+                >
+                  <LogIn className="w-4 h-4" />
+                  {isSubmitting ? "Authenticating..." : authMode === "signin" ? "Sign In & Enter Application" : "Create Account & Get Started"}
+                </button>
+
+                <div className="relative flex items-center justify-center pt-2">
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border/40" /></div>
+                  <span className="relative bg-card px-3 text-xs text-muted-foreground">or quick entry</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setLocation("/chat")}
+                  className="w-full py-3 bg-secondary/50 hover:bg-secondary/80 border border-border/60 text-foreground text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  Enter Workspace as Admin (Instant Access)
+                </button>
+              </form>
+            )}
+
+            <p className="text-center text-[11px] text-muted-foreground pt-2">
+              By signing in, you agree to Lumina's Terms of Service and Privacy Policy.
             </p>
           </div>
         </div>
       </section>
+
+      {/* Feature Showcase Grid */}
+      <section id="features" className="relative z-10 py-24 bg-card/30 border-t border-border/40 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-6 space-y-16">
+          <div className="text-center space-y-4 max-w-3xl mx-auto">
+            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
+              Designed for Complete <br />
+              <span className="bg-gradient-to-r from-primary via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                Family & Personal Productivity
+              </span>
+            </h2>
+            <p className="text-muted-foreground text-base sm:text-lg">
+              Lumina replaces fragmented tools with one intelligent, interconnected assistant platform.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Feature 1 */}
+            <div className="bg-card/60 border border-border/60 rounded-3xl p-8 hover:border-primary/50 transition-all group">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Bot className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Agentic AI Chat</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Connect with Gemini 2.0 Flash, Thinking models, Claude, or GPT-4. Performs real tool execution like setting reminders, updating budgets, and checking pantry stock.
+              </p>
+            </div>
+
+            {/* Feature 2 */}
+            <div className="bg-card/60 border border-border/60 rounded-3xl p-8 hover:border-primary/50 transition-all group">
+              <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Users className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Family Hub & Direct Chat</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Invite family members with custom roles (Admin, Member, Child, Guest). Send direct messages, view status updates, and collaborate seamlessly.
+              </p>
+            </div>
+
+            {/* Feature 3 */}
+            <div className="bg-card/60 border border-border/60 rounded-3xl p-8 hover:border-primary/50 transition-all group">
+              <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <ShoppingCart className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Pantry & Shopping Sync</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Keep track of pantry items and expiration dates. Automatically generate shared grocery lists when items run low.
+              </p>
+            </div>
+
+            {/* Feature 4 */}
+            <div className="bg-card/60 border border-border/60 rounded-3xl p-8 hover:border-primary/50 transition-all group">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Wallet className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Budget & Expense Analytics</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Log expenses, detect spending trends, split household bills, and ask Lumina natural language questions about your monthly budget.
+              </p>
+            </div>
+
+            {/* Feature 5 */}
+            <div className="bg-card/60 border border-border/60 rounded-3xl p-8 hover:border-primary/50 transition-all group">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Calendar className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Smart Calendar & Reminders</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Never miss an event or task. Set voice reminders, schedule family appointments, and manage chores with automated point rewards.
+              </p>
+            </div>
+
+            {/* Feature 6 */}
+            <div className="bg-card/60 border border-border/60 rounded-3xl p-8 hover:border-primary/50 transition-all group">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <ImageIcon className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">AI Image Studio</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Generate high-resolution artwork, photo mockups, and visual ideas instantly powered by Google Gemini Imagen 3 integration.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* AI Provider Section */}
+      <section id="ai-models" className="relative z-10 py-20 border-t border-border/40">
+        <div className="max-w-7xl mx-auto px-6 text-center space-y-12">
+          <div className="space-y-3">
+            <span className="text-xs font-semibold text-primary uppercase tracking-widest">Multi-Engine Intelligence</span>
+            <h2 className="text-3xl sm:text-4xl font-bold">Use Google AI Studio, OpenAI, Claude, or OpenRouter</h2>
+            <p className="text-muted-foreground text-sm max-w-xl mx-auto">
+              Configure your own API keys in Settings or use Lumina's pre-configured multi-model router.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-6">
+            <div className="bg-card/60 border border-border/60 rounded-2xl px-6 py-4 flex items-center gap-3">
+              <Cpu className="w-5 h-5 text-cyan-400" />
+              <span className="font-semibold text-sm">Google Gemini 2.0 Flash</span>
+            </div>
+            <div className="bg-card/60 border border-border/60 rounded-2xl px-6 py-4 flex items-center gap-3">
+              <Sparkles className="w-5 h-5 text-purple-400" />
+              <span className="font-semibold text-sm">Gemini 2.0 Flash Thinking</span>
+            </div>
+            <div className="bg-card/60 border border-border/60 rounded-2xl px-6 py-4 flex items-center gap-3">
+              <Bot className="w-5 h-5 text-emerald-400" />
+              <span className="font-semibold text-sm">OpenAI GPT-4o & o3-mini</span>
+            </div>
+            <div className="bg-card/60 border border-border/60 rounded-2xl px-6 py-4 flex items-center gap-3">
+              <Shield className="w-5 h-5 text-amber-400" />
+              <span className="font-semibold text-sm">Anthropic Claude 3.5 Sonnet</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-border/40 py-10 bg-background/80 text-xs text-muted-foreground">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <LinaLogo className="h-6 w-auto" showSubtitle={false} />
+            <span>© 2026 Lumina AI. All rights reserved.</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <a href="#auth-section" className="hover:text-foreground transition-colors">Sign In</a>
+            <a href="#features" className="hover:text-foreground transition-colors">Features</a>
+            <a href="#auth-section" className="hover:text-foreground transition-colors">Create Account</a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

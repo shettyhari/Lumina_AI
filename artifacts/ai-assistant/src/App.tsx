@@ -165,43 +165,11 @@ function useSafeUser() {
 }
 
 function SignInPage() {
-  const [, setLocation] = useLocation();
-
-  return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-background to-cyan-500/10 pointer-events-none blur-3xl" />
-      <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
-        <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
-        <button
-          type="button"
-          onClick={() => setLocation("/chat")}
-          className="text-xs text-muted-foreground hover:text-foreground underline transition-all"
-        >
-          Enter Lumina Workspace Directly →
-        </button>
-      </div>
-    </div>
-  );
+  return <LandingPage />;
 }
 
 function SignUpPage() {
-  const [, setLocation] = useLocation();
-
-  return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-background to-cyan-500/10 pointer-events-none blur-3xl" />
-      <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
-        <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
-        <button
-          type="button"
-          onClick={() => setLocation("/chat")}
-          className="text-xs text-muted-foreground hover:text-foreground underline transition-all"
-        >
-          Enter Lumina Workspace Directly →
-        </button>
-      </div>
-    </div>
-  );
+  return <LandingPage />;
 }
 
 function ClerkQueryClientCacheInvalidator() {
@@ -229,7 +197,7 @@ function ClerkQueryClientCacheInvalidator() {
 function HomeRedirect() {
   const { isLoaded, isSignedIn } = useSafeUser();
   if (!isLoaded) return <PageLoader />;
-  return isSignedIn ? <Redirect to="/chat" /> : <Redirect to="/sign-in" />;
+  return isSignedIn ? <Redirect to="/chat" /> : <LandingPage />;
 }
 
 /** Shows a loading spinner while family status is being fetched */
