@@ -23,7 +23,7 @@ async function getOrCreateUser(clerkUserId: string) {
       id: 1,
       clerkUserId,
       displayName: "Dev Admin",
-      preferredModel: "gemini-2.5-flash",
+      preferredModel: "gemini-2.0-flash",
       systemPrompt: null,
       theme: "dark",
       imagesGenerated: 0,

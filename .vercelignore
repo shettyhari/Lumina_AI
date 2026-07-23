@@ -1,0 +1,8 @@
+node_modules
+.git
+.cache
+dist
+public
+artifacts/*/dist
+artifacts/*/node_modules
+artifacts/*/.cache

@@ -437,7 +437,7 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
     [userRow] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId));
   } catch { /* ignore */ }
 
-  const model = parsed.data.model ?? userRow?.preferredModel ?? "gemini-2.5-flash";
+  const model = parsed.data.model ?? userRow?.preferredModel ?? "gemini-2.0-flash";
   const provider = getProviderForModel(model);
 
   // Check API key for paid providers

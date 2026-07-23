@@ -144,7 +144,7 @@ export default function SettingsPage() {
   const deleteKey = useDeleteUserApiKey();
 
   const [displayName, setDisplayName] = useState("");
-  const [preferredModel, setPreferredModel] = useState("gemini-2.5-flash");
+  const [preferredModel, setPreferredModel] = useState("gemini-2.0-flash");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [theme, setTheme] = useState("system");
   const [isSaved, setIsSaved] = useState(false);
@@ -152,7 +152,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.displayName || "");
-      setPreferredModel(profile.preferredModel || "gemini-2.5-flash");
+      setPreferredModel(profile.preferredModel || "gemini-2.0-flash");
       setSystemPrompt(profile.systemPrompt || "");
       setTheme(profile.theme || "system");
     }

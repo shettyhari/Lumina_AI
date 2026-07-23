@@ -350,7 +350,7 @@ export default function ChatPage() {
   const isNew = !conversationId;
 
   const [input, setInput] = useState("");
-  const [model, setModel] = useState("gemini-2.5-flash");
+  const [model, setModel] = useState("gemini-2.0-flash");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [showOptions, setShowOptions] = useState(false);
