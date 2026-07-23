@@ -62,102 +62,136 @@ export default function LandingPage() {
   const rawClerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/30 relative overflow-hidden flex flex-col font-sans">
+    <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30 relative overflow-hidden flex flex-col font-sans">
       {/* Dynamic Background Glow Effects */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1100px] h-[550px] bg-gradient-to-r from-primary/30 via-purple-600/20 to-cyan-500/30 opacity-40 blur-[130px] rounded-full pointer-events-none mix-blend-screen" />
-      <div className="absolute top-[40%] right-[-10%] w-[600px] h-[600px] bg-indigo-500/20 blur-[160px] rounded-full pointer-events-none mix-blend-screen" />
-      <div className="absolute bottom-[10%] left-[-10%] w-[700px] h-[700px] bg-cyan-500/15 blur-[160px] rounded-full pointer-events-none mix-blend-screen" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[400px] bg-gradient-to-r from-primary/30 via-purple-600/20 to-cyan-500/30 opacity-30 blur-[120px] rounded-full pointer-events-none mix-blend-screen" />
 
       {/* Top Navbar */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/70 border-b border-border/40">
-        <nav className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto w-full">
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border/40 py-3 px-6">
+        <nav className="flex items-center justify-between max-w-7xl mx-auto w-full">
           <div className="flex items-center gap-3">
-            <LinaLogo className="h-9 w-auto" showSubtitle={true} />
+            <LinaLogo className="h-8 w-auto" showSubtitle={true} />
           </div>
 
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
+          <div className="hidden md:flex items-center gap-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
             <a href="#ai-models" className="hover:text-foreground transition-colors">AI Models</a>
             <a href="#auth-section" className="hover:text-foreground transition-colors">Sign In</a>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <a
               href="#auth-section"
               onClick={() => setAuthMode("signin")}
-              className="text-sm font-medium px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="text-xs font-semibold px-3 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
             >
               Sign In
             </a>
             <a
               href="#auth-section"
               onClick={() => setAuthMode("signup")}
-              className="text-sm font-medium bg-gradient-to-r from-primary to-purple-600 text-white px-5 py-2.5 rounded-full hover:opacity-90 transition-all shadow-lg shadow-primary/25 flex items-center gap-2"
+              className="text-xs font-semibold bg-gradient-to-r from-primary to-purple-600 text-white px-4 py-2 rounded-full hover:opacity-90 transition-all shadow-md shadow-primary/20 flex items-center gap-1.5"
             >
-              Get Started <ArrowRight className="w-4 h-4" />
+              Get Started <ArrowRight className="w-3.5 h-3.5" />
             </a>
           </div>
         </nav>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-16 pb-20 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-        {/* Left Column: Headline & Value Prop */}
-        <div className="lg:col-span-7 text-left space-y-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-md">
-            <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-primary">Lumina AI Platform 2.0</span>
+      {/* Hero & Authentication Section (Screen-Fitted Grid) */}
+      <main className="flex-1 relative z-10 max-w-7xl mx-auto px-6 py-6 lg:py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center w-full">
+        {/* Left Column: Product Value & Compact Features Grid */}
+        <div className="lg:col-span-7 text-left space-y-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-md">
+            <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Lumina AI Operating System</span>
           </div>
 
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
-            Your Home & Family, <br />
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.15]">
+            Your Mind & Family, <br />
             <span className="bg-gradient-to-r from-primary via-purple-400 to-cyan-400 bg-clip-text text-transparent">
               Powered by Agentic AI.
             </span>
           </h1>
 
-          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl leading-relaxed">
-            Lumina is your all-in-one AI assistant and family operating system. From smart grocery sync and budget tracking to real-time agentic reasoning and family chat — manage everything in one unified, beautiful workspace.
+          <p className="text-sm sm:text-base text-muted-foreground max-w-xl leading-relaxed">
+            The all-in-one personal AI assistant and family operating system. Connect Google Gemini, Claude, and GPT-4 with real tool execution for pantry sync, expenses, calendar, and family chat.
           </p>
 
-          <div className="flex flex-wrap items-center gap-4 pt-2">
-            <a
-              href="#auth-section"
-              className="px-8 py-4 bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-semibold rounded-2xl shadow-xl shadow-primary/30 hover:scale-105 transition-all flex items-center gap-3 text-base"
-            >
-              Start Free Workspace <ArrowRight className="w-5 h-5" />
-            </a>
-            <a
-              href="#features"
-              className="px-6 py-4 bg-secondary/60 hover:bg-secondary/90 border border-border/60 text-foreground font-medium rounded-2xl transition-all text-base"
-            >
-              Explore Features
-            </a>
+          {/* Compact 6-Feature Showcase Pills Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+            <div className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary/40 transition-all">
+              <Bot className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold">Agentic AI Chat</h4>
+                <p className="text-[11px] text-muted-foreground line-clamp-1">Gemini & GPT-4 tools</p>
+              </div>
+            </div>
+
+            <div className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary/40 transition-all">
+              <Users className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold">Family Hub</h4>
+                <p className="text-[11px] text-muted-foreground line-clamp-1">Roles & Direct Chat</p>
+              </div>
+            </div>
+
+            <div className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary/40 transition-all">
+              <ShoppingCart className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold">Pantry Sync</h4>
+                <p className="text-[11px] text-muted-foreground line-clamp-1">Auto Grocery Lists</p>
+              </div>
+            </div>
+
+            <div className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary/40 transition-all">
+              <Wallet className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold">Expense Analytics</h4>
+                <p className="text-[11px] text-muted-foreground line-clamp-1">Budget Intent Detection</p>
+              </div>
+            </div>
+
+            <div className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary/40 transition-all">
+              <Calendar className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold">Smart Calendar</h4>
+                <p className="text-[11px] text-muted-foreground line-clamp-1">Voice Reminders</p>
+              </div>
+            </div>
+
+            <div className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary/40 transition-all">
+              <ImageIcon className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold">AI Image Studio</h4>
+                <p className="text-[11px] text-muted-foreground line-clamp-1">Imagen 3 Generation</p>
+              </div>
+            </div>
           </div>
 
-          <div className="pt-4 flex items-center gap-6 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>Multi-Model AI (Gemini 2.0, Claude, GPT-4)</span>
+          <div className="pt-2 flex items-center gap-6 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Multi-Model AI</span>
             </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>End-to-End Encryption</span>
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Encrypted Storage</span>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Embedded Login & SignUp Form */}
-        <div id="auth-section" className="lg:col-span-5 relative">
-          <div className="w-full bg-card/70 backdrop-blur-2xl border border-border/80 rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden">
-            <div className="absolute -top-12 -right-12 w-40 h-40 bg-primary/20 rounded-full blur-2xl pointer-events-none" />
+        {/* Right Column: Screen-Fitted Login & Sign-Up Glassmorphism Card */}
+        <div id="auth-section" className="lg:col-span-5 relative w-full">
+          <div className="w-full bg-card/80 backdrop-blur-2xl border border-border/80 rounded-2xl p-6 shadow-2xl space-y-4 relative overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/20 rounded-full blur-2xl pointer-events-none" />
 
-            <div className="flex items-center justify-between border-b border-border/40 pb-4">
+            <div className="flex items-center justify-between border-b border-border/40 pb-3">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setAuthMode("signin")}
-                  className={`text-base font-bold pb-1 transition-all ${authMode === "signin" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`text-sm font-bold pb-0.5 transition-all ${authMode === "signin" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   Sign In
                 </button>
@@ -165,23 +199,23 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => setAuthMode("signup")}
-                  className={`text-base font-bold pb-1 transition-all ${authMode === "signup" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`text-sm font-bold pb-0.5 transition-all ${authMode === "signup" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   Create Account
                 </button>
               </div>
 
-              <span className="text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full font-medium">Production Ready</span>
+              <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Production Ready</span>
             </div>
 
             {/* Dedicated Google Auth Button */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <button
                 type="button"
                 onClick={handleGoogleLogin}
-                className="w-full py-3.5 bg-white hover:bg-slate-100 text-slate-900 font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-3 text-sm border border-slate-200"
+                className="w-full py-3 bg-white hover:bg-slate-100 text-slate-900 font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-2.5 text-xs border border-slate-200"
               >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -202,9 +236,9 @@ export default function LandingPage() {
                 {authMode === "signin" ? "Sign In with Google" : "Sign Up with Google"}
               </button>
 
-              <div className="relative flex items-center justify-center pt-2">
+              <div className="relative flex items-center justify-center py-1">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border/40" /></div>
-                <span className="relative bg-card px-3 text-xs text-muted-foreground uppercase tracking-wider">or credentials</span>
+                <span className="relative bg-card px-2 text-[10px] text-muted-foreground uppercase tracking-wider">or credentials</span>
               </div>
             </div>
 
@@ -218,10 +252,10 @@ export default function LandingPage() {
                 )}
               </div>
             ) : (
-              /* Fallback Direct Auth Form */
-              <form onSubmit={handleCustomLogin} className="space-y-4 pt-1">
+              /* Fallback Credentials Form */
+              <form onSubmit={handleCustomLogin} className="space-y-3 pt-0.5">
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5 uppercase tracking-wider">
+                  <label className="text-[10px] font-bold text-muted-foreground block mb-1 uppercase tracking-wider">
                     Email Address or Name
                   </label>
                   <input
@@ -230,181 +264,78 @@ export default function LandingPage() {
                     value={guestName}
                     onChange={(e) => setGuestName(e.target.value)}
                     placeholder="you@family.com"
-                    className="w-full bg-input/40 border border-border/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/60 text-foreground transition-all"
+                    className="w-full bg-input/40 border border-border/80 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/60 text-foreground transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5 uppercase tracking-wider">
+                  <label className="text-[10px] font-bold text-muted-foreground block mb-1 uppercase tracking-wider">
                     Password
                   </label>
                   <input
                     type="password"
                     required
                     placeholder="••••••••••••"
-                    className="w-full bg-input/40 border border-border/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/60 text-foreground transition-all"
+                    className="w-full bg-input/40 border border-border/80 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/60 text-foreground transition-all"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-3.5 bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-semibold rounded-xl hover:opacity-95 transition-all shadow-lg shadow-primary/25 flex items-center justify-center gap-2"
+                  className="w-full py-2.5 bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-semibold rounded-lg hover:opacity-95 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2 text-xs"
                 >
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="w-3.5 h-3.5" />
                   {isSubmitting ? "Authenticating..." : authMode === "signin" ? "Sign In & Enter Application" : "Create Account & Get Started"}
                 </button>
 
-                <div className="relative flex items-center justify-center pt-2">
+                <div className="relative flex items-center justify-center py-1">
                   <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border/40" /></div>
-                  <span className="relative bg-card px-3 text-xs text-muted-foreground">or quick entry</span>
+                  <span className="relative bg-card px-2 text-[10px] text-muted-foreground">or quick entry</span>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setLocation("/chat")}
-                  className="w-full py-3 bg-secondary/50 hover:bg-secondary/80 border border-border/60 text-foreground text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+                  className="w-full py-2 bg-secondary/50 hover:bg-secondary/80 border border-border/60 text-foreground text-[11px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5"
                 >
-                  <Zap className="w-4 h-4 text-amber-400" />
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
                   Enter Workspace as Admin (Instant Access)
                 </button>
               </form>
             )}
 
-            <p className="text-center text-[11px] text-muted-foreground pt-2">
+            <p className="text-center text-[10px] text-muted-foreground pt-1">
               By signing in, you agree to Lumina's Terms of Service and Privacy Policy.
             </p>
           </div>
         </div>
-      </section>
+      </main>
 
-      {/* Feature Showcase Grid */}
-      <section id="features" className="relative z-10 py-24 bg-card/30 border-t border-border/40 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 space-y-16">
-          <div className="text-center space-y-4 max-w-3xl mx-auto">
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              Designed for Complete <br />
-              <span className="bg-gradient-to-r from-primary via-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                Family & Personal Productivity
-              </span>
-            </h2>
-            <p className="text-muted-foreground text-base sm:text-lg">
-              Lumina replaces fragmented tools with one intelligent, interconnected assistant platform.
-            </p>
+      {/* AI Models Overview Section */}
+      <section id="ai-models" className="relative z-10 py-6 border-t border-border/40 bg-card/20">
+        <div className="max-w-7xl mx-auto px-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+            <Cpu className="w-4 h-4 text-cyan-400" />
+            <span>Supported Models: Google Gemini 2.0, OpenAI GPT-4o, Anthropic Claude 3.5, OpenRouter</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Feature 1 */}
-            <div className="bg-card/60 border border-border/60 rounded-3xl p-8 hover:border-primary/50 transition-all group">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Bot className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">Agentic AI Chat</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                Connect with Gemini 2.0 Flash, Thinking models, Claude, or GPT-4. Performs real tool execution like setting reminders, updating budgets, and checking pantry stock.
-              </p>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="bg-card/60 border border-border/60 rounded-3xl p-8 hover:border-primary/50 transition-all group">
-              <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Users className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">Family Hub & Direct Chat</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                Invite family members with custom roles (Admin, Member, Child, Guest). Send direct messages, view status updates, and collaborate seamlessly.
-              </p>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="bg-card/60 border border-border/60 rounded-3xl p-8 hover:border-primary/50 transition-all group">
-              <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <ShoppingCart className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">Pantry & Shopping Sync</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                Keep track of pantry items and expiration dates. Automatically generate shared grocery lists when items run low.
-              </p>
-            </div>
-
-            {/* Feature 4 */}
-            <div className="bg-card/60 border border-border/60 rounded-3xl p-8 hover:border-primary/50 transition-all group">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Wallet className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">Budget & Expense Analytics</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                Log expenses, detect spending trends, split household bills, and ask Lumina natural language questions about your monthly budget.
-              </p>
-            </div>
-
-            {/* Feature 5 */}
-            <div className="bg-card/60 border border-border/60 rounded-3xl p-8 hover:border-primary/50 transition-all group">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Calendar className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">Smart Calendar & Reminders</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                Never miss an event or task. Set voice reminders, schedule family appointments, and manage chores with automated point rewards.
-              </p>
-            </div>
-
-            {/* Feature 6 */}
-            <div className="bg-card/60 border border-border/60 rounded-3xl p-8 hover:border-primary/50 transition-all group">
-              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <ImageIcon className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">AI Image Studio</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                Generate high-resolution artwork, photo mockups, and visual ideas instantly powered by Google Gemini Imagen 3 integration.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* AI Provider Section */}
-      <section id="ai-models" className="relative z-10 py-20 border-t border-border/40">
-        <div className="max-w-7xl mx-auto px-6 text-center space-y-12">
-          <div className="space-y-3">
-            <span className="text-xs font-semibold text-primary uppercase tracking-widest">Multi-Engine Intelligence</span>
-            <h2 className="text-3xl sm:text-4xl font-bold">Use Google AI Studio, OpenAI, Claude, or OpenRouter</h2>
-            <p className="text-muted-foreground text-sm max-w-xl mx-auto">
-              Configure your own API keys in Settings or use Lumina's pre-configured multi-model router.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-6">
-            <div className="bg-card/60 border border-border/60 rounded-2xl px-6 py-4 flex items-center gap-3">
-              <Cpu className="w-5 h-5 text-cyan-400" />
-              <span className="font-semibold text-sm">Google Gemini 2.0 Flash</span>
-            </div>
-            <div className="bg-card/60 border border-border/60 rounded-2xl px-6 py-4 flex items-center gap-3">
-              <Sparkles className="w-5 h-5 text-purple-400" />
-              <span className="font-semibold text-sm">Gemini 2.0 Flash Thinking</span>
-            </div>
-            <div className="bg-card/60 border border-border/60 rounded-2xl px-6 py-4 flex items-center gap-3">
-              <Bot className="w-5 h-5 text-emerald-400" />
-              <span className="font-semibold text-sm">OpenAI GPT-4o & o3-mini</span>
-            </div>
-            <div className="bg-card/60 border border-border/60 rounded-2xl px-6 py-4 flex items-center gap-3">
-              <Shield className="w-5 h-5 text-amber-400" />
-              <span className="font-semibold text-sm">Anthropic Claude 3.5 Sonnet</span>
-            </div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+            <Shield className="w-3.5 h-3.5 text-amber-400" />
+            <span>Custom API Keys supported in Settings</span>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-border/40 py-10 bg-background/80 text-xs text-muted-foreground">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <footer className="relative z-10 border-t border-border/40 py-4 bg-background/90 text-[11px] text-muted-foreground">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <LinaLogo className="h-6 w-auto" showSubtitle={false} />
+            <LinaLogo className="h-5 w-auto" showSubtitle={false} />
             <span>© 2026 Lumina AI. All rights reserved.</span>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <a href="#auth-section" className="hover:text-foreground transition-colors">Sign In</a>
-            <a href="#features" className="hover:text-foreground transition-colors">Features</a>
             <a href="#auth-section" className="hover:text-foreground transition-colors">Create Account</a>
           </div>
         </div>
