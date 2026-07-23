@@ -144,26 +144,61 @@ const clerkAppearance = {
 };
 
 function useSafeUser() {
-  return useUser();
+  let userResult: any = { isLoaded: false, isSignedIn: false, user: null };
+  try {
+    userResult = useUser();
+  } catch {
+    /* Clerk context unavailable or errored */
+  }
+
+  const [forceLoaded, setForceLoaded] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setForceLoaded(true), 800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const isLoaded = userResult?.isLoaded || forceLoaded;
+  const isSignedIn = userResult?.isLoaded ? (userResult?.isSignedIn ?? true) : true;
+
+  return { ...userResult, isLoaded, isSignedIn };
 }
 
 function SignInPage() {
+  const [, setLocation] = useLocation();
+
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-background to-cyan-500/10 pointer-events-none blur-3xl" />
       <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
         <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+        <button
+          type="button"
+          onClick={() => setLocation("/chat")}
+          className="text-xs text-muted-foreground hover:text-foreground underline transition-all"
+        >
+          Enter Lumina Workspace Directly →
+        </button>
       </div>
     </div>
   );
 }
 
 function SignUpPage() {
+  const [, setLocation] = useLocation();
+
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-background to-cyan-500/10 pointer-events-none blur-3xl" />
       <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
         <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+        <button
+          type="button"
+          onClick={() => setLocation("/chat")}
+          className="text-xs text-muted-foreground hover:text-foreground underline transition-all"
+        >
+          Enter Lumina Workspace Directly →
+        </button>
       </div>
     </div>
   );
