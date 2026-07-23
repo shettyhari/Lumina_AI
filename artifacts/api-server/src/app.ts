@@ -65,8 +65,8 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no Origin (e.g. server-to-server, curl in dev)
       if (!origin) return callback(null, true);
-      // Fail-closed: reject if no allowed origins are configured OR origin isn't on the list
-      if (_corsAllowed.size > 0 && _corsAllowed.has(origin)) {
+      const isLocalNetwork = /^http:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(origin);
+      if (_corsAllowed.has(origin) || isLocalNetwork || process.env.NODE_ENV !== "production") {
         callback(null, true);
       } else {
         callback(new Error(`CORS: origin '${origin}' not allowed`));
@@ -94,7 +94,20 @@ app.use((req, res, next) => {
   }
 });
 
+import path from "node:path";
+import { existsSync } from "node:fs";
+
 app.use("/api", router);
+
+// Serve static production frontend if dist exists
+const staticDir = path.resolve(process.cwd(), "artifacts/ai-assistant/dist/public");
+if (existsSync(staticDir)) {
+  app.use(express.static(staticDir));
+  app.get("*", (req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith("/api") || req.path.startsWith("/clerk")) return next();
+    res.sendFile(path.join(staticDir, "index.html"));
+  });
+}
 
 // Global error handler — keeps stack traces out of API responses
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

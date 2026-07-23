@@ -1,42 +1,24 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
-import { db, userApiKeys } from "@workspace/db";
 import {
   ListUserApiKeysResponse,
   SetUserApiKeyBody,
   SetUserApiKeyResponse,
   DeleteUserApiKeyParams,
 } from "@workspace/api-zod";
-import { encryptApiKey, decryptApiKey } from "../../lib/crypto";
 import { requireAuth } from "../../middlewares/requireAuth";
+import {
+  listUserApiKeysRecords,
+  saveUserApiKeyRecord,
+  deleteUserApiKeyRecord,
+} from "../../lib/userApiKeysStore";
 
 const VALID_PROVIDERS = ["gemini", "openai", "anthropic", "openrouter"] as const;
 
 const router: IRouter = Router();
 
-function maskKey(plaintext: string): string {
-  if (plaintext.length <= 8) return "••••••••";
-  return plaintext.slice(0, 4) + "••••••••" + plaintext.slice(-4);
-}
-
 router.get("/user/api-keys", requireAuth, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
-  let keys: any[] = [];
-  try {
-    keys = await db
-      .select()
-      .from(userApiKeys)
-      .where(eq(userApiKeys.clerkUserId, clerkUserId));
-  } catch {
-    keys = [];
-  }
-
-  const result = keys.map((k) => {
-    let decrypted = "";
-    try { decrypted = decryptApiKey(k.encryptedKey); } catch { decrypted = ""; }
-    return { provider: k.provider, maskedKey: maskKey(decrypted), createdAt: k.createdAt };
-  });
-
+  const result = await listUserApiKeysRecords(clerkUserId);
   res.json(ListUserApiKeysResponse.parse(result));
 });
 
@@ -52,31 +34,15 @@ router.post("/user/api-keys", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const encrypted = encryptApiKey(key);
-  const maskedKey = maskKey(key);
-  const now = new Date();
-
-  const existing = await db
-    .select()
-    .from(userApiKeys)
-    .where(and(eq(userApiKeys.clerkUserId, clerkUserId), eq(userApiKeys.provider, provider)));
-
-  if (existing.length > 0) {
-    await db.update(userApiKeys).set({ encryptedKey: encrypted, updatedAt: now })
-      .where(and(eq(userApiKeys.clerkUserId, clerkUserId), eq(userApiKeys.provider, provider)));
-  } else {
-    await db.insert(userApiKeys).values({ clerkUserId, provider, encryptedKey: encrypted });
-  }
-
-  res.json(SetUserApiKeyResponse.parse({ provider, maskedKey, createdAt: now }));
+  const result = await saveUserApiKeyRecord(clerkUserId, provider, key);
+  res.json(SetUserApiKeyResponse.parse(result));
 });
 
 router.delete("/user/api-keys/:provider", requireAuth, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
   const params = DeleteUserApiKeyParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  await db.delete(userApiKeys)
-    .where(and(eq(userApiKeys.clerkUserId, clerkUserId), eq(userApiKeys.provider, params.data.provider)));
+  await deleteUserApiKeyRecord(clerkUserId, params.data.provider);
   res.sendStatus(204);
 });
 

@@ -33,21 +33,14 @@ import { decryptApiKey } from "../../lib/crypto";
 import { getProviderForModel } from "../../lib/modelRegistry";
 import { aiRateLimit, imageGenRateLimit } from "../../middlewares/rateLimiter";
 
+import { getUserApiKeyRecord } from "../../lib/userApiKeysStore";
+
 const router: IRouter = Router();
 
 // ─── Helper: get decrypted API key for a provider ────────────────────────────
 
 async function getUserApiKey(clerkUserId: string, provider: string): Promise<string | null> {
-  const [row] = await db
-    .select()
-    .from(userApiKeys)
-    .where(and(eq(userApiKeys.clerkUserId, clerkUserId), eq(userApiKeys.provider, provider)));
-  if (!row) return null;
-  try {
-    return decryptApiKey(row.encryptedKey);
-  } catch {
-    return null;
-  }
+  return getUserApiKeyRecord(clerkUserId, provider);
 }
 
 // ─── SSE stream helpers per provider ─────────────────────────────────────────

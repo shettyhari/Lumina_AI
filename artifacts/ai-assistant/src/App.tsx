@@ -145,20 +145,6 @@ const clerkAppearance = {
 
 function useSafeUser() {
   const userResult = useUser();
-  const [devAuth, setDevAuth] = useState(false);
-
-  useEffect(() => {
-    if (!userResult.isLoaded) {
-      const timer = setTimeout(() => setDevAuth(true), 1200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [userResult.isLoaded]);
-
-  if (!userResult.isLoaded && devAuth) {
-    return { isLoaded: true, isSignedIn: true, user: { id: "dev_admin_user", fullName: "Dev User" } as any };
-  }
-
   return userResult;
 }
 
@@ -168,11 +154,6 @@ function SignInPage() {
       <div className="absolute inset-0 bg-iridescent opacity-10 pointer-events-none blur-3xl"></div>
       <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
         <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
-        <Link href="/chat">
-          <button className="text-xs text-muted-foreground hover:text-primary underline cursor-pointer transition-colors">
-            Enter Workspace as Demo / Dev Admin
-          </button>
-        </Link>
       </div>
     </div>
   );
@@ -184,11 +165,6 @@ function SignUpPage() {
       <div className="absolute inset-0 bg-iridescent opacity-10 pointer-events-none blur-3xl"></div>
       <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
         <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
-        <Link href="/chat">
-          <button className="text-xs text-muted-foreground hover:text-primary underline cursor-pointer transition-colors">
-            Enter Workspace as Demo / Dev Admin
-          </button>
-        </Link>
       </div>
     </div>
   );
@@ -219,7 +195,7 @@ function ClerkQueryClientCacheInvalidator() {
 function HomeRedirect() {
   const { isLoaded, isSignedIn } = useSafeUser();
   if (!isLoaded) return <PageLoader />;
-  return isSignedIn ? <Redirect to="/chat" /> : <LandingPage />;
+  return isSignedIn ? <Redirect to="/chat" /> : <Redirect to="/sign-in" />;
 }
 
 /** Shows a loading spinner while family status is being fetched */

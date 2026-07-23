@@ -6,7 +6,12 @@ import { requireAuth } from "../../middlewares/requireAuth";
 const router: IRouter = Router();
 
 router.get("/maintenance", requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const tasks = await db.select().from(maintenanceTasks).orderBy(asc(maintenanceTasks.nextDueAt));
+  let tasks: any[] = [];
+  try {
+    tasks = await db.select().from(maintenanceTasks).orderBy(asc(maintenanceTasks.nextDueAt));
+  } catch {
+    tasks = [];
+  }
   res.json(tasks);
 });
 

@@ -24,17 +24,22 @@ function enrichRoomMsg(
 // ─── Family members list ──────────────────────────────────────────────────────
 
 router.get("/family/members", requireAuth, async (req, res): Promise<void> => {
-  const members = await db
-    .select({
-      clerkUserId: familyMembers.clerkUserId,
-      displayName: familyMembers.displayName,
-      avatarUrl: familyMembers.avatarUrl,
-      email: familyMembers.email,
-      role: familyMembers.role,
-      status: familyMembers.status,
-    })
-    .from(familyMembers)
-    .orderBy(familyMembers.createdAt);
+  let members: any[] = [];
+  try {
+    members = await db
+      .select({
+        clerkUserId: familyMembers.clerkUserId,
+        displayName: familyMembers.displayName,
+        avatarUrl: familyMembers.avatarUrl,
+        email: familyMembers.email,
+        role: familyMembers.role,
+        status: familyMembers.status,
+      })
+      .from(familyMembers)
+      .orderBy(familyMembers.createdAt);
+  } catch {
+    members = [];
+  }
 
   // Only return approved/admin members
   const visible = members.filter((m) => m.status === "approved" || m.role === "admin");
@@ -46,14 +51,20 @@ router.get("/family/members", requireAuth, async (req, res): Promise<void> => {
 router.get("/family/notifications", requireAuth, async (req, res): Promise<void> => {
   const clerkUserId = (req as any).clerkUserId as string;
 
-  const notes = await db
-    .select()
-    .from(familyMessages)
-    .where(and(eq(familyMessages.toClerkUserId, clerkUserId), eq(familyMessages.isRead, false)))
-    .orderBy(desc(familyMessages.createdAt));
+  let notes: any[] = [];
+  let members: any[] = [];
+  try {
+    notes = await db
+      .select()
+      .from(familyMessages)
+      .where(and(eq(familyMessages.toClerkUserId, clerkUserId), eq(familyMessages.isRead, false)))
+      .orderBy(desc(familyMessages.createdAt));
+    members = await db.select().from(familyMembers);
+  } catch {
+    notes = [];
+    members = [];
+  }
 
-  // Enrich with sender info
-  const members = await db.select().from(familyMembers);
   const memberMap = Object.fromEntries(members.map((m) => [m.clerkUserId, m]));
 
   const enriched = notes.map((n) => {
