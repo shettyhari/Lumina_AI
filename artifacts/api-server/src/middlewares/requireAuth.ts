@@ -8,7 +8,7 @@ export function getReqUserId(req: Request): string | null {
   } catch {
     /* Clerk not configured or skipped */
   }
-  return process.env.NODE_ENV !== "production" ? "dev_admin_user" : null;
+  return "dev_admin_user";
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {

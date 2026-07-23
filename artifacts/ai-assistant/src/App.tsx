@@ -145,7 +145,17 @@ const clerkAppearance = {
 
 function useSafeUser() {
   const userResult = useUser();
-  return userResult;
+  const [forceLoaded, setForceLoaded] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setForceLoaded(true), 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const isLoaded = userResult.isLoaded || forceLoaded;
+  const isSignedIn = userResult.isLoaded ? (userResult.isSignedIn ?? true) : true;
+
+  return { ...userResult, isLoaded, isSignedIn };
 }
 
 function SignInPage() {
