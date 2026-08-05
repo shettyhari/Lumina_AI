@@ -5,6 +5,7 @@ import { detectAndExecuteRelay } from "../../lib/relayDetector";
 import { isBudgetQuestion, getBudgetContext, detectBudgetMonth, detectBudgetComparison, detectBudgetLogHint } from "../../lib/intentDetector";
 import { TOOL_DECLARATIONS, executeTool } from "../../lib/agentTools";
 import { ai } from "@workspace/integrations-gemini-ai";
+import { GoogleGenAI } from "@google/genai";
 import { generateImage } from "@workspace/integrations-gemini-ai/image";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
@@ -105,12 +106,15 @@ Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
   if (agentSystemPrompt) config.systemInstruction = agentSystemPrompt;
   if (reasoningMode) (config as any).thinkingConfig = { thinkingBudget: 2048 };
 
+  const userGeminiKey = await getUserApiKey(clerkUserId, "gemini");
+  const geminiClient = userGeminiKey ? new GoogleGenAI({ apiKey: userGeminiKey }) : ai;
+
   let fullText = "";
   const MAX_ITERATIONS = 6;
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     // Non-streaming call to detect function calls
-    const response = await ai.models.generateContent({ model, contents, config });
+    const response = await geminiClient.models.generateContent({ model, contents, config });
     const parts: any[] = response.candidates?.[0]?.content?.parts ?? [];
 
     const funcCalls = parts.filter((p: any) => p.functionCall);
