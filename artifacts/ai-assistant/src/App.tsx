@@ -253,6 +253,7 @@ function ClerkProviderWithRoutes() {
           <Suspense fallback={<PageLoader />}>
             <Switch>
               <Route path="/" component={HomeRedirect} />
+              <Route path="/landing" component={() => <LandingPage ignoreRedirect />} />
               <Route path="/sign-in/*?" component={SignInPage} />
               <Route path="/sign-up/*?" component={SignUpPage} />
 

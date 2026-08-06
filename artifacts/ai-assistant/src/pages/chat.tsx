@@ -461,7 +461,9 @@ export default function ChatPage() {
         targetConvId = newConv.id;
         // Do NOT pushState here — Wouter patches pushState and would immediately
         // unmount this component, orphaning the SSE stream and losing toolEvents.
-      } catch {
+      } catch (err: any) {
+        console.error("Failed to create conversation:", err);
+        setStreamError({ message: err?.message || "Failed to start new chat session. Please verify server connection." });
         if (fromVoice) voice.setThinking(false);
         return;
       }
@@ -511,6 +513,18 @@ export default function ChatPage() {
       if (response.status === 402) {
         const b = await response.json();
         setStreamError({ message: b.error, provider: b.provider });
+        setIsStreaming(false);
+        if (fromVoice) voice.setThinking(false);
+        return;
+      }
+
+      if (!response.ok) {
+        let errMsg = "Failed to process message. Please try again.";
+        try {
+          const errBody = await response.json();
+          errMsg = errBody.message || errBody.error || errMsg;
+        } catch {}
+        setStreamError({ message: errMsg });
         setIsStreaming(false);
         if (fromVoice) voice.setThinking(false);
         return;

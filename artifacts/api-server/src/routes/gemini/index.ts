@@ -157,6 +157,96 @@ Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
   return fallback;
 }
 
+async function runOfflineAgenticFallback(
+  clerkUserId: string,
+  userMessage: string,
+  sendEvent: (obj: object) => void,
+): Promise<string> {
+  const msgLower = userMessage.trim().toLowerCase();
+
+  // 1. Family Relay check
+  try {
+    const relay = await detectAndExecuteRelay(clerkUserId, userMessage);
+    if (relay) {
+      const confirm = `I've sent your message to ${relay.targetDisplayName}: "${relay.confirmMsg}"`;
+      sendEvent({ content: confirm });
+      return confirm;
+    }
+  } catch {}
+
+  // 2. Shopping list - add
+  const shoppingMatch = userMessage.match(/(?:add|put|buy|need)\s+(.+?)\s+(?:to|on)\s+(?:my|our|the)\s+shopping\s+list/i) ||
+                        userMessage.match(/add\s+(.+?)\s+to\s+shopping/i);
+  if (shoppingMatch) {
+    const itemsRaw = shoppingMatch[1];
+    const items = itemsRaw.split(/,|\band\b/).map((s: string) => s.trim()).filter(Boolean);
+    if (items.length > 0) {
+      sendEvent({ toolCall: { name: "add_shopping_items", args: { items } } });
+      const result = await executeTool(clerkUserId, "add_shopping_items", { items }, { originalMessage: userMessage });
+      sendEvent({ toolResult: { name: "add_shopping_items", success: result.success, summary: result.summary } });
+      const text = `I've added ${items.join(", ")} to your family shopping list. 🛒`;
+      sendEvent({ content: text });
+      return text;
+    }
+  }
+
+  // 3. Shopping list - view
+  if (/shopping\s+list/i.test(userMessage) && /(?:show|get|view|what|check)/i.test(userMessage)) {
+    sendEvent({ toolCall: { name: "get_shopping_list", args: {} } });
+    const result = await executeTool(clerkUserId, "get_shopping_list", {}, { originalMessage: userMessage });
+    sendEvent({ toolResult: { name: "get_shopping_list", success: result.success, summary: result.summary } });
+    const text = result.summary || "Here is your shopping list.";
+    sendEvent({ content: text });
+    return text;
+  }
+
+  // 4. Reminders - add
+  const reminderMatch = userMessage.match(/remind\s+me\s+(?:to\s+)?(.+?)(?:\s+(?:at|on|tomorrow|in)\s+(.+))?$/i);
+  if (reminderMatch && !/reminders/i.test(userMessage)) {
+    const message = reminderMatch[1].trim();
+    const remindAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+    sendEvent({ toolCall: { name: "add_reminder", args: { message, remind_at: remindAt } } });
+    const result = await executeTool(clerkUserId, "add_reminder", { message, remind_at: remindAt }, { originalMessage: userMessage });
+    sendEvent({ toolResult: { name: "add_reminder", success: result.success, summary: result.summary } });
+    const text = `I've set a reminder: "${message}". ⏰`;
+    sendEvent({ content: text });
+    return text;
+  }
+
+  // 5. Chores - add
+  const choreMatch = userMessage.match(/(?:add|create|assign)\s+chore\s+(.+)/i);
+  if (choreMatch) {
+    const title = choreMatch[1].trim();
+    sendEvent({ toolCall: { name: "add_chore", args: { title } } });
+    const result = await executeTool(clerkUserId, "add_chore", { title }, { originalMessage: userMessage });
+    sendEvent({ toolResult: { name: "add_chore", success: result.success, summary: result.summary } });
+    const text = `Chore created: "${title}". ✅`;
+    sendEvent({ content: text });
+    return text;
+  }
+
+  // 6. Notes - create
+  const noteMatch = userMessage.match(/(?:create|take|save|add)\s+(?:a\s+)?note\s+(?:called|titled|about)?\s*(.+)/i);
+  if (noteMatch) {
+    const content = noteMatch[1].trim();
+    sendEvent({ toolCall: { name: "create_note", args: { title: content.slice(0, 30), content } } });
+    const result = await executeTool(clerkUserId, "create_note", { title: content.slice(0, 30), content }, { originalMessage: userMessage });
+    sendEvent({ toolResult: { name: "create_note", success: result.success, summary: result.summary } });
+    const text = `Note saved: "${content}". 📝`;
+    sendEvent({ content: text });
+    return text;
+  }
+
+  // 7. General conversational response
+  let defaultResponse = `Hello! I'm Lina, your family AI assistant.\n\nI can help you with:\n- 🛒 **Shopping Lists**: "Add milk and eggs to shopping list"\n- ⏰ **Reminders**: "Remind me to check oven at 6pm"\n- 🧹 **Chores**: "Add chore: Clean garage"\n- 📝 **Notes**: "Take a note about lawn care"\n- 💬 **Family Relay**: "Tell Mom to buy bread"`;
+  if (msgLower.includes("hello") || msgLower.includes("hi") || msgLower.includes("hey")) {
+    defaultResponse = `Hello! How can I help you and your family today? You can ask me to manage your shopping list, set reminders, track chores, or leave notes!`;
+  }
+  
+  sendEvent({ content: defaultResponse });
+  return defaultResponse;
+}
+
 async function streamGemini(
   model: string,
   chatMessages: ChatMessage[],
@@ -560,9 +650,12 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
           userGeminiKey || undefined,
         );
       } catch (err: any) {
-        req.log.warn({ err }, "Gemini API call failed");
-        fullResponse = `Hello! I am Lina, your personal AI assistant. I received your message: "${parsed.data.content}". To activate live Google Gemini generation, please add your Google AI Studio API Key in Settings → AI Providers (or set GEMINI_API_KEY on Vercel).`;
-        sendChunk(fullResponse);
+        req.log.warn({ err }, "Gemini API call failed — using offline agentic fallback");
+        fullResponse = await runOfflineAgenticFallback(
+          clerkUserId,
+          parsed.data.content,
+          (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`),
+        );
       }
     } else if (provider === "openai") {
       const key = await getUserApiKey(clerkUserId, "openai");

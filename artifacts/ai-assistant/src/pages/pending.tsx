@@ -82,7 +82,21 @@ export default function PendingPage({ rejected = false }: { rejected?: boolean }
 
         {/* Sign out */}
         <button
-          onClick={() => signOut({ redirectUrl: "/" })}
+          onClick={async () => {
+            try {
+              localStorage.removeItem("lumina_admin_session");
+              localStorage.clear();
+              sessionStorage.clear();
+            } catch {}
+            try {
+              if (user && typeof signOut === "function") {
+                await signOut();
+              }
+            } catch (err) {
+              console.error("Sign out error:", err);
+            }
+            window.location.href = "/";
+          }}
           className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-secondary/50 hover:text-foreground transition-colors"
         >
           <LogOut className="h-4 w-4" />

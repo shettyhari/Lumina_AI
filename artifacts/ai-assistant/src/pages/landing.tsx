@@ -14,11 +14,14 @@ import {
   LogIn,
   CheckCircle2,
   Cpu,
+  ExternalLink,
+  PlayCircle,
+  LayoutDashboard,
 } from "lucide-react";
 import { LinaLogo } from "@/components/LinaLogo";
 import { SignIn, SignUp, useUser, useClerk } from "@clerk/react";
 
-export default function LandingPage() {
+export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect?: boolean }) {
   const [, setLocation] = useLocation();
   const { isSignedIn, isLoaded } = useUser();
   const clerk = useClerk();
@@ -26,8 +29,11 @@ export default function LandingPage() {
   const [guestName, setGuestName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // If already signed in, redirect to workspace
-  if (isLoaded && isSignedIn) {
+  const isLocalAdmin = typeof window !== 'undefined' && localStorage.getItem("lumina_admin_session") === "true";
+  const isAppAuthenticated = (isLoaded && isSignedIn) || isLocalAdmin;
+
+  // If already signed in and not explicitly forced on landing page, redirect to workspace
+  if (!ignoreRedirect && isLoaded && isSignedIn) {
     setLocation("/chat");
     return null;
   }
@@ -45,13 +51,13 @@ export default function LandingPage() {
     }, 300);
   };
 
-  const handleAdminAccess = () => {
+  const handleAdminAccess = (targetPath = "/chat") => {
     try {
       localStorage.setItem("lumina_admin_session", "true");
     } catch {
       /* localStorage blocked */
     }
-    setLocation("/chat");
+    setLocation(targetPath);
   };
 
   const handleGoogleLogin = async () => {
@@ -66,10 +72,10 @@ export default function LandingPage() {
       } else if (clerk && typeof (clerk as any).openSignIn === "function") {
         (clerk as any).openSignIn();
       } else {
-        setLocation("/chat");
+        handleAdminAccess("/chat");
       }
     } catch {
-      setLocation("/chat");
+      handleAdminAccess("/chat");
     }
   };
 
@@ -83,9 +89,12 @@ export default function LandingPage() {
       {/* Top Navbar */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border/40 py-3 px-6">
         <nav className="flex items-center justify-between max-w-7xl mx-auto w-full">
-          <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setLocation("/")}
+            className="flex items-center gap-3 hover:opacity-90 transition-opacity text-left cursor-pointer focus:outline-none"
+          >
             <LinaLogo className="h-8 w-auto" showSubtitle={true} />
-          </div>
+          </button>
 
           <div className="hidden md:flex items-center gap-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
@@ -93,26 +102,36 @@ export default function LandingPage() {
             <a href="#auth-section" className="hover:text-foreground transition-colors">Sign In</a>
           </div>
 
-          <div className="flex items-center gap-2">
-            <a
-              href="#auth-section"
-              onClick={() => setAuthMode("signin")}
-              className="text-xs font-semibold px-3 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Sign In
-            </a>
-            <a
-              href="#auth-section"
-              onClick={() => setAuthMode("signup")}
-              className="text-xs font-semibold bg-gradient-to-r from-primary to-purple-600 text-white px-4 py-2 rounded-full hover:opacity-90 transition-all shadow-md shadow-primary/20 flex items-center gap-1.5"
-            >
-              Get Started <ArrowRight className="w-3.5 h-3.5" />
-            </a>
+          <div className="flex items-center gap-2.5">
+            {isAppAuthenticated ? (
+              <button
+                onClick={() => setLocation("/chat")}
+                className="text-xs font-bold bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white px-4 py-2 rounded-full hover:opacity-90 transition-all shadow-md shadow-primary/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" /> Open Web App <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => handleAdminAccess("/chat")}
+                  className="text-xs font-semibold px-3.5 py-1.5 text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-full transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <PlayCircle className="w-3.5 h-3.5" /> Launch Web App
+                </button>
+                <a
+                  href="#auth-section"
+                  onClick={() => setAuthMode("signup")}
+                  className="text-xs font-semibold bg-gradient-to-r from-primary to-purple-600 text-white px-4 py-2 rounded-full hover:opacity-90 transition-all shadow-md shadow-primary/20 flex items-center gap-1.5"
+                >
+                  Get Started <ArrowRight className="w-3.5 h-3.5" />
+                </a>
+              </>
+            )}
           </div>
         </nav>
       </header>
 
-      {/* Hero & Authentication Section (Screen-Fitted Grid) */}
+      {/* Hero & Authentication Section */}
       <main className="flex-1 relative z-10 max-w-7xl mx-auto px-6 py-6 lg:py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center w-full">
         {/* Left Column: Product Value & Compact Features Grid */}
         <div className="lg:col-span-7 text-left space-y-6">
@@ -132,58 +151,123 @@ export default function LandingPage() {
             The all-in-one personal AI assistant and family operating system. Connect Google Gemini, Claude, and GPT-4 with real tool execution for pantry sync, expenses, calendar, and family chat.
           </p>
 
-          {/* Compact 6-Feature Showcase Pills Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-            <div className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary/40 transition-all">
-              <Bot className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-              <div>
-                <h4 className="text-xs font-bold">Agentic AI Chat</h4>
-                <p className="text-[11px] text-muted-foreground line-clamp-1">Gemini & GPT-4 tools</p>
-              </div>
+          {/* Primary Action Buttons Linking Landing Page to App */}
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <button
+              onClick={() => handleAdminAccess("/chat")}
+              className="px-6 py-3 rounded-full bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-bold text-xs sm:text-sm hover:opacity-95 transition-all shadow-lg shadow-primary/25 flex items-center gap-2 group cursor-pointer"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              <span>Launch Web Application</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </button>
+
+            <a
+              href="#auth-section"
+              onClick={() => setAuthMode("signup")}
+              className="px-5 py-3 rounded-full bg-secondary/80 hover:bg-secondary border border-border text-foreground font-semibold text-xs sm:text-sm transition-all flex items-center gap-2"
+            >
+              <LogIn className="w-4 h-4 text-muted-foreground" />
+              Create Account
+            </a>
+          </div>
+
+          {/* Compact 6-Feature Showcase Pills Grid with Direct App Navigation */}
+          <div id="features" className="space-y-2 pt-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                Click any module below to launch directly in app
+              </span>
             </div>
 
-            <div className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary/40 transition-all">
-              <Users className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="text-xs font-bold">Family Hub</h4>
-                <p className="text-[11px] text-muted-foreground line-clamp-1">Roles & Direct Chat</p>
-              </div>
-            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <button
+                onClick={() => handleAdminAccess("/chat")}
+                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary hover:bg-primary/5 transition-all text-left group cursor-pointer"
+              >
+                <Bot className="w-4 h-4 text-primary shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <div>
+                  <div className="flex items-center gap-1">
+                    <h4 className="text-xs font-bold">Agentic AI Chat</h4>
+                    <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">Gemini & GPT-4 tools</p>
+                </div>
+              </button>
 
-            <div className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary/40 transition-all">
-              <ShoppingCart className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="text-xs font-bold">Pantry Sync</h4>
-                <p className="text-[11px] text-muted-foreground line-clamp-1">Auto Grocery Lists</p>
-              </div>
-            </div>
+              <button
+                onClick={() => handleAdminAccess("/family-room")}
+                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-cyan-400 hover:bg-cyan-500/5 transition-all text-left group cursor-pointer"
+              >
+                <Users className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <div>
+                  <div className="flex items-center gap-1">
+                    <h4 className="text-xs font-bold">Family Hub</h4>
+                    <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-cyan-400 transition-opacity" />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">Roles & Direct Chat</p>
+                </div>
+              </button>
 
-            <div className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary/40 transition-all">
-              <Wallet className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="text-xs font-bold">Expense Analytics</h4>
-                <p className="text-[11px] text-muted-foreground line-clamp-1">Budget Intent Detection</p>
-              </div>
-            </div>
+              <button
+                onClick={() => handleAdminAccess("/pantry")}
+                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-purple-400 hover:bg-purple-500/5 transition-all text-left group cursor-pointer"
+              >
+                <ShoppingCart className="w-4 h-4 text-purple-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <div>
+                  <div className="flex items-center gap-1">
+                    <h4 className="text-xs font-bold">Pantry Sync</h4>
+                    <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-purple-400 transition-opacity" />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">Auto Grocery Lists</p>
+                </div>
+              </button>
 
-            <div className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary/40 transition-all">
-              <Calendar className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="text-xs font-bold">Smart Calendar</h4>
-                <p className="text-[11px] text-muted-foreground line-clamp-1">Voice Reminders</p>
-              </div>
-            </div>
+              <button
+                onClick={() => handleAdminAccess("/budget")}
+                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-emerald-400 hover:bg-emerald-500/5 transition-all text-left group cursor-pointer"
+              >
+                <Wallet className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <div>
+                  <div className="flex items-center gap-1">
+                    <h4 className="text-xs font-bold">Expense Analytics</h4>
+                    <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-emerald-400 transition-opacity" />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">Budget Intent Detection</p>
+                </div>
+              </button>
 
-            <div className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary/40 transition-all">
-              <ImageIcon className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="text-xs font-bold">AI Image Studio</h4>
-                <p className="text-[11px] text-muted-foreground line-clamp-1">Imagen 3 Generation</p>
-              </div>
+              <button
+                onClick={() => handleAdminAccess("/calendar")}
+                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-amber-400 hover:bg-amber-500/5 transition-all text-left group cursor-pointer"
+              >
+                <Calendar className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <div>
+                  <div className="flex items-center gap-1">
+                    <h4 className="text-xs font-bold">Smart Calendar</h4>
+                    <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-amber-400 transition-opacity" />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">Voice Reminders</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handleAdminAccess("/image-gen")}
+                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-rose-400 hover:bg-rose-500/5 transition-all text-left group cursor-pointer"
+              >
+                <ImageIcon className="w-4 h-4 text-rose-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <div>
+                  <div className="flex items-center gap-1">
+                    <h4 className="text-xs font-bold">AI Image Studio</h4>
+                    <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-rose-400 transition-opacity" />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">Imagen 3 Generation</p>
+                </div>
+              </button>
             </div>
           </div>
 
-          <div className="pt-2 flex items-center gap-6 text-xs text-muted-foreground">
+          <div className="pt-1 flex items-center gap-6 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
               <span>Multi-Model AI</span>
@@ -192,10 +276,14 @@ export default function LandingPage() {
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
               <span>Encrypted Storage</span>
             </div>
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Instant Workspace Launch</span>
+            </div>
           </div>
         </div>
 
-        {/* Right Column: Screen-Fitted Login & Sign-Up Glassmorphism Card */}
+        {/* Right Column: Login & Sign-Up Card */}
         <div id="auth-section" className="lg:col-span-5 relative w-full">
           <div className="w-full bg-card/80 backdrop-blur-2xl border border-border/80 rounded-2xl p-6 shadow-2xl space-y-4 relative overflow-hidden">
             <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/20 rounded-full blur-2xl pointer-events-none" />
@@ -205,7 +293,7 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => setAuthMode("signin")}
-                  className={`text-sm font-bold pb-0.5 transition-all ${authMode === "signin" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`text-sm font-bold pb-0.5 transition-all cursor-pointer ${authMode === "signin" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   Sign In
                 </button>
@@ -213,7 +301,7 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => setAuthMode("signup")}
-                  className={`text-sm font-bold pb-0.5 transition-all ${authMode === "signup" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`text-sm font-bold pb-0.5 transition-all cursor-pointer ${authMode === "signup" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   Create Account
                 </button>
@@ -227,7 +315,7 @@ export default function LandingPage() {
               <button
                 type="button"
                 onClick={handleGoogleLogin}
-                className="w-full py-3 bg-white hover:bg-slate-100 text-slate-900 font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-2.5 text-xs border border-slate-200"
+                className="w-full py-3 bg-white hover:bg-slate-100 text-slate-900 font-semibold rounded-xl transition-all shadow-md flex items-center justify-center gap-2.5 text-xs border border-slate-200 cursor-pointer"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path
@@ -297,7 +385,7 @@ export default function LandingPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-2.5 bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-semibold rounded-lg hover:opacity-95 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2 text-xs"
+                  className="w-full py-2.5 bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-semibold rounded-lg hover:opacity-95 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2 text-xs cursor-pointer"
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   {isSubmitting ? "Authenticating..." : authMode === "signin" ? "Sign In & Enter Application" : "Create Account & Get Started"}
@@ -310,8 +398,8 @@ export default function LandingPage() {
 
                 <button
                   type="button"
-                  onClick={handleAdminAccess}
-                  className="w-full py-2 bg-secondary/50 hover:bg-secondary/80 border border-border/60 text-foreground text-[11px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5"
+                  onClick={() => handleAdminAccess("/chat")}
+                  className="w-full py-2 bg-secondary/50 hover:bg-secondary/80 border border-border/60 text-foreground text-[11px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Zap className="w-3.5 h-3.5 text-amber-400" />
                   Enter Workspace as Admin (Instant Access)
@@ -349,6 +437,9 @@ export default function LandingPage() {
             <span>© 2026 Lumina AI. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-4">
+            <button onClick={() => handleAdminAccess("/chat")} className="hover:text-foreground transition-colors cursor-pointer">
+              Launch Application
+            </button>
             <a href="#auth-section" className="hover:text-foreground transition-colors">Sign In</a>
             <a href="#auth-section" className="hover:text-foreground transition-colors">Create Account</a>
           </div>

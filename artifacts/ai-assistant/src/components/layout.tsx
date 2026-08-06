@@ -9,7 +9,7 @@ import {
   StickyNote, DollarSign, PhoneCall, CloudSun, FolderOpen,
   Wrench, Receipt, Package, Trophy, Gift, PawPrint, ShoppingBasket,
   Sun, Camera, Cloud, ChevronDown, Bot, Home, Banknote,
-  BookOpen, Newspaper,
+  BookOpen, Newspaper, Globe,
 } from "lucide-react";
 import {
   useGetRecentActivity, getGetRecentActivityQueryKey,
@@ -96,6 +96,7 @@ const categories = [
 // Top-level items always visible (not in a collapsible group)
 const topItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/landing",   icon: Globe,           label: "Landing Page" },
   { href: "/settings",  icon: Settings,        label: "Settings" },
 ];
 
@@ -200,7 +201,11 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="flex h-full flex-col bg-sidebar border-r border-sidebar-border">
       {/* Logo */}
       <div className="px-6 py-4">
-        <LinaLogo className="h-12 w-auto" showSubtitle={false} />
+        <Link href="/landing" title="View Product Landing Page">
+          <div className="cursor-pointer hover:opacity-90 transition-opacity">
+            <LinaLogo className="h-12 w-auto" showSubtitle={false} />
+          </div>
+        </Link>
       </div>
 
       {/* New Chat */}
@@ -353,19 +358,20 @@ export default function Layout({ children }: { children: ReactNode }) {
           </button>
 
           <button
-            onClick={() => {
+            onClick={async () => {
               try {
                 localStorage.removeItem("lumina_admin_session");
+                localStorage.clear();
+                sessionStorage.clear();
               } catch {}
               try {
-                if (typeof signOut === "function") {
-                  signOut({ redirectUrl: import.meta.env.BASE_URL || "/" });
-                } else {
-                  window.location.href = import.meta.env.BASE_URL || "/";
+                if (user && typeof signOut === "function") {
+                  await signOut();
                 }
-              } catch {
-                window.location.href = import.meta.env.BASE_URL || "/";
+              } catch (err) {
+                console.error("Sign out error:", err);
               }
+              window.location.href = import.meta.env.BASE_URL || "/";
             }}
             className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0"
             title="Log out"

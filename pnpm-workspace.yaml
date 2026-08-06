@@ -4,6 +4,9 @@ packages:
   - lib/integrations/*
   - scripts
 
+allowBuilds:
+  '@embedded-postgres/windows-x64': set this to true or false
+
 autoInstallPeers: false
 
 catalog:
