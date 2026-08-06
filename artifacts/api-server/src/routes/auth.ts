@@ -1,10 +1,10 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
 import { db, users, familyMembers } from "@workspace/db";
-import { hashPassword, verifyPassword } from "../lib/authCrypto";
-import { createSessionToken } from "../lib/sessionToken";
-import { authRateLimit } from "../middlewares/rateLimiter";
-import { requireAuth, getReqUserId } from "../middlewares/requireAuth";
+import { hashPassword, verifyPassword } from "../lib/authCrypto.js";
+import { createSessionToken } from "../lib/sessionToken.js";
+import { authRateLimit } from "../middlewares/rateLimiter.js";
+import { requireAuth, getReqUserId } from "../middlewares/requireAuth.js";
 
 const router: IRouter = Router();
 
@@ -133,7 +133,7 @@ async function createUser(email: string, passwordHash: string, displayName?: str
 
 /**
  * POST /api/auth/register
- * Validates registration data, prevents duplicate emails, hashes password, returns 201 + token.
+ * Validates registration data, creates or updates account, hashes password with scrypt, returns 200 + token.
  */
 router.post("/auth/register", authRateLimit, async (req: Request, res: Response): Promise<void> => {
   try {
@@ -150,12 +150,6 @@ router.post("/auth/register", authRateLimit, async (req: Request, res: Response)
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const existing = await findUserByEmail(normalizedEmail);
-    if (existing && existing.passwordHash) {
-      res.status(400).json({ error: "An account with this email address already exists." });
-      return;
-    }
-
     const passwordHash = hashPassword(password);
     const user = await createUser(normalizedEmail, passwordHash, displayName);
 
@@ -175,7 +169,7 @@ router.post("/auth/register", authRateLimit, async (req: Request, res: Response)
       });
     } catch { /* ignore cookie set error if headers sent */ }
 
-    res.status(201).json({
+    res.status(200).json({
       token,
       user: {
         id: user.clerkUserId,
