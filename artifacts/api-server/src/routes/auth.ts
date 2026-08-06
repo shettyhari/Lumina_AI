@@ -43,8 +43,8 @@ async function findUserByEmail(email: string): Promise<StoredUser | null> {
         createdAt: dbUser.createdAt,
       };
     }
-  } catch {
-    /* PostgreSQL fallback to memory store */
+  } catch (err) {
+    console.error("findUserByEmail database error, falling back to memory:", err);
   }
 
   return memoryUserStore.get(normalizedEmail) || null;
@@ -60,8 +60,10 @@ async function createUser(email: string, passwordHash: string, displayName?: str
   let newUser: StoredUser;
 
   try {
-    const existingMembers = await db.select().from(familyMembers);
-    isFirstUser = existingMembers.length === 0;
+    try {
+      const existingMembers = await db.select().from(familyMembers);
+      isFirstUser = existingMembers.length === 0;
+    } catch { /* ignore */ }
 
     const [existingDbUser] = await db.select().from(users).where(eq(users.email, normalizedEmail));
 
@@ -110,7 +112,8 @@ async function createUser(email: string, passwordHash: string, displayName?: str
         createdAt: dbUser.createdAt,
       };
     }
-  } catch {
+  } catch (err) {
+    console.error("createUser database error, falling back to memory store:", err);
     // Memory store fallback
     const role = isFirstUser ? "admin" : "member";
     newUser = {
@@ -163,12 +166,14 @@ router.post("/auth/register", authRateLimit, async (req: Request, res: Response)
       role: user.role,
     });
 
-    res.cookie("lumina_session_token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 86400 * 1000,
-    });
+    try {
+      res.cookie("lumina_session_token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 86400 * 1000,
+      });
+    } catch { /* ignore cookie set error if headers sent */ }
 
     res.status(201).json({
       token,
@@ -179,9 +184,13 @@ router.post("/auth/register", authRateLimit, async (req: Request, res: Response)
         role: user.role,
       },
     });
-  } catch (err) {
-    req.log.error({ err }, "Registration error");
-    res.status(500).json({ error: "Registration failed. Please try again." });
+  } catch (err: any) {
+    console.error("Registration endpoint error:", err);
+    if (req.log?.error) req.log.error({ err }, "Registration error");
+    const errorMessage = err instanceof Error ? err.message : "Registration failed. Please try again.";
+    if (!res.headersSent) {
+      res.status(500).json({ error: errorMessage });
+    }
   }
 });
 
@@ -231,12 +240,14 @@ router.post("/auth/login", authRateLimit, async (req: Request, res: Response): P
       role: user.role,
     });
 
-    res.cookie("lumina_session_token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 86400 * 1000,
-    });
+    try {
+      res.cookie("lumina_session_token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 86400 * 1000,
+      });
+    } catch { /* ignore */ }
 
     res.status(200).json({
       token,
@@ -247,9 +258,13 @@ router.post("/auth/login", authRateLimit, async (req: Request, res: Response): P
         role: user.role,
       },
     });
-  } catch (err) {
-    req.log.error({ err }, "Login error");
-    res.status(500).json({ error: "Authentication failed. Please try again." });
+  } catch (err: any) {
+    console.error("Login endpoint error:", err);
+    if (req.log?.error) req.log.error({ err }, "Login error");
+    const errorMessage = err instanceof Error ? err.message : "Authentication failed. Please try again.";
+    if (!res.headersSent) {
+      res.status(500).json({ error: errorMessage });
+    }
   }
 });
 
@@ -258,11 +273,13 @@ router.post("/auth/login", authRateLimit, async (req: Request, res: Response): P
  * Destroys session token & clears HttpOnly cookie.
  */
 router.post("/auth/logout", (req: Request, res: Response): void => {
-  res.clearCookie("lumina_session_token", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-  });
+  try {
+    res.clearCookie("lumina_session_token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+  } catch { /* ignore */ }
   res.status(200).json({ message: "Logged out successfully" });
 });
 
