@@ -149,12 +149,12 @@ function useSafeUser() {
   const [forceLoaded, setForceLoaded] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setForceLoaded(true), 1000);
+    const timer = setTimeout(() => setForceLoaded(true), 800);
     return () => clearTimeout(timer);
   }, []);
 
   const isLoaded = userResult.isLoaded || forceLoaded;
-  const isSignedIn = userResult.isLoaded ? (userResult.isSignedIn ?? true) : true;
+  const isSignedIn = Boolean(userResult.isLoaded && userResult.isSignedIn);
 
   return { ...userResult, isLoaded, isSignedIn };
 }
