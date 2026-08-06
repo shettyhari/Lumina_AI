@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useFamilyStatus } from "@/contexts/family-context";
 import { NotificationDrawer } from "./notification-drawer";
+import { ThemeToggle } from "./ThemeToggle";
 
 // ─── Category definitions ────────────────────────────────────────────────────
 
@@ -339,6 +340,8 @@ export default function Layout({ children }: { children: ReactNode }) {
             </div>
           </div>
 
+          <ThemeToggle />
+
           <button
             onClick={() => setNotifOpen(true)}
             className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors shrink-0"
@@ -389,12 +392,15 @@ export default function Layout({ children }: { children: ReactNode }) {
           <div className="flex items-center">
             <LinaLogo className="h-7 w-auto" showSubtitle={false} />
           </div>
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-          >
-            {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            >
+              {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-hidden z-0">

@@ -1,10 +1,11 @@
 import { Link } from "wouter";
 import { Sparkles, Zap, Shield, ArrowRight } from "lucide-react";
 import { LinaLogo } from "@/components/LinaLogo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/30 relative overflow-hidden flex flex-col">
+    <div className="min-h-[100dvh] w-full bg-background text-foreground selection:bg-primary/30 relative overflow-x-hidden flex flex-col justify-between">
       {/* Background Effects */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-iridescent opacity-20 blur-[120px] rounded-full pointer-events-none mix-blend-screen"></div>
       <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-indigo-500/20 blur-[150px] rounded-full pointer-events-none mix-blend-screen"></div>
@@ -14,14 +15,15 @@ export default function LandingPage() {
         <div className="flex items-center">
           <LinaLogo className="h-10 w-auto" showSubtitle={false} />
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
           <Link href="/sign-in">
-            <div className="text-sm font-medium text-muted-foreground hover:text-white transition-colors cursor-pointer px-4 py-2">
+            <div className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer px-3 py-2">
               Sign In
             </div>
           </Link>
           <Link href="/sign-up">
-            <div className="text-sm font-medium bg-white text-black px-5 py-2.5 rounded-full hover:bg-white/90 transition-all cursor-pointer shadow-lg shadow-white/10 flex items-center gap-2">
+            <div className="text-sm font-medium bg-primary text-primary-foreground px-5 py-2.5 rounded-full hover:bg-primary/90 transition-all cursor-pointer shadow-lg flex items-center gap-2">
               Get Started <ArrowRight className="w-4 h-4" />
             </div>
           </Link>

@@ -7,6 +7,7 @@ import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 
 import Layout from "./components/layout";
 import { LinaLogo } from "./components/LinaLogo";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { FamilyStatusProvider, useFamilyStatus } from "./contexts/family-context";
 
 // Lazy-loaded pages for optimal performance & code splitting
@@ -162,6 +163,7 @@ function useSafeUser() {
 function SignInPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 py-8 relative overflow-hidden">
+      <ThemeToggle className="absolute top-4 right-4 z-20" />
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-iridescent opacity-15 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
         <Link href="/">
@@ -185,6 +187,7 @@ function SignInPage() {
 function SignUpPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 py-8 relative overflow-hidden">
+      <ThemeToggle className="absolute top-4 right-4 z-20" />
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-iridescent opacity-15 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
         <Link href="/">
@@ -339,7 +342,14 @@ function ClerkProviderWithRoutes() {
 }
 
 function App() {
-  useEffect(() => { document.documentElement.classList.add('dark'); }, []);
+  useEffect(() => {
+    const saved = localStorage.getItem("lumina_theme");
+    if (saved === "light") {
+      document.documentElement.classList.remove("dark");
+    } else {
+      document.documentElement.classList.add("dark");
+    }
+  }, []);
   return (
     <ErrorBoundary>
       <WouterRouter base={basePath}>
