@@ -19,7 +19,7 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 import { LinaLogo } from "@/components/LinaLogo";
-<<<<<<< HEAD
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { SignIn, SignUp, useUser, useClerk } from "@clerk/react";
 
 export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect?: boolean }) {
@@ -81,12 +81,8 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
   };
 
   const rawClerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-=======
-import { ThemeToggle } from "@/components/ThemeToggle";
->>>>>>> origin/main
 
   return (
-<<<<<<< HEAD
     <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30 relative overflow-hidden flex flex-col font-sans">
       {/* Dynamic Background Glow Effects */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[400px] bg-gradient-to-r from-primary/30 via-purple-600/20 to-cyan-500/30 opacity-30 blur-[120px] rounded-full pointer-events-none mix-blend-screen" />
@@ -100,32 +96,6 @@ import { ThemeToggle } from "@/components/ThemeToggle";
           >
             <LinaLogo className="h-8 w-auto" showSubtitle={true} />
           </button>
-=======
-    <div className="min-h-[100dvh] w-full bg-background text-foreground selection:bg-primary/30 relative overflow-x-hidden flex flex-col justify-between">
-      {/* Background Effects */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-iridescent opacity-20 blur-[120px] rounded-full pointer-events-none mix-blend-screen"></div>
-      <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-indigo-500/20 blur-[150px] rounded-full pointer-events-none mix-blend-screen"></div>
-
-      {/* Nav */}
-      <nav className="relative z-10 flex items-center justify-between px-6 py-6 max-w-7xl mx-auto w-full">
-        <div className="flex items-center">
-          <LinaLogo className="h-10 w-auto" showSubtitle={false} />
-        </div>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-          <Link href="/sign-in">
-            <div className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer px-3 py-2">
-              Sign In
-            </div>
-          </Link>
-          <Link href="/sign-up">
-            <div className="text-sm font-medium bg-primary text-primary-foreground px-5 py-2.5 rounded-full hover:bg-primary/90 transition-all cursor-pointer shadow-lg flex items-center gap-2">
-              Get Started <ArrowRight className="w-4 h-4" />
-            </div>
-          </Link>
-        </div>
-      </nav>
->>>>>>> origin/main
 
           <div className="hidden md:flex items-center gap-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
@@ -134,6 +104,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
           </div>
 
           <div className="flex items-center gap-2.5">
+            <ThemeToggle />
             {isAppAuthenticated ? (
               <button
                 onClick={() => setLocation("/chat")}

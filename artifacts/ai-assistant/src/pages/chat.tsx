@@ -463,12 +463,8 @@ export default function ChatPage() {
         // unmount this component, orphaning the SSE stream and losing toolEvents.
       } catch (err: any) {
         console.error("Failed to create conversation:", err);
-<<<<<<< HEAD
-        setStreamError({ message: err?.message || "Failed to start new chat session. Please verify server connection." });
-=======
-        const errMsg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Failed to start conversation. Please try again.";
+        const errMsg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Failed to start new chat session. Please verify server connection.";
         setStreamError({ message: errMsg });
->>>>>>> origin/main
         if (fromVoice) voice.setThinking(false);
         return;
       }
