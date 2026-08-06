@@ -27,7 +27,7 @@ async function findUserByEmail(email: string): Promise<StoredUser | null> {
   
   try {
     const [dbUser] = await db.select().from(users).where(eq(users.email, normalizedEmail));
-    if (dbUser && dbUser.passwordHash) {
+    if (dbUser) {
       let role = "member";
       try {
         const [member] = await db.select().from(familyMembers).where(eq(familyMembers.clerkUserId, dbUser.clerkUserId));
@@ -37,7 +37,7 @@ async function findUserByEmail(email: string): Promise<StoredUser | null> {
         id: dbUser.id,
         clerkUserId: dbUser.clerkUserId || `user_${dbUser.id}`,
         email: normalizedEmail,
-        passwordHash: dbUser.passwordHash,
+        passwordHash: dbUser.passwordHash || "",
         displayName: dbUser.displayName || normalizedEmail.split("@")[0],
         role,
         createdAt: dbUser.createdAt,
@@ -50,7 +50,7 @@ async function findUserByEmail(email: string): Promise<StoredUser | null> {
   return memoryUserStore.get(normalizedEmail) || null;
 }
 
-// Helper to create new user in DB or memory fallback
+// Helper to create or update user in DB or memory fallback
 async function createUser(email: string, passwordHash: string, displayName?: string): Promise<StoredUser> {
   const normalizedEmail = email.trim().toLowerCase();
   const clerkUserId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -63,33 +63,53 @@ async function createUser(email: string, passwordHash: string, displayName?: str
     const existingMembers = await db.select().from(familyMembers);
     isFirstUser = existingMembers.length === 0;
 
-    const [dbUser] = await db.insert(users).values({
-      clerkUserId,
-      email: normalizedEmail,
-      passwordHash,
-      displayName: finalName,
-    }).returning();
+    const [existingDbUser] = await db.select().from(users).where(eq(users.email, normalizedEmail));
 
-    const role = isFirstUser ? "admin" : "member";
-    try {
-      await db.insert(familyMembers).values({
-        clerkUserId,
-        role,
-        status: isFirstUser ? "approved" : "pending",
-        displayName: finalName,
+    if (existingDbUser) {
+      const [updated] = await db.update(users)
+        .set({ passwordHash, displayName: finalName })
+        .where(eq(users.email, normalizedEmail))
+        .returning();
+
+      const role = isFirstUser ? "admin" : "member";
+      newUser = {
+        id: updated.id,
+        clerkUserId: updated.clerkUserId || clerkUserId,
         email: normalizedEmail,
-      });
-    } catch { /* ignore */ }
+        passwordHash,
+        displayName: finalName,
+        role,
+        createdAt: updated.createdAt,
+      };
+    } else {
+      const [dbUser] = await db.insert(users).values({
+        clerkUserId,
+        email: normalizedEmail,
+        passwordHash,
+        displayName: finalName,
+      }).returning();
 
-    newUser = {
-      id: dbUser.id,
-      clerkUserId,
-      email: normalizedEmail,
-      passwordHash,
-      displayName: finalName,
-      role,
-      createdAt: dbUser.createdAt,
-    };
+      const role = isFirstUser ? "admin" : "member";
+      try {
+        await db.insert(familyMembers).values({
+          clerkUserId,
+          role,
+          status: isFirstUser ? "approved" : "pending",
+          displayName: finalName,
+          email: normalizedEmail,
+        });
+      } catch { /* ignore */ }
+
+      newUser = {
+        id: dbUser.id,
+        clerkUserId,
+        email: normalizedEmail,
+        passwordHash,
+        displayName: finalName,
+        role,
+        createdAt: dbUser.createdAt,
+      };
+    }
   } catch {
     // Memory store fallback
     const role = isFirstUser ? "admin" : "member";
@@ -128,7 +148,7 @@ router.post("/auth/register", authRateLimit, async (req: Request, res: Response)
 
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await findUserByEmail(normalizedEmail);
-    if (existing) {
+    if (existing && existing.passwordHash) {
       res.status(400).json({ error: "An account with this email address already exists." });
       return;
     }
@@ -190,6 +210,11 @@ router.post("/auth/login", authRateLimit, async (req: Request, res: Response): P
 
     if (!user) {
       res.status(401).json({ error: "Invalid email address." });
+      return;
+    }
+
+    if (!user.passwordHash) {
+      res.status(401).json({ error: "Incorrect password." });
       return;
     }
 
