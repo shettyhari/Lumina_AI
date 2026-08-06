@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, Component, ReactNode, lazy, Suspense } from "react";
-import { ClerkProvider, SignIn, SignUp, useClerk, useUser } from '@clerk/react';
+import { ClerkProvider, useClerk, useUser } from '@clerk/react';
 import { shadcn } from '@clerk/themes';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect, Link } from 'wouter';
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 
 import Layout from "./components/layout";
+import { LinaLogo } from "./components/LinaLogo";
+import { ThemeToggle } from "./components/ThemeToggle";
+import { AuthForm } from "./components/AuthForm";
 import { FamilyStatusProvider, useFamilyStatus } from "./contexts/family-context";
 
 // Lazy-loaded pages for optimal performance & code splitting
@@ -102,7 +105,6 @@ const clerkAppearance = {
   theme: shadcn,
   cssLayerName: "clerk",
   variables: {
-    /* LINA brand — magenta primary, purple/teal accents */
     colorPrimary: "hsl(328 82% 52%)",
     colorForeground: "hsl(213 31% 91%)",
     colorMutedForeground: "hsl(215 20.2% 65.1%)",
@@ -151,26 +153,64 @@ function useSafeUser() {
     /* Clerk context unavailable or errored */
   }
 
+  const [localSession] = useState<any>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("lumina_user_session");
+      if (saved) {
+        try { return JSON.parse(saved); } catch { return null; }
+      }
+    }
+    return null;
+  });
+
   const [forceLoaded, setForceLoaded] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setForceLoaded(true), 800);
+    const timer = setTimeout(() => setForceLoaded(true), 400);
     return () => clearTimeout(timer);
   }, []);
 
   const isLoaded = userResult?.isLoaded || forceLoaded;
   const isLocalAdmin = typeof window !== 'undefined' && localStorage.getItem("lumina_admin_session") === "true";
-  const isSignedIn = userResult?.isSignedIn === true || isLocalAdmin;
+  const isSignedIn = Boolean(userResult?.isSignedIn === true || isLocalAdmin || localSession);
 
-  return { ...userResult, isLoaded, isSignedIn };
+  return { ...userResult, isLoaded, isSignedIn, localSession };
 }
 
 function SignInPage() {
-  return <LandingPage />;
+  return (
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 py-8 relative overflow-hidden">
+      <ThemeToggle className="absolute top-4 right-4 z-20" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-iridescent opacity-15 blur-[120px] rounded-full pointer-events-none"></div>
+      <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
+        <Link href="/">
+          <div className="flex flex-col items-center gap-2 cursor-pointer group mb-2">
+            <LinaLogo className="h-10 w-auto group-hover:scale-105 transition-transform" showSubtitle={false} />
+            <span className="text-xs text-muted-foreground font-medium tracking-wide">Household Intelligence & AI Assistant</span>
+          </div>
+        </Link>
+        <AuthForm mode="sign-in" />
+      </div>
+    </div>
+  );
 }
 
 function SignUpPage() {
-  return <LandingPage />;
+  return (
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 py-8 relative overflow-hidden">
+      <ThemeToggle className="absolute top-4 right-4 z-20" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-iridescent opacity-15 blur-[120px] rounded-full pointer-events-none"></div>
+      <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
+        <Link href="/">
+          <div className="flex flex-col items-center gap-2 cursor-pointer group mb-2">
+            <LinaLogo className="h-10 w-auto group-hover:scale-105 transition-transform" showSubtitle={false} />
+            <span className="text-xs text-muted-foreground font-medium tracking-wide">Household Intelligence & AI Assistant</span>
+          </div>
+        </Link>
+        <AuthForm mode="sign-up" />
+      </div>
+    </div>
+  );
 }
 
 function ClerkQueryClientCacheInvalidator() {
@@ -254,8 +294,13 @@ function ClerkProviderWithRoutes() {
             <Switch>
               <Route path="/" component={HomeRedirect} />
               <Route path="/landing" component={() => <LandingPage ignoreRedirect />} />
+              <Route path="/welcome" component={() => <LandingPage ignoreRedirect />} />
+              <Route path="/login" component={SignInPage} />
+              <Route path="/signin" component={SignInPage} />
               <Route path="/sign-in/*?" component={SignInPage} />
+              <Route path="/signup" component={SignUpPage} />
               <Route path="/sign-up/*?" component={SignUpPage} />
+              <Route path="/auth" component={SignInPage} />
 
               <Route path="/chat" component={() => <ProtectedRoute component={ChatPage} />} />
               <Route path="/chat/:id" component={() => <ProtectedRoute component={ChatPage} />} />
@@ -302,7 +347,14 @@ function ClerkProviderWithRoutes() {
 }
 
 function App() {
-  useEffect(() => { document.documentElement.classList.add('dark'); }, []);
+  useEffect(() => {
+    const saved = localStorage.getItem("lumina_theme");
+    if (saved === "light") {
+      document.documentElement.classList.remove("dark");
+    } else {
+      document.documentElement.classList.add("dark");
+    }
+  }, []);
   return (
     <ErrorBoundary>
       <WouterRouter base={basePath}>

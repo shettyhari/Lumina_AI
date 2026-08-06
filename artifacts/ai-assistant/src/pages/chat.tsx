@@ -463,7 +463,12 @@ export default function ChatPage() {
         // unmount this component, orphaning the SSE stream and losing toolEvents.
       } catch (err: any) {
         console.error("Failed to create conversation:", err);
+<<<<<<< HEAD
         setStreamError({ message: err?.message || "Failed to start new chat session. Please verify server connection." });
+=======
+        const errMsg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Failed to start conversation. Please try again.";
+        setStreamError({ message: errMsg });
+>>>>>>> origin/main
         if (fromVoice) voice.setThinking(false);
         return;
       }
@@ -510,9 +515,9 @@ export default function ChatPage() {
         credentials: "include",
       });
 
-      if (response.status === 402) {
-        const b = await response.json();
-        setStreamError({ message: b.error, provider: b.provider });
+      if (!response.ok) {
+        const b = await response.json().catch(() => ({ error: `HTTP ${response.status}: ${response.statusText}` }));
+        setStreamError({ message: b.message || b.error || "Failed to send message", provider: b.provider });
         setIsStreaming(false);
         if (fromVoice) voice.setThinking(false);
         return;

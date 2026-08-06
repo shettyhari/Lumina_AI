@@ -109,6 +109,9 @@ Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
   if (agentSystemPrompt) config.systemInstruction = agentSystemPrompt;
   if (reasoningMode) (config as any).thinkingConfig = { thinkingBudget: 2048 };
 
+  const userGeminiKey = await getUserApiKey(clerkUserId, "gemini");
+  const geminiClient = userGeminiKey ? new GoogleGenAI({ apiKey: userGeminiKey }) : ai;
+
   let fullText = "";
   const MAX_ITERATIONS = 6;
 

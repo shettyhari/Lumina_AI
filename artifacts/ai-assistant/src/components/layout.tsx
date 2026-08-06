@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useFamilyStatus } from "@/contexts/family-context";
 import { NotificationDrawer } from "./notification-drawer";
+import { ThemeToggle } from "./ThemeToggle";
 
 // ─── Category definitions ────────────────────────────────────────────────────
 
@@ -344,6 +345,8 @@ export default function Layout({ children }: { children: ReactNode }) {
             </div>
           </div>
 
+          <ThemeToggle />
+
           <button
             onClick={() => setNotifOpen(true)}
             className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors shrink-0"
@@ -361,11 +364,12 @@ export default function Layout({ children }: { children: ReactNode }) {
             onClick={async () => {
               try {
                 localStorage.removeItem("lumina_admin_session");
+                localStorage.removeItem("lumina_user_session");
                 localStorage.clear();
                 sessionStorage.clear();
               } catch {}
               try {
-                if (user && typeof signOut === "function") {
+                if (typeof signOut === "function") {
                   await signOut();
                 }
               } catch (err) {
@@ -373,7 +377,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               }
               window.location.href = import.meta.env.BASE_URL || "/";
             }}
-            className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0"
+            className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0 cursor-pointer"
             title="Log out"
           >
             <LogOut className="h-4 w-4" />
@@ -408,12 +412,15 @@ export default function Layout({ children }: { children: ReactNode }) {
           <div className="flex items-center">
             <LinaLogo className="h-7 w-auto" showSubtitle={false} />
           </div>
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-          >
-            {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            >
+              {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-hidden z-0">

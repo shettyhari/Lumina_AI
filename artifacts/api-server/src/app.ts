@@ -104,7 +104,7 @@ app.use("/api", router);
 const staticDir = path.resolve(process.cwd(), "artifacts/ai-assistant/dist/public");
 if (existsSync(staticDir)) {
   app.use(express.static(staticDir));
-  app.get("*", (req: Request, res: Response, next: NextFunction) => {
+  app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith("/api") || req.path.startsWith("/clerk")) return next();
     res.sendFile(path.join(staticDir, "index.html"));
   });
