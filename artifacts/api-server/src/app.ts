@@ -1,6 +1,7 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
@@ -13,6 +14,9 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
+
+// Trust reverse proxy headers on Vercel
+app.set("trust proxy", 1);
 
 app.use(
   pinoHttp({
@@ -37,12 +41,13 @@ app.use(
 // Security headers
 app.use(helmet());
 
+// Cookie parser for JWT session cookies
+app.use(cookieParser());
+
 // Clerk proxy must be mounted before body parsers (streams raw bytes)
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-// CORS — fail-closed: only allow explicitly configured frontend origins.
-// If neither REPLIT_DEV_DOMAIN nor FRONTEND_ORIGIN is set, all cross-origin
-// credentialed requests are rejected rather than silently permitted.
+// CORS — allow configured frontend origins and Vercel deployments
 const _corsDev = process.env.REPLIT_DEV_DOMAIN;
 const _corsAllowed = new Set<string>(
   [
@@ -63,10 +68,9 @@ app.use(
   cors({
     credentials: true,
     origin: (origin, callback) => {
-      // Allow requests with no Origin (e.g. server-to-server, curl in dev)
       if (!origin) return callback(null, true);
       const isLocalNetwork = /^http:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(origin);
-      const isVercelDomain = /^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/.test(origin);
+      const isVercelDomain = /^https:\/\/.*\.vercel\.app$/.test(origin);
       if (_corsAllowed.has(origin) || isLocalNetwork || isVercelDomain || process.env.NODE_ENV !== "production") {
         callback(null, true);
       } else {
