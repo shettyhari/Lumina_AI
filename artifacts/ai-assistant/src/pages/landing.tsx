@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import {
   Sparkles,
-  Zap,
   Shield,
   ArrowRight,
   Bot,
@@ -15,30 +14,29 @@ import {
   CheckCircle2,
   Cpu,
   ExternalLink,
-  PlayCircle,
   LayoutDashboard,
 } from "lucide-react";
 import { LinaLogo } from "@/components/LinaLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SignIn, SignUp, useUser, useClerk } from "@clerk/react";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect?: boolean }) {
   const [, setLocation] = useLocation();
-  const { isSignedIn, isLoaded } = useUser();
+  const { isSignedIn: isClerkSignedIn, isLoaded: isClerkLoaded } = useUser();
   const clerk = useClerk();
+  const { isAuthenticated, login } = useAuth();
+
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [guestEmail, setGuestEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
-  const isLocalSession = typeof window !== 'undefined' && (
-    localStorage.getItem("lumina_admin_session") === "true" ||
-    Boolean(localStorage.getItem("lumina_user_session"))
-  );
-  const isAppAuthenticated = (isLoaded && isSignedIn) || isLocalSession;
+  const isAppAuthenticated = isAuthenticated || (isClerkLoaded && isClerkSignedIn);
 
   // If already signed in and not explicitly forced on landing page, redirect to workspace
-  if (!ignoreRedirect && isLoaded && isSignedIn) {
+  if (!ignoreRedirect && isAppAuthenticated) {
     setLocation("/chat");
     return null;
   }
@@ -52,24 +50,19 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
     }
   };
 
-  const handleCustomLogin = (e: React.FormEvent) => {
+  const handleCustomLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError(null);
     setIsSubmitting(true);
-    const userPayload = {
-      email: guestEmail.trim() || "user@family.com",
-      displayName: guestEmail.trim().split("@")[0] || "Lumina User",
-      role: "admin",
-    };
+
     try {
-      localStorage.setItem("lumina_user_session", JSON.stringify(userPayload));
-      localStorage.setItem("lumina_admin_session", "true");
-    } catch {
-      /* localStorage blocked */
-    }
-    setTimeout(() => {
-      setIsSubmitting(false);
+      await login(guestEmail, password);
       setLocation("/chat");
-    }, 300);
+    } catch (err: any) {
+      setAuthError(err?.message || "Authentication failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleGoogleLogin = async () => {
@@ -303,7 +296,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setAuthMode("signin")}
+                  onClick={() => { setAuthMode("signin"); setAuthError(null); }}
                   className={`text-sm font-bold pb-0.5 transition-all cursor-pointer ${authMode === "signin" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   Sign In
@@ -311,7 +304,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                 <span className="text-muted-foreground/40">•</span>
                 <button
                   type="button"
-                  onClick={() => setAuthMode("signup")}
+                  onClick={() => { setAuthMode("signup"); setAuthError(null); }}
                   className={`text-sm font-bold pb-0.5 transition-all cursor-pointer ${authMode === "signup" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   Create Account
@@ -320,6 +313,12 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
 
               <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Authentication Required</span>
             </div>
+
+            {authError && (
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-center gap-2 font-medium">
+                <span>{authError}</span>
+              </div>
+            )}
 
             {/* Dedicated Google Auth Button */}
             <div className="space-y-2.5">
@@ -400,7 +399,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-2.5 bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-semibold rounded-lg hover:opacity-95 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2 text-xs cursor-pointer"
+                  className="w-full py-2.5 bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-semibold rounded-lg hover:opacity-95 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2 text-xs cursor-pointer disabled:opacity-50"
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   {isSubmitting ? "Authenticating..." : authMode === "signin" ? "Sign In & Enter Workspace" : "Create Account & Get Started"}

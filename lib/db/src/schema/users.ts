@@ -4,7 +4,9 @@ import { z } from "zod/v4";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  clerkUserId: text("clerk_user_id").notNull().unique(),
+  clerkUserId: text("clerk_user_id").unique(),
+  email: text("email").unique(),
+  passwordHash: text("password_hash"),
   displayName: text("display_name"),
   preferredModel: text("preferred_model").notNull().default("gemini-2.5-flash"),
   systemPrompt: text("system_prompt"),

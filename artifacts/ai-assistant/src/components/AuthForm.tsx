@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { Lock, Mail, User, ArrowRight } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
 
 interface AuthFormProps {
   mode: "sign-in" | "sign-up";
@@ -11,9 +12,10 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, setLocation] = useLocation();
+  const { login, register } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,25 +24,20 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
     setError(null);
 
     try {
-      const userPayload = {
-        email: email.trim(),
-        displayName: mode === "sign-up" ? (name.trim() || email.split("@")[0]) : email.split("@")[0],
-        clerkUserId: `user_${email.replace(/[^a-zA-Z0-9]/g, "_")}`,
-      };
-
-      localStorage.setItem("lumina_user_session", JSON.stringify(userPayload));
-
-      setTimeout(() => {
-        setIsLoading(false);
-        setLocation("/chat");
-      }, 300);
-    } catch {
-      setIsLoading(false);
-      setError("Failed to log in. Please try again.");
+      if (mode === "sign-in") {
+        await login(email, password);
+      } else {
+        await register(email, password, name);
+      }
+      setLocation("/chat");
+    } catch (err: any) {
+      setError(err?.message || "Authentication failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -64,13 +61,13 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
           {mode === "sign-in"
-            ? "Enter your credentials to access your Lumina AI workspace"
+            ? "Log in to access your Lumina AI workspace"
             : "Sign up to start using your personal AI assistant"}
         </p>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-center gap-2">
+        <div className="mb-4 p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-center gap-2 font-medium">
           <span>{error}</span>
         </div>
       )}
@@ -127,10 +124,10 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
 
         <button
           type="submit"
-          disabled={isLoading}
-          className="mt-2 w-full py-3 px-4 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer"
+          disabled={isSubmitting}
+          className="mt-2 w-full py-3 px-4 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 cursor-pointer disabled:opacity-50"
         >
-          {isLoading ? (
+          {isSubmitting ? (
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
           ) : (
             <>

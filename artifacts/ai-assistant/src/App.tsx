@@ -10,6 +10,7 @@ import { LinaLogo } from "./components/LinaLogo";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { AuthForm } from "./components/AuthForm";
 import { FamilyStatusProvider, useFamilyStatus } from "./contexts/family-context";
+import { AuthProvider, useAuth } from "./contexts/auth-context";
 
 // Lazy-loaded pages for optimal performance & code splitting
 const LandingPage = lazy(() => import("./pages/landing"));
@@ -146,35 +147,19 @@ const clerkAppearance = {
 };
 
 function useSafeUser() {
-  let userResult: any = { isLoaded: false, isSignedIn: false, user: null };
+  const { user: authUser, isAuthenticated, isLoading: authLoading } = useAuth();
+  let clerkUserResult: any = { isLoaded: false, isSignedIn: false, user: null };
   try {
-    userResult = useUser();
+    clerkUserResult = useUser();
   } catch {
     /* Clerk context unavailable or errored */
   }
 
-  const [localSession] = useState<any>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("lumina_user_session");
-      if (saved) {
-        try { return JSON.parse(saved); } catch { return null; }
-      }
-    }
-    return null;
-  });
+  const isLoaded = !authLoading || clerkUserResult?.isLoaded;
+  const isSignedIn = Boolean(isAuthenticated || clerkUserResult?.isSignedIn === true);
+  const user = authUser || clerkUserResult?.user;
 
-  const [forceLoaded, setForceLoaded] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setForceLoaded(true), 400);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const isLoaded = userResult?.isLoaded || forceLoaded;
-  const isLocalAdmin = typeof window !== 'undefined' && localStorage.getItem("lumina_admin_session") === "true";
-  const isSignedIn = Boolean(userResult?.isSignedIn === true || isLocalAdmin || localSession);
-
-  return { ...userResult, isLoaded, isSignedIn, localSession };
+  return { isLoaded, isSignedIn, user };
 }
 
 function SignInPage() {
@@ -264,7 +249,7 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
   const { isAdmin } = useFamilyStatus();
 
   if (!isLoaded) return <PageLoader />;
-  if (!isSignedIn) return <Redirect to="/" />;
+  if (!isSignedIn) return <Redirect to="/sign-in" />;
   if (adminOnly && !isAdmin) return <Redirect to="/chat" />;
 
   return (
@@ -358,7 +343,9 @@ function App() {
   return (
     <ErrorBoundary>
       <WouterRouter base={basePath}>
-        <ClerkProviderWithRoutes />
+        <AuthProvider>
+          <ClerkProviderWithRoutes />
+        </AuthProvider>
       </WouterRouter>
     </ErrorBoundary>
   );

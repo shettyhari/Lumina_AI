@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { getAuth } from "@clerk/express";
 import healthRouter from "./health";
+import authRouter from "./auth";
 import userRouter from "./user";
 import userApiKeysRouter from "./userApiKeys";
 import geminiRouter from "./gemini";
@@ -33,7 +34,15 @@ import { getReqUserId } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-const OPEN_PATHS = new Set(["/healthz", "/user/status"]);
+const OPEN_PATHS = new Set([
+  "/healthz",
+  "/user/status",
+  "/auth/login",
+  "/auth/register",
+  "/auth/logout",
+]);
+
+router.use(authRouter);
 
 router.use(async (req: Request, res: Response, next: NextFunction) => {
   const userId = getReqUserId(req);

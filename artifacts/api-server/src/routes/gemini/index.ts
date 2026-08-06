@@ -79,8 +79,8 @@ async function streamGeminiAgentic(
   customApiKey?: string,
 ): Promise<string> {
   const contents: any[] = buildGeminiContents(chatMessages);
-  const activeKey = customApiKey || process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
-  const geminiClient = activeKey ? new GoogleGenAI({ apiKey: activeKey }) : ai;
+  const userGeminiKey = customApiKey || (await getUserApiKey(clerkUserId, "gemini")) || process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  const geminiClient = userGeminiKey ? new GoogleGenAI({ apiKey: userGeminiKey }) : ai;
 
   const agentSystemPrompt = (systemPrompt || "") +
     `\n\nYou are Lina, an agentic AI home assistant for a family. You have access to tools that let you take real actions:
@@ -108,9 +108,6 @@ Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
   };
   if (agentSystemPrompt) config.systemInstruction = agentSystemPrompt;
   if (reasoningMode) (config as any).thinkingConfig = { thinkingBudget: 2048 };
-
-  const userGeminiKey = await getUserApiKey(clerkUserId, "gemini");
-  const geminiClient = userGeminiKey ? new GoogleGenAI({ apiKey: userGeminiKey }) : ai;
 
   let fullText = "";
   const MAX_ITERATIONS = 6;

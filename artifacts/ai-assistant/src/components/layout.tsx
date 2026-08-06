@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { useFamilyStatus } from "@/contexts/family-context";
 import { NotificationDrawer } from "./notification-drawer";
 import { ThemeToggle } from "./ThemeToggle";
+import { useAuth } from "@/contexts/auth-context";
 
 // ─── Category definitions ────────────────────────────────────────────────────
 
@@ -188,6 +189,8 @@ export default function Layout({ children }: { children: ReactNode }) {
     query: { queryKey: ["/api/family/notifications/count"], refetchInterval: 10_000 },
   });
   const unreadCount = notifCount?.count ?? 0;
+
+  const { logout: authLogout } = useAuth();
 
   const handleNewChat = () => {
     createConversation.mutate(
@@ -363,10 +366,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           <button
             onClick={async () => {
               try {
-                localStorage.removeItem("lumina_admin_session");
-                localStorage.removeItem("lumina_user_session");
-                localStorage.clear();
-                sessionStorage.clear();
+                await authLogout();
               } catch {}
               try {
                 if (typeof signOut === "function") {
@@ -375,7 +375,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               } catch (err) {
                 console.error("Sign out error:", err);
               }
-              window.location.href = import.meta.env.BASE_URL || "/";
+              window.location.href = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/sign-in`;
             }}
             className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0 cursor-pointer"
             title="Log out"
