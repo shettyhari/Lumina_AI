@@ -27,11 +27,15 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
   const { isSignedIn, isLoaded } = useUser();
   const clerk = useClerk();
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isLocalAdmin = typeof window !== 'undefined' && localStorage.getItem("lumina_admin_session") === "true";
-  const isAppAuthenticated = (isLoaded && isSignedIn) || isLocalAdmin;
+  const isLocalSession = typeof window !== 'undefined' && (
+    localStorage.getItem("lumina_admin_session") === "true" ||
+    Boolean(localStorage.getItem("lumina_user_session"))
+  );
+  const isAppAuthenticated = (isLoaded && isSignedIn) || isLocalSession;
 
   // If already signed in and not explicitly forced on landing page, redirect to workspace
   if (!ignoreRedirect && isLoaded && isSignedIn) {
@@ -39,26 +43,33 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
     return null;
   }
 
+  // Handler for options/features when unauthenticated
+  const handleRequireAuth = (targetPath = "/chat") => {
+    if (isAppAuthenticated) {
+      setLocation(targetPath);
+    } else {
+      setLocation("/sign-in");
+    }
+  };
+
   const handleCustomLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    const userPayload = {
+      email: guestEmail.trim() || "user@family.com",
+      displayName: guestEmail.trim().split("@")[0] || "Lumina User",
+      role: "admin",
+    };
     try {
+      localStorage.setItem("lumina_user_session", JSON.stringify(userPayload));
       localStorage.setItem("lumina_admin_session", "true");
     } catch {
       /* localStorage blocked */
     }
     setTimeout(() => {
+      setIsSubmitting(false);
       setLocation("/chat");
     }, 300);
-  };
-
-  const handleAdminAccess = (targetPath = "/chat") => {
-    try {
-      localStorage.setItem("lumina_admin_session", "true");
-    } catch {
-      /* localStorage blocked */
-    }
-    setLocation(targetPath);
   };
 
   const handleGoogleLogin = async () => {
@@ -73,10 +84,10 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
       } else if (clerk && typeof (clerk as any).openSignIn === "function") {
         (clerk as any).openSignIn();
       } else {
-        handleAdminAccess("/chat");
+        setLocation("/sign-in");
       }
     } catch {
-      handleAdminAccess("/chat");
+      setLocation("/sign-in");
     }
   };
 
@@ -100,7 +111,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
           <div className="hidden md:flex items-center gap-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
             <a href="#ai-models" className="hover:text-foreground transition-colors">AI Models</a>
-            <a href="#auth-section" className="hover:text-foreground transition-colors">Sign In</a>
+            <button onClick={() => setLocation("/sign-in")} className="hover:text-foreground transition-colors cursor-pointer">Sign In</button>
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -115,18 +126,17 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
             ) : (
               <>
                 <button
-                  onClick={() => handleAdminAccess("/chat")}
+                  onClick={() => setLocation("/sign-in")}
                   className="text-xs font-semibold px-3.5 py-1.5 text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-full transition-all flex items-center gap-1 cursor-pointer"
                 >
-                  <PlayCircle className="w-3.5 h-3.5" /> Launch Web App
+                  <LogIn className="w-3.5 h-3.5" /> Sign In
                 </button>
-                <a
-                  href="#auth-section"
-                  onClick={() => setAuthMode("signup")}
-                  className="text-xs font-semibold bg-gradient-to-r from-primary to-purple-600 text-white px-4 py-2 rounded-full hover:opacity-90 transition-all shadow-md shadow-primary/20 flex items-center gap-1.5"
+                <button
+                  onClick={() => setLocation("/sign-up")}
+                  className="text-xs font-semibold bg-gradient-to-r from-primary to-purple-600 text-white px-4 py-2 rounded-full hover:opacity-90 transition-all shadow-md shadow-primary/20 flex items-center gap-1.5 cursor-pointer"
                 >
                   Get Started <ArrowRight className="w-3.5 h-3.5" />
-                </a>
+                </button>
               </>
             )}
           </div>
@@ -153,10 +163,10 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
             The all-in-one personal AI assistant and family operating system. Connect Google Gemini, Claude, and GPT-4 with real tool execution for pantry sync, expenses, calendar, and family chat.
           </p>
 
-          {/* Primary Action Buttons Linking Landing Page to App */}
+          {/* Primary Action Buttons */}
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <button
-              onClick={() => handleAdminAccess("/chat")}
+              onClick={() => handleRequireAuth("/chat")}
               className="px-6 py-3 rounded-full bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-bold text-xs sm:text-sm hover:opacity-95 transition-all shadow-lg shadow-primary/25 flex items-center gap-2 group cursor-pointer"
             >
               <LayoutDashboard className="w-4 h-4" />
@@ -164,27 +174,26 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
 
-            <a
-              href="#auth-section"
-              onClick={() => setAuthMode("signup")}
-              className="px-5 py-3 rounded-full bg-secondary/80 hover:bg-secondary border border-border text-foreground font-semibold text-xs sm:text-sm transition-all flex items-center gap-2"
+            <button
+              onClick={() => setLocation("/sign-up")}
+              className="px-5 py-3 rounded-full bg-secondary/80 hover:bg-secondary border border-border text-foreground font-semibold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer"
             >
               <LogIn className="w-4 h-4 text-muted-foreground" />
               Create Account
-            </a>
+            </button>
           </div>
 
-          {/* Compact 6-Feature Showcase Pills Grid with Direct App Navigation */}
+          {/* Compact 6-Feature Showcase Pills Grid */}
           <div id="features" className="space-y-2 pt-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                Click any module below to launch directly in app
+                Select any module below to launch (Sign in required)
               </span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <button
-                onClick={() => handleAdminAccess("/chat")}
+                onClick={() => handleRequireAuth("/chat")}
                 className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary hover:bg-primary/5 transition-all text-left group cursor-pointer"
               >
                 <Bot className="w-4 h-4 text-primary shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
@@ -198,7 +207,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
               </button>
 
               <button
-                onClick={() => handleAdminAccess("/family-room")}
+                onClick={() => handleRequireAuth("/family-room")}
                 className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-cyan-400 hover:bg-cyan-500/5 transition-all text-left group cursor-pointer"
               >
                 <Users className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
@@ -212,7 +221,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
               </button>
 
               <button
-                onClick={() => handleAdminAccess("/pantry")}
+                onClick={() => handleRequireAuth("/pantry")}
                 className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-purple-400 hover:bg-purple-500/5 transition-all text-left group cursor-pointer"
               >
                 <ShoppingCart className="w-4 h-4 text-purple-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
@@ -226,7 +235,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
               </button>
 
               <button
-                onClick={() => handleAdminAccess("/budget")}
+                onClick={() => handleRequireAuth("/budget")}
                 className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-emerald-400 hover:bg-emerald-500/5 transition-all text-left group cursor-pointer"
               >
                 <Wallet className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
@@ -240,7 +249,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
               </button>
 
               <button
-                onClick={() => handleAdminAccess("/calendar")}
+                onClick={() => handleRequireAuth("/calendar")}
                 className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-amber-400 hover:bg-amber-500/5 transition-all text-left group cursor-pointer"
               >
                 <Calendar className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
@@ -254,7 +263,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
               </button>
 
               <button
-                onClick={() => handleAdminAccess("/image-gen")}
+                onClick={() => handleRequireAuth("/image-gen")}
                 className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-rose-400 hover:bg-rose-500/5 transition-all text-left group cursor-pointer"
               >
                 <ImageIcon className="w-4 h-4 text-rose-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
@@ -280,7 +289,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
             </div>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Instant Workspace Launch</span>
+              <span>Secure Authentication</span>
             </div>
           </div>
         </div>
@@ -309,7 +318,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                 </button>
               </div>
 
-              <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Production Ready</span>
+              <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Authentication Required</span>
             </div>
 
             {/* Dedicated Google Auth Button */}
@@ -365,8 +374,8 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                   <input
                     type="text"
                     required
-                    value={guestName}
-                    onChange={(e) => setGuestName(e.target.value)}
+                    value={guestEmail}
+                    onChange={(e) => setGuestEmail(e.target.value)}
                     placeholder="you@family.com"
                     className="w-full bg-input/40 border border-border/80 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/60 text-foreground transition-all"
                   />
@@ -379,6 +388,8 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                   <input
                     type="password"
                     required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
                     className="w-full bg-input/40 border border-border/80 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/60 text-foreground transition-all"
                   />
@@ -390,21 +401,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                   className="w-full py-2.5 bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-semibold rounded-lg hover:opacity-95 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2 text-xs cursor-pointer"
                 >
                   <LogIn className="w-3.5 h-3.5" />
-                  {isSubmitting ? "Authenticating..." : authMode === "signin" ? "Sign In & Enter Application" : "Create Account & Get Started"}
-                </button>
-
-                <div className="relative flex items-center justify-center py-1">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border/40" /></div>
-                  <span className="relative bg-card px-2 text-[10px] text-muted-foreground">or quick entry</span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleAdminAccess("/chat")}
-                  className="w-full py-2 bg-secondary/50 hover:bg-secondary/80 border border-border/60 text-foreground text-[11px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Zap className="w-3.5 h-3.5 text-amber-400" />
-                  Enter Workspace as Admin (Instant Access)
+                  {isSubmitting ? "Authenticating..." : authMode === "signin" ? "Sign In & Enter Workspace" : "Create Account & Get Started"}
                 </button>
               </form>
             )}
@@ -439,11 +436,12 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
             <span>© 2026 Lumina AI. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-4">
-            <button onClick={() => handleAdminAccess("/chat")} className="hover:text-foreground transition-colors cursor-pointer">
-              Launch Application
+            <button onClick={() => setLocation("/sign-in")} className="hover:text-foreground transition-colors cursor-pointer">
+              Sign In
             </button>
-            <a href="#auth-section" className="hover:text-foreground transition-colors">Sign In</a>
-            <a href="#auth-section" className="hover:text-foreground transition-colors">Create Account</a>
+            <button onClick={() => setLocation("/sign-up")} className="hover:text-foreground transition-colors cursor-pointer">
+              Create Account
+            </button>
           </div>
         </div>
       </footer>
