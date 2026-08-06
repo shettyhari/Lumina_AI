@@ -8,6 +8,7 @@ import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import Layout from "./components/layout";
 import { LinaLogo } from "./components/LinaLogo";
 import { ThemeToggle } from "./components/ThemeToggle";
+import { AuthForm } from "./components/AuthForm";
 import { FamilyStatusProvider, useFamilyStatus } from "./contexts/family-context";
 
 // Lazy-loaded pages for optimal performance & code splitting
@@ -147,17 +148,27 @@ const clerkAppearance = {
 
 function useSafeUser() {
   const userResult = useUser();
+  const [localSession, setLocalSession] = useState<any>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("lumina_user_session");
+      if (saved) {
+        try { return JSON.parse(saved); } catch { return null; }
+      }
+    }
+    return null;
+  });
+
   const [forceLoaded, setForceLoaded] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setForceLoaded(true), 800);
+    const timer = setTimeout(() => setForceLoaded(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
   const isLoaded = userResult.isLoaded || forceLoaded;
-  const isSignedIn = Boolean(userResult.isLoaded && userResult.isSignedIn);
+  const isSignedIn = Boolean(userResult.isSignedIn || localSession);
 
-  return { ...userResult, isLoaded, isSignedIn };
+  return { ...userResult, isLoaded, isSignedIn, localSession };
 }
 
 function SignInPage() {
@@ -167,18 +178,12 @@ function SignInPage() {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-iridescent opacity-15 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
         <Link href="/">
-          <div className="flex flex-col items-center gap-2 cursor-pointer group">
+          <div className="flex flex-col items-center gap-2 cursor-pointer group mb-2">
             <LinaLogo className="h-10 w-auto group-hover:scale-105 transition-transform" showSubtitle={false} />
             <span className="text-xs text-muted-foreground font-medium tracking-wide">Household Intelligence & AI Assistant</span>
           </div>
         </Link>
-        <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
-        <p className="text-xs text-muted-foreground">
-          Don't have an account?{" "}
-          <Link href="/sign-up">
-            <span className="text-primary hover:underline font-medium cursor-pointer">Sign up here</span>
-          </Link>
-        </p>
+        <AuthForm mode="sign-in" />
       </div>
     </div>
   );
@@ -191,18 +196,12 @@ function SignUpPage() {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-iridescent opacity-15 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
         <Link href="/">
-          <div className="flex flex-col items-center gap-2 cursor-pointer group">
+          <div className="flex flex-col items-center gap-2 cursor-pointer group mb-2">
             <LinaLogo className="h-10 w-auto group-hover:scale-105 transition-transform" showSubtitle={false} />
             <span className="text-xs text-muted-foreground font-medium tracking-wide">Household Intelligence & AI Assistant</span>
           </div>
         </Link>
-        <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
-        <p className="text-xs text-muted-foreground">
-          Already have an account?{" "}
-          <Link href="/sign-in">
-            <span className="text-primary hover:underline font-medium cursor-pointer">Log in here</span>
-          </Link>
-        </p>
+        <AuthForm mode="sign-up" />
       </div>
     </div>
   );
