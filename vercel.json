@@ -3,6 +3,11 @@
   "version": 2,
   "buildCommand": "pnpm run build",
   "outputDirectory": "public",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "artifacts/api-server/dist/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
