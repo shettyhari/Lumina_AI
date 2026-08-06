@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Lock, Mail, User, ArrowRight, Sparkles } from "lucide-react";
+import { Lock, Mail, User, ArrowRight } from "lucide-react";
 
 interface AuthFormProps {
   mode: "sign-in" | "sign-up";
@@ -44,19 +44,12 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
     }
   };
 
-  const handleDemoLogin = () => {
-    setIsLoading(true);
-    const demoPayload = {
-      email: "admin@lumina.ai",
-      displayName: "Dev Admin",
-      clerkUserId: "dev_admin_user",
-    };
-    localStorage.setItem("lumina_user_session", JSON.stringify(demoPayload));
-
-    setTimeout(() => {
-      setIsLoading(false);
-      setLocation("/chat");
-    }, 300);
+  const handleModeSwitch = (newMode: "sign-in" | "sign-up") => {
+    setMode(newMode);
+    setError(null);
+    setEmail("");
+    setPassword("");
+    setName("");
   };
 
   return (
@@ -71,7 +64,7 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
           {mode === "sign-in"
-            ? "Log in to access your Lumina AI workspace"
+            ? "Enter your credentials to access your Lumina AI workspace"
             : "Sign up to start using your personal AI assistant"}
         </p>
       </div>
@@ -82,7 +75,7 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} autoComplete="off" className="flex flex-col gap-4">
         {mode === "sign-up" && (
           <div className="flex flex-col gap-1.5 text-left">
             <label className="text-xs font-medium text-foreground">Full Name</label>
@@ -90,9 +83,10 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
               <User className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
+                autoComplete="off"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Jane Doe"
+                placeholder="Enter your name"
                 className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-input/60 border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
               />
             </div>
@@ -106,6 +100,7 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
             <input
               type="email"
               required
+              autoComplete="off"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
@@ -121,6 +116,7 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
             <input
               type="password"
               required
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -145,31 +141,12 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
         </button>
       </form>
 
-      <div className="relative my-5 text-center">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border/60" />
-        </div>
-        <span className="relative bg-card px-3 text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-          Or Access Instantly
-        </span>
-      </div>
-
-      <button
-        type="button"
-        onClick={handleDemoLogin}
-        disabled={isLoading}
-        className="w-full py-2.5 px-4 rounded-xl border border-border bg-secondary/40 hover:bg-secondary text-foreground text-xs font-medium transition-all flex items-center justify-center gap-2 cursor-pointer"
-      >
-        <Sparkles className="w-4 h-4 text-primary" />
-        Instant Workspace Access (Demo Account)
-      </button>
-
-      <div className="mt-5 text-center">
+      <div className="mt-6 text-center border-t border-border/40 pt-4">
         {mode === "sign-in" ? (
           <p className="text-xs text-muted-foreground">
             Don't have an account?{" "}
             <button
-              onClick={() => { setMode("sign-up"); setError(null); }}
+              onClick={() => handleModeSwitch("sign-up")}
               className="text-primary font-medium hover:underline cursor-pointer"
             >
               Sign up here
@@ -179,7 +156,7 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
           <p className="text-xs text-muted-foreground">
             Already have an account?{" "}
             <button
-              onClick={() => { setMode("sign-in"); setError(null); }}
+              onClick={() => handleModeSwitch("sign-in")}
               className="text-primary font-medium hover:underline cursor-pointer"
             >
               Log in here

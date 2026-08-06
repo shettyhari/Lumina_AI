@@ -366,7 +366,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
               </div>
             ) : (
               /* Fallback Credentials Form */
-              <form onSubmit={handleCustomLogin} className="space-y-3 pt-0.5">
+              <form onSubmit={handleCustomLogin} autoComplete="off" className="space-y-3 pt-0.5">
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground block mb-1 uppercase tracking-wider">
                     Email Address or Name
@@ -374,6 +374,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                   <input
                     type="text"
                     required
+                    autoComplete="off"
                     value={guestEmail}
                     onChange={(e) => setGuestEmail(e.target.value)}
                     placeholder="you@family.com"
@@ -388,6 +389,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                   <input
                     type="password"
                     required
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
