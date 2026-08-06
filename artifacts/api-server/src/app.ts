@@ -102,14 +102,16 @@ app.use((req, res, next) => {
 import path from "node:path";
 import { existsSync } from "node:fs";
 
+// Mount router under both /api prefix and root for Vercel serverless function rewrites
 app.use("/api", router);
+app.use(router);
 
 // Serve static production frontend if dist exists
 const staticDir = path.resolve(process.cwd(), "artifacts/ai-assistant/dist/public");
 if (existsSync(staticDir)) {
   app.use(express.static(staticDir));
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith("/api") || req.path.startsWith("/clerk")) return next();
+    if (req.path.startsWith("/api") || req.path.startsWith("/clerk") || req.path.startsWith("/auth")) return next();
     res.sendFile(path.join(staticDir, "index.html"));
   });
 }
