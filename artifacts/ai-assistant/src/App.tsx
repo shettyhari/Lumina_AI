@@ -6,6 +6,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 
 import Layout from "./components/layout";
+import { LinaLogo } from "./components/LinaLogo";
 import { FamilyStatusProvider, useFamilyStatus } from "./contexts/family-context";
 
 // Lazy-loaded pages for optimal performance & code splitting
@@ -160,10 +161,22 @@ function useSafeUser() {
 
 function SignInPage() {
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-iridescent opacity-10 pointer-events-none blur-3xl"></div>
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 py-8 relative overflow-hidden">
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-iridescent opacity-15 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
+        <Link href="/">
+          <div className="flex flex-col items-center gap-2 cursor-pointer group">
+            <LinaLogo className="h-10 w-auto group-hover:scale-105 transition-transform" showSubtitle={false} />
+            <span className="text-xs text-muted-foreground font-medium tracking-wide">Household Intelligence & AI Assistant</span>
+          </div>
+        </Link>
         <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+        <p className="text-xs text-muted-foreground">
+          Don't have an account?{" "}
+          <Link href="/sign-up">
+            <span className="text-primary hover:underline font-medium cursor-pointer">Sign up here</span>
+          </Link>
+        </p>
       </div>
     </div>
   );
@@ -171,10 +184,22 @@ function SignInPage() {
 
 function SignUpPage() {
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-iridescent opacity-10 pointer-events-none blur-3xl"></div>
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 py-8 relative overflow-hidden">
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-iridescent opacity-15 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="z-10 w-full max-w-md flex flex-col items-center gap-6">
+        <Link href="/">
+          <div className="flex flex-col items-center gap-2 cursor-pointer group">
+            <LinaLogo className="h-10 w-auto group-hover:scale-105 transition-transform" showSubtitle={false} />
+            <span className="text-xs text-muted-foreground font-medium tracking-wide">Household Intelligence & AI Assistant</span>
+          </div>
+        </Link>
         <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+        <p className="text-xs text-muted-foreground">
+          Already have an account?{" "}
+          <Link href="/sign-in">
+            <span className="text-primary hover:underline font-medium cursor-pointer">Log in here</span>
+          </Link>
+        </p>
       </div>
     </div>
   );
@@ -205,7 +230,7 @@ function ClerkQueryClientCacheInvalidator() {
 function HomeRedirect() {
   const { isLoaded, isSignedIn } = useSafeUser();
   if (!isLoaded) return <PageLoader />;
-  return isSignedIn ? <Redirect to="/chat" /> : <Redirect to="/sign-in" />;
+  return isSignedIn ? <Redirect to="/chat" /> : <LandingPage />;
 }
 
 /** Shows a loading spinner while family status is being fetched */
@@ -260,8 +285,14 @@ function ClerkProviderWithRoutes() {
           <Suspense fallback={<PageLoader />}>
             <Switch>
               <Route path="/" component={HomeRedirect} />
+              <Route path="/landing" component={LandingPage} />
+              <Route path="/welcome" component={LandingPage} />
+              <Route path="/login" component={SignInPage} />
+              <Route path="/signin" component={SignInPage} />
               <Route path="/sign-in/*?" component={SignInPage} />
+              <Route path="/signup" component={SignUpPage} />
               <Route path="/sign-up/*?" component={SignUpPage} />
+              <Route path="/auth" component={SignInPage} />
 
               <Route path="/chat" component={() => <ProtectedRoute component={ChatPage} />} />
               <Route path="/chat/:id" component={() => <ProtectedRoute component={ChatPage} />} />
