@@ -18,28 +18,34 @@ const app: Express = express();
 // Trust reverse proxy headers on Vercel
 app.set("trust proxy", 1);
 
-app.use(
-  pinoHttp({
-    logger,
-    serializers: {
-      req(req) {
-        return {
-          id: req.id,
-          method: req.method,
-          url: req.url?.split("?")[0],
-        };
-      },
-      res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
-      },
-    },
-  }),
-);
+if (!process.env.VERCEL) {
+  try {
+    app.use(
+      pinoHttp({
+        logger,
+        serializers: {
+          req(req) {
+            return {
+              id: req.id,
+              method: req.method,
+              url: req.url?.split("?")[0],
+            };
+          },
+          res(res) {
+            return {
+              statusCode: res.statusCode,
+            };
+          },
+        },
+      }),
+    );
+  } catch {
+    // Ignore logger setup errors in serverless mode
+  }
+}
 
 // Security headers
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false }));
 
 // Cookie parser for JWT session cookies
 app.use(cookieParser());
