@@ -246,10 +246,14 @@ function FamilyStatusGate({ children }: { children: ReactNode }) {
 
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType<any>; adminOnly?: boolean }) {
   const { isLoaded, isSignedIn } = useSafeUser();
-  const { isAdmin } = useFamilyStatus();
+  const { isAdmin, isLoading: familyStatusLoading } = useFamilyStatus();
 
   if (!isLoaded) return <PageLoader />;
   if (!isSignedIn) return <Redirect to="/sign-in" />;
+  // Wait for the family-status fetch before deciding an admin-only redirect —
+  // isAdmin defaults to false while that request is still in flight, which
+  // would otherwise bounce real admins to /chat on a fresh page load.
+  if (adminOnly && familyStatusLoading) return <PageLoader />;
   if (adminOnly && !isAdmin) return <Redirect to="/chat" />;
 
   return (
