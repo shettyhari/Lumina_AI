@@ -50,7 +50,17 @@ async function findUserByEmail(email: string): Promise<StoredUser | null> {
   return memoryUserStore.get(normalizedEmail) || null;
 }
 
-// Helper to create or update user in DB or memory fallback
+/** Thrown when a registration attempt targets an email that is already registered. */
+class DuplicateEmailError extends Error {
+  constructor() {
+    super("An account with this email already exists.");
+    this.name = "DuplicateEmailError";
+  }
+}
+
+// Helper to create a new user in DB or memory fallback.
+// Rejects registration if the email is already taken — never overwrites an
+// existing account's credentials (that would allow account takeover).
 async function createUser(email: string, passwordHash: string, displayName?: string): Promise<StoredUser> {
   const normalizedEmail = email.trim().toLowerCase();
   const clerkUserId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -68,21 +78,7 @@ async function createUser(email: string, passwordHash: string, displayName?: str
     const [existingDbUser] = await db.select().from(users).where(eq(users.email, normalizedEmail));
 
     if (existingDbUser) {
-      const [updated] = await db.update(users)
-        .set({ passwordHash, displayName: finalName })
-        .where(eq(users.email, normalizedEmail))
-        .returning();
-
-      const role = isFirstUser ? "admin" : "member";
-      newUser = {
-        id: updated.id,
-        clerkUserId: updated.clerkUserId || clerkUserId,
-        email: normalizedEmail,
-        passwordHash,
-        displayName: finalName,
-        role,
-        createdAt: updated.createdAt,
-      };
+      throw new DuplicateEmailError();
     } else {
       const [dbUser] = await db.insert(users).values({
         clerkUserId,
@@ -113,7 +109,16 @@ async function createUser(email: string, passwordHash: string, displayName?: str
       };
     }
   } catch (err) {
+    if (err instanceof DuplicateEmailError) {
+      throw err;
+    }
+
     console.error("createUser database error, falling back to memory store:", err);
+
+    if (memoryUserStore.has(normalizedEmail)) {
+      throw new DuplicateEmailError();
+    }
+
     // Memory store fallback
     const role = isFirstUser ? "admin" : "member";
     newUser = {
@@ -133,7 +138,8 @@ async function createUser(email: string, passwordHash: string, displayName?: str
 
 /**
  * POST /api/auth/register
- * Validates registration data, creates or updates account, hashes password with scrypt, returns 200 + token.
+ * Validates registration data, creates a new account (rejecting duplicate
+ * emails), hashes the password with scrypt, and returns 200 + token.
  */
 router.post("/auth/register", authRateLimit, async (req: Request, res: Response): Promise<void> => {
   try {
@@ -151,7 +157,17 @@ router.post("/auth/register", authRateLimit, async (req: Request, res: Response)
 
     const normalizedEmail = email.trim().toLowerCase();
     const passwordHash = hashPassword(password);
-    const user = await createUser(normalizedEmail, passwordHash, displayName);
+
+    let user: StoredUser;
+    try {
+      user = await createUser(normalizedEmail, passwordHash, displayName);
+    } catch (err) {
+      if (err instanceof DuplicateEmailError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
 
     const token = createSessionToken({
       userId: user.clerkUserId,
@@ -181,9 +197,8 @@ router.post("/auth/register", authRateLimit, async (req: Request, res: Response)
   } catch (err: any) {
     console.error("Registration endpoint error:", err);
     if (req.log?.error) req.log.error({ err }, "Registration error");
-    const errorMessage = err instanceof Error ? err.message : "Registration failed. Please try again.";
     if (!res.headersSent) {
-      res.status(500).json({ error: errorMessage });
+      res.status(500).json({ error: "Registration failed. Please try again." });
     }
   }
 });
@@ -255,9 +270,8 @@ router.post("/auth/login", authRateLimit, async (req: Request, res: Response): P
   } catch (err: any) {
     console.error("Login endpoint error:", err);
     if (req.log?.error) req.log.error({ err }, "Login error");
-    const errorMessage = err instanceof Error ? err.message : "Authentication failed. Please try again.";
     if (!res.headersSent) {
-      res.status(500).json({ error: errorMessage });
+      res.status(500).json({ error: "Authentication failed. Please try again." });
     }
   }
 });

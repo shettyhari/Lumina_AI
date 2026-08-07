@@ -63,45 +63,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setToken(storedToken);
           }
         } else {
-          // Token expired or server cleared session token — check local storage fallback
-          const savedUser = localStorage.getItem("lumina_user_session");
-          if (savedUser && active) {
-            try {
-              const parsed = JSON.parse(savedUser);
-              setUser({
-                id: parsed.id || `user_${parsed.email}`,
-                email: parsed.email,
-                displayName: parsed.displayName || parsed.email.split("@")[0],
-                role: parsed.role || "admin",
-              });
-              setToken(storedToken);
-            } catch {
-              setUser(null);
-              setToken(null);
-            }
-          } else if (active) {
+          // Token expired, invalid, or server rejected the session — fail closed.
+          // Never trust an unverified local copy of the user as a substitute
+          // for a server-validated session.
+          localStorage.removeItem("lumina_session_token");
+          localStorage.removeItem("lumina_user_session");
+          localStorage.removeItem("lumina_admin_session");
+          if (active) {
             setUser(null);
             setToken(null);
           }
         }
       } catch {
-        // Network or server error fallback — check local user session if present
-        const savedUser = localStorage.getItem("lumina_user_session");
-        if (savedUser && active) {
-          try {
-            const parsed = JSON.parse(savedUser);
-            setUser({
-              id: parsed.id || `user_${parsed.email}`,
-              email: parsed.email,
-              displayName: parsed.displayName || parsed.email.split("@")[0],
-              role: parsed.role || "admin",
-            });
-            setToken(storedToken);
-          } catch {
-            setUser(null);
-            setToken(null);
-          }
-        } else if (active) {
+        // Network or server error — cannot verify the session, so fail closed
+        // rather than trusting unverified local state.
+        if (active) {
           setUser(null);
           setToken(null);
         }
@@ -129,27 +105,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ok = response.ok;
         data = await response.json().catch(() => null);
       } catch {
-        // Network error
+        throw new Error("Unable to reach the server. Please check your connection and try again.");
       }
 
       if (!ok) {
-        if (data?.error) {
-          throw new Error(data.error);
-        }
-        // Fallback for offline mode or network error
-        const fallbackUser: AuthUser = {
-          id: `user_${email.replace(/[^a-zA-Z0-9]/g, "_")}`,
-          email,
-          displayName: email.split("@")[0],
-          role: "admin",
-        };
-        const fallbackToken = `lumina_session_${Date.now()}`;
-        localStorage.setItem("lumina_session_token", fallbackToken);
-        localStorage.setItem("lumina_user_session", JSON.stringify(fallbackUser));
-        localStorage.setItem("lumina_admin_session", "true");
-        setToken(fallbackToken);
-        setUser(fallbackUser);
-        return;
+        throw new Error(data?.error || "Authentication failed. Please try again.");
       }
 
       const newToken = data.token;
@@ -171,7 +131,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       let data: any = null;
       let ok = false;
-      let status = 0;
       try {
         const response = await fetch(`${basePath}/api/auth/register`, {
           method: "POST",
@@ -180,30 +139,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           credentials: "include",
         });
         ok = response.ok;
-        status = response.status;
         data = await response.json().catch(() => null);
       } catch {
-        // Network error
+        throw new Error("Unable to reach the server. Please check your connection and try again.");
       }
 
       if (!ok) {
-        if (data?.error && status < 500) {
-          throw new Error(data.error);
-        }
-        // Fallback for server 500 error or network unreachable
-        const fallbackUser: AuthUser = {
-          id: `user_${Date.now()}`,
-          email,
-          displayName: displayName || email.split("@")[0],
-          role: "admin",
-        };
-        const fallbackToken = `lumina_session_${Date.now()}`;
-        localStorage.setItem("lumina_session_token", fallbackToken);
-        localStorage.setItem("lumina_user_session", JSON.stringify(fallbackUser));
-        localStorage.setItem("lumina_admin_session", "true");
-        setToken(fallbackToken);
-        setUser(fallbackUser);
-        return;
+        throw new Error(data?.error || "Registration failed. Please try again.");
       }
 
       const newToken = data.token;

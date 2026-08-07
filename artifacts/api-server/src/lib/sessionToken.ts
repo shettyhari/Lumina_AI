@@ -1,6 +1,27 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "lumina_secure_auth_jwt_secret_key_2026";
+const DEV_ONLY_FALLBACK_SECRET = "lumina_dev_only_insecure_jwt_secret";
+
+function resolveJwtSecret(): string {
+  const configured = process.env.JWT_SECRET || process.env.SESSION_SECRET;
+  if (configured) return configured;
+
+  if (process.env.NODE_ENV === "production") {
+    // A guessable default secret would let anyone forge valid session
+    // tokens. Fail loudly instead of silently signing with a known value.
+    throw new Error(
+      "JWT_SECRET (or SESSION_SECRET) environment variable must be set in production.",
+    );
+  }
+
+  console.warn(
+    "[auth] JWT_SECRET not set — using an insecure random secret for this dev process only. " +
+    "Sessions will not persist across restarts. Set JWT_SECRET before deploying.",
+  );
+  return `${DEV_ONLY_FALLBACK_SECRET}_${randomBytes(16).toString("hex")}`;
+}
+
+const JWT_SECRET = resolveJwtSecret();
 
 export interface SessionPayload {
   userId: string;
