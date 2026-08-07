@@ -25,11 +25,12 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
   const [, setLocation] = useLocation();
   const { isSignedIn: isClerkSignedIn, isLoaded: isClerkLoaded } = useUser();
   const clerk = useClerk();
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, login, register } = useAuth();
 
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [guestEmail, setGuestEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -50,16 +51,20 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
     }
   };
 
-  const handleCustomLogin = async (e: React.FormEvent) => {
+  const handleCustomAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
     setIsSubmitting(true);
 
     try {
-      await login(guestEmail, password);
+      if (authMode === "signin") {
+        await login(guestEmail, password);
+      } else {
+        await register(guestEmail, password, displayName || guestEmail.split("@")[0]);
+      }
       setLocation("/chat");
     } catch (err: any) {
-      setAuthError(err?.message || "Authentication failed.");
+      setAuthError(err?.message || (authMode === "signin" ? "Authentication failed." : "Registration failed."));
     } finally {
       setIsSubmitting(false);
     }
@@ -365,13 +370,29 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
               </div>
             ) : (
               /* Fallback Credentials Form */
-              <form onSubmit={handleCustomLogin} autoComplete="off" className="space-y-3 pt-0.5">
+              <form onSubmit={handleCustomAuth} autoComplete="off" className="space-y-3 pt-0.5">
+                {authMode === "signup" && (
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground block mb-1 uppercase tracking-wider">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="Hari"
+                      className="w-full bg-input/40 border border-border/80 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/60 text-foreground transition-all"
+                    />
+                  </div>
+                )}
+
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground block mb-1 uppercase tracking-wider">
-                    Email Address or Name
+                    Email Address
                   </label>
                   <input
-                    type="text"
+                    type="email"
                     required
                     autoComplete="off"
                     value={guestEmail}
