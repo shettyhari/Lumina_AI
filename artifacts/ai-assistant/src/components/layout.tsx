@@ -102,6 +102,22 @@ const topItems = [
   { href: "/settings",  icon: Settings,        label: "Settings" },
 ];
 
+// ─── Sidebar avatar ───────────────────────────────────────────────────────────
+
+function SidebarAvatar({ name, url }: { name: string; url?: string | null }) {
+  if (url) {
+    return <img src={url} alt={name} className="h-8 w-8 rounded-full border border-border object-cover" />;
+  }
+  const initials = name.trim()
+    ? name.trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()
+    : "?";
+  return (
+    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-primary/10 text-xs font-semibold text-primary">
+      {initials}
+    </div>
+  );
+}
+
 // ─── NavLink helper ───────────────────────────────────────────────────────────
 
 function NavLink({
@@ -178,9 +194,14 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [location, setLocation] = useLocation();
-  const { user } = useUser();
+  const { user: clerkUser } = useUser();
   const { signOut } = useClerk();
   const { isAdmin } = useFamilyStatus();
+  const { user: authUser, logout: authLogout } = useAuth();
+
+  const displayName = authUser?.displayName || clerkUser?.fullName || "User";
+  const displayEmail = authUser?.email || clerkUser?.primaryEmailAddress?.emailAddress;
+  const avatarUrl = clerkUser?.imageUrl;
 
   const { data: recentActivity } = useGetRecentActivity({ query: { queryKey: getGetRecentActivityQueryKey() } });
   const { data: pinnedConversations } = useGetPinnedConversations({ query: { queryKey: getGetPinnedConversationsQueryKey() } });
@@ -189,8 +210,6 @@ export default function Layout({ children }: { children: ReactNode }) {
     query: { queryKey: ["/api/family/notifications/count"], refetchInterval: 10_000 },
   });
   const unreadCount = notifCount?.count ?? 0;
-
-  const { logout: authLogout } = useAuth();
 
   const handleNewChat = () => {
     createConversation.mutate(
@@ -329,11 +348,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         <div className="flex items-center justify-between gap-3 px-2 py-2">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="relative">
-              <img
-                src={user?.imageUrl}
-                alt={user?.fullName || "User"}
-                className="h-8 w-8 rounded-full border border-border"
-              />
+              <SidebarAvatar name={displayName} url={avatarUrl} />
               {isAdmin && (
                 <div className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary ring-2 ring-sidebar">
                   <Shield className="h-2 w-2 text-primary-foreground" />
@@ -341,9 +356,9 @@ export default function Layout({ children }: { children: ReactNode }) {
               )}
             </div>
             <div className="flex flex-col overflow-hidden">
-              <span className="truncate text-sm font-medium text-foreground">{user?.fullName}</span>
+              <span className="truncate text-sm font-medium text-foreground">{displayName}</span>
               <span className="truncate text-xs text-muted-foreground">
-                {isAdmin ? "Family Admin" : user?.primaryEmailAddress?.emailAddress}
+                {isAdmin ? "Family Admin" : displayEmail}
               </span>
             </div>
           </div>
