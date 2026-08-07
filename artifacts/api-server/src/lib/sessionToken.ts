@@ -2,9 +2,21 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 const DEV_ONLY_FALLBACK_SECRET = "lumina_dev_only_insecure_jwt_secret";
 
+let cachedSecret: string | null = null;
+
+// Resolved lazily (on first sign/verify) rather than at module load: throwing
+// at import time would crash the entire serverless function — every route,
+// not just auth — if the env var is missing. Resolving lazily means a
+// missing secret only fails the specific auth request that needs it, inside
+// that route's existing try/catch.
 function resolveJwtSecret(): string {
+  if (cachedSecret) return cachedSecret;
+
   const configured = process.env.JWT_SECRET || process.env.SESSION_SECRET;
-  if (configured) return configured;
+  if (configured) {
+    cachedSecret = configured;
+    return cachedSecret;
+  }
 
   if (process.env.NODE_ENV === "production") {
     // A guessable default secret would let anyone forge valid session
@@ -18,10 +30,9 @@ function resolveJwtSecret(): string {
     "[auth] JWT_SECRET not set — using an insecure random secret for this dev process only. " +
     "Sessions will not persist across restarts. Set JWT_SECRET before deploying.",
   );
-  return `${DEV_ONLY_FALLBACK_SECRET}_${randomBytes(16).toString("hex")}`;
+  cachedSecret = `${DEV_ONLY_FALLBACK_SECRET}_${randomBytes(16).toString("hex")}`;
+  return cachedSecret;
 }
-
-const JWT_SECRET = resolveJwtSecret();
 
 export interface SessionPayload {
   userId: string;
@@ -61,7 +72,7 @@ export function createSessionToken(payload: Omit<SessionPayload, "iat" | "exp">)
   const encodedHeader = base64UrlEncode(JSON.stringify(header));
   const encodedPayload = base64UrlEncode(JSON.stringify(fullPayload));
 
-  const signature = createHmac("sha256", JWT_SECRET)
+  const signature = createHmac("sha256", resolveJwtSecret())
     .update(`${encodedHeader}.${encodedPayload}`)
     .digest();
   const encodedSignature = base64UrlEncode(signature);
@@ -76,7 +87,7 @@ export function verifySessionToken(token: string): SessionPayload | null {
     if (parts.length !== 3) return null;
 
     const [encodedHeader, encodedPayload, encodedSignature] = parts;
-    const expectedSignature = createHmac("sha256", JWT_SECRET)
+    const expectedSignature = createHmac("sha256", resolveJwtSecret())
       .update(`${encodedHeader}.${encodedPayload}`)
       .digest();
     
