@@ -77,7 +77,8 @@ app.use(
       if (!origin) return callback(null, true);
       const isLocalNetwork = /^http:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(origin);
       const isVercelDomain = /^https:\/\/.*\.vercel\.app$/.test(origin);
-      if (_corsAllowed.has(origin) || isLocalNetwork || isVercelDomain || process.env.NODE_ENV !== "production") {
+      const isHeylinaDomain = /^https:\/\/(www\.)?heylina\.online$/.test(origin);
+      if (_corsAllowed.has(origin) || isLocalNetwork || isVercelDomain || isHeylinaDomain || process.env.NODE_ENV !== "production") {
         callback(null, true);
       } else {
         callback(new Error(`CORS: origin '${origin}' not allowed`));
