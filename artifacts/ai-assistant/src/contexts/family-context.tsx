@@ -1,6 +1,7 @@
 import { createContext, useContext, ReactNode } from "react";
 import { useUser } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "./auth-context";
 
 interface FeatureFlags {
   imageGen: boolean;
@@ -34,16 +35,25 @@ const FamilyStatusContext = createContext<FamilyStatusContextType>({
 });
 
 export function FamilyStatusProvider({ children }: { children: ReactNode }) {
-  const { isSignedIn, user } = useUser();
+  const { isSignedIn: clerkSignedIn, user: clerkUser } = useUser();
+  const { user: authUser, token: authToken, isAuthenticated } = useAuth();
+
+  const isSignedIn = isAuthenticated || Boolean(clerkSignedIn);
+  const effectiveUserId = authUser?.id ?? clerkUser?.id;
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["userStatus", user?.id],
+    queryKey: ["userStatus", effectiveUserId],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (user?.fullName) params.set("name", user.fullName);
-      if (user?.primaryEmailAddress?.emailAddress) params.set("email", user.primaryEmailAddress.emailAddress);
-      if (user?.imageUrl) params.set("avatar", user.imageUrl);
-      const resp = await fetch(`/api/user/status?${params}`);
+      const name = authUser?.displayName || clerkUser?.fullName;
+      const email = authUser?.email || clerkUser?.primaryEmailAddress?.emailAddress;
+      if (name) params.set("name", name);
+      if (email) params.set("email", email);
+      if (clerkUser?.imageUrl) params.set("avatar", clerkUser.imageUrl);
+      const resp = await fetch(`/api/user/status?${params}`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+        credentials: "include",
+      });
       if (!resp.ok) throw new Error("Failed to fetch status");
       return resp.json() as Promise<{
         status: string;
@@ -54,7 +64,7 @@ export function FamilyStatusProvider({ children }: { children: ReactNode }) {
         featureFlags: FeatureFlags;
       }>;
     },
-    enabled: !!isSignedIn && !!user,
+    enabled: isSignedIn,
     staleTime: 30_000,
     retry: 2,
   });
