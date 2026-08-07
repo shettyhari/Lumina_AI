@@ -46,7 +46,7 @@ Family update:
 Write 3-4 warm, friendly sentences covering the day ahead. Start with a cheerful greeting like "Good morning, [family name]!" Use "the family" if you don't know their name.`;
 
   try {
-    const result = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
+    const result = await ai.models.generateContent({ model: "gemini-flash-latest", contents: prompt });
     const text = result.text ?? "Good morning! Wishing your family a wonderful day ahead. ☀️";
     briefingCache = { text, generatedAt: Date.now() };
     res.json({ text, cached: false, generatedAt: new Date(briefingCache.generatedAt).toISOString() });

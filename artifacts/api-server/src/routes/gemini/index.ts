@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, conversations, messages, users, userApiKeys, aiMemories } from "@workspace/db";
 import { detectAndExecuteRelay } from "../../lib/relayDetector";
+import { logger } from "../../lib/logger";
 import { isBudgetQuestion, getBudgetContext, detectBudgetMonth, detectBudgetComparison, detectBudgetLogHint } from "../../lib/intentDetector";
 import { TOOL_DECLARATIONS, executeTool } from "../../lib/agentTools";
 import { ai } from "@workspace/integrations-gemini-ai";
@@ -527,7 +528,7 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
     [userRow] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId));
   } catch { /* ignore */ }
 
-  const model = parsed.data.model ?? userRow?.preferredModel ?? "gemini-2.0-flash";
+  const model = parsed.data.model ?? userRow?.preferredModel ?? "gemini-flash-latest";
   const provider = getProviderForModel(model);
 
   // Check API key for paid providers
@@ -567,7 +568,7 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
       systemPrompt = (systemPrompt || "") +
         `\n\n${ctx1}\n\n${ctx2}\n\nThe user wants a side-by-side comparison of these two periods. Clearly show the delta (difference) for totals and key categories. State which period had higher income/expenses and by how much. Be specific with numbers from the data above.`;
     } catch (err) {
-      req.log.warn({ err }, "Failed to fetch budget comparison context");
+      logger.warn({ err }, "Failed to fetch budget comparison context");
     }
   } else if (isBudgetQuestion(parsed.data.content)) {
     try {
@@ -575,7 +576,7 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
       const budgetContext = await getBudgetContext(clerkUserId, budgetMonthTarget);
       systemPrompt = (systemPrompt || "") + `\n\n${budgetContext}\n\nUse the budget data above to answer the user's question accurately. Refer to specific numbers from the data.`;
     } catch (err) {
-      req.log.warn({ err }, "Failed to fetch budget context");
+      logger.warn({ err }, "Failed to fetch budget context");
     }
   }
 
@@ -650,7 +651,7 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
           userGeminiKey || undefined,
         );
       } catch (err: any) {
-        req.log.warn({ err }, "Gemini API call failed — using offline agentic fallback");
+        logger.warn({ err }, "Gemini API call failed — using offline agentic fallback");
         fullResponse = await runOfflineAgenticFallback(
           clerkUserId,
           parsed.data.content,
@@ -705,7 +706,7 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
 
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
   } catch (err) {
-    req.log.error({ err }, "LLM streaming error");
+    logger.error({ err }, "LLM streaming error");
     res.write(`data: ${JSON.stringify({ error: "AI generation failed" })}\n\n`);
   } finally {
     res.end();
@@ -756,7 +757,7 @@ router.post("/gemini/generate-image", requireAuth, imageGenRateLimit, async (req
     await db.update(users).set({ imagesGenerated: sql`${users.imagesGenerated} + 1` }).where(eq(users.clerkUserId, clerkUserId));
     res.json(GenerateGeminiImageResponse.parse({ b64_json, mimeType }));
   } catch (err) {
-    req.log.error({ err }, "Image generation failed");
+    logger.error({ err }, "Image generation failed");
     res.status(500).json({ error: "Image generation failed. The model may not support image output on this integration." });
   }
 });
@@ -809,7 +810,7 @@ router.get("/gemini/digest", requireAuth, async (req, res): Promise<void> => {
 
   try {
     const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-flash-latest",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
     });
     const summary = result.candidates?.[0]?.content?.parts?.[0]?.text ?? "Here's a summary of your recent activity.";

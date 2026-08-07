@@ -85,7 +85,7 @@ router.post("/meals/ai-suggest", requireAuth, async (req, res): Promise<void> =>
   
   try {
     const result = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-flash-latest",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: { maxOutputTokens: 50 },
     });

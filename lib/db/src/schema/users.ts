@@ -8,7 +8,7 @@ export const users = pgTable("users", {
   email: text("email").unique(),
   passwordHash: text("password_hash"),
   displayName: text("display_name"),
-  preferredModel: text("preferred_model").notNull().default("gemini-2.5-flash"),
+  preferredModel: text("preferred_model").notNull().default("gemini-flash-latest"),
   systemPrompt: text("system_prompt"),
   theme: text("theme").notNull().default("system"),
   imagesGenerated: serial("images_generated"),

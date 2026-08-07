@@ -1,6 +1,7 @@
 import { Readable } from 'stream';
 import { Router, type IRouter, type Request, type Response } from 'express';
 import { ObjectStorageService } from '../lib/objectStorage';
+import { logger } from '../lib/logger';
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -42,7 +43,7 @@ router.get(
         res.end();
       }
     } catch (error) {
-      req.log.error({ err: error }, 'Error serving public object');
+      logger.error({ err: error }, 'Error serving public object');
       res.status(500).json({ error: 'Failed to serve public object' });
     }
   },

@@ -219,7 +219,7 @@ router.post("/family/room/messages", requireAuth, async (req, res): Promise<void
       }));
 
       const result = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
+        model: "gemini-flash-latest",
         contents: history,
         config: {
           systemInstruction:

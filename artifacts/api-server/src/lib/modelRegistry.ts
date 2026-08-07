@@ -12,9 +12,13 @@ export interface ModelInfo {
 
 export const MODELS: ModelInfo[] = [
   // --- Gemini (built-in, no key required) ---
+  // Pinned snapshots like "gemini-2.0-flash"/"gemini-2.5-flash" get cut off
+  // from new free-tier API keys/projects by Google (404/zero-quota) once a
+  // newer snapshot ships. The "-latest" aliases stay pointed at whatever
+  // Google currently serves new keys, so use those instead of a pinned id.
   {
-    id: "gemini-2.0-flash",
-    name: "Gemini 2.0 Flash",
+    id: "gemini-flash-latest",
+    name: "Gemini Flash",
     provider: "gemini",
     description: "Fastest Gemini model, great for most tasks",
     requiresKey: false,
@@ -22,21 +26,12 @@ export const MODELS: ModelInfo[] = [
     supportsStreaming: true,
   },
   {
-    id: "gemini-1.5-pro",
-    name: "Gemini 1.5 Pro",
+    id: "gemini-pro-latest",
+    name: "Gemini Pro",
     provider: "gemini",
     description: "Most capable Gemini model for complex reasoning",
     requiresKey: false,
     contextWindow: 2000000,
-    supportsStreaming: true,
-  },
-  {
-    id: "gemini-2.0-flash",
-    name: "Gemini 2.0 Flash",
-    provider: "gemini",
-    description: "Efficient multimodal model with speed focus",
-    requiresKey: false,
-    contextWindow: 1000000,
     supportsStreaming: true,
   },
   // --- OpenAI (requires user key) ---

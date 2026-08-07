@@ -46,7 +46,7 @@ router.post("/pantry/ai-suggest", requireAuth, async (req: Request, res: Respons
   if (items.length === 0) { res.status(400).json({ error: "Add some pantry items first" }); return; }
   const pantryList = items.map(i => `${i.name}${i.quantity ? ` (${i.quantity})` : ""}`).join(", ");
   const result = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
+    model: "gemini-flash-latest",
     contents: `You are a creative home chef. Based on these pantry items: ${pantryList}
 
 Suggest 3 meals the family can make right now. Respond ONLY with valid JSON:
