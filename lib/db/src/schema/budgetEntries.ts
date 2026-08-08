@@ -1,4 +1,5 @@
-import { pgTable, serial, text, numeric, date, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, date, timestamp, integer } from "drizzle-orm/pg-core";
+import { documentFiles } from "./documentFiles";
 
 export const budgetEntries = pgTable("budget_entries", {
   id: serial("id").primaryKey(),
@@ -8,6 +9,7 @@ export const budgetEntries = pgTable("budget_entries", {
   category: text("category").notNull().default("Other"),
   description: text("description").default(""),
   entryDate: date("entry_date").notNull(),
+  receiptDocumentId: integer("receipt_document_id").references(() => documentFiles.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

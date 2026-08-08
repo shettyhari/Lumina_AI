@@ -4,7 +4,9 @@ import { db, conversations, messages, users, userApiKeys, aiMemories } from "@wo
 import { detectAndExecuteRelay } from "../../lib/relayDetector";
 import { logger } from "../../lib/logger";
 import { isBudgetQuestion, getBudgetContext, detectBudgetMonth, detectBudgetComparison, detectBudgetLogHint } from "../../lib/intentDetector";
-import { TOOL_DECLARATIONS, executeTool } from "../../lib/agentTools";
+import { executeTool } from "../../lib/agentTools";
+import { classifyDomains, getToolDeclarationsForDomains } from "../../lib/agentDomains";
+import { getCrossModuleStats } from "../../lib/crossModuleStats";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { GoogleGenAI } from "@google/genai";
 import { generateImage } from "@workspace/integrations-gemini-ai/image";
@@ -100,62 +102,119 @@ You can chain multiple tools in one response when it makes sense (e.g. check the
 
 Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`;
 
-  const toolsList: any[] = [{ functionDeclarations: TOOL_DECLARATIONS }];
-  if (webSearch) toolsList.push({ googleSearch: {} });
+  const baseConfig: Record<string, unknown> = { maxOutputTokens: 8192 };
+  if (agentSystemPrompt) baseConfig.systemInstruction = agentSystemPrompt;
+  if (reasoningMode) (baseConfig as any).thinkingConfig = { thinkingBudget: 2048 };
 
-  const config: Record<string, unknown> = {
-    maxOutputTokens: 8192,
-    tools: toolsList,
+  const streamText = (text: string) => {
+    const chunkSize = 40;
+    for (let j = 0; j < text.length; j += chunkSize) sendEvent({ content: text.slice(j, j + chunkSize) });
   };
-  if (agentSystemPrompt) config.systemInstruction = agentSystemPrompt;
-  if (reasoningMode) (config as any).thinkingConfig = { thinkingBudget: 2048 };
 
-  let fullText = "";
-  const MAX_ITERATIONS = 6;
+  // Runs a bounded tool-calling loop scoped to one domain's tools (or no
+  // tools at all for general conversation). Mirrors the flat loop this
+  // replaced, just parameterized by which tools the model can see.
+  async function runSubAgent(toolDeclarations: any[]): Promise<string> {
+    const subContents: any[] = contents.map((c) => ({ ...c, parts: [...c.parts] }));
+    const toolsList: any[] = [];
+    if (toolDeclarations.length > 0) toolsList.push({ functionDeclarations: toolDeclarations });
+    if (webSearch) toolsList.push({ googleSearch: {} });
+    const config = { ...baseConfig, ...(toolsList.length > 0 ? { tools: toolsList } : {}) };
 
-  for (let i = 0; i < MAX_ITERATIONS; i++) {
-    // Non-streaming call to detect function calls
-    const response = await geminiClient.models.generateContent({ model, contents, config });
-    const parts: any[] = response.candidates?.[0]?.content?.parts ?? [];
-
-    const funcCalls = parts.filter((p: any) => p.functionCall);
-    const textParts = parts.filter((p: any) => p.text);
-
-    if (funcCalls.length === 0) {
-      // Final text response — stream it in chunks for smooth UX
-      const text = textParts.map((p: any) => p.text as string).join("");
-      fullText += text;
-      const chunkSize = 40;
-      for (let j = 0; j < text.length; j += chunkSize) {
-        sendEvent({ content: text.slice(j, j + chunkSize) });
+    const MAX_SUB_ITERATIONS = toolDeclarations.length > 0 ? 3 : 1;
+    const completedSummaries: string[] = [];
+    for (let i = 0; i < MAX_SUB_ITERATIONS; i++) {
+      let response: any;
+      try {
+        response = await geminiClient.models.generateContent({ model, contents: subContents, config });
+      } catch (err) {
+        // If tool calls already succeeded this turn (e.g. a rate limit hits
+        // on the closing-text turn), don't discard that work — surface what
+        // actually happened instead of throwing and losing it to a generic
+        // fallback. Only propagate if nothing has happened yet.
+        if (completedSummaries.length === 0) throw err;
+        return completedSummaries.join(" ");
       }
-      return fullText;
-    }
+      const parts: any[] = response.candidates?.[0]?.content?.parts ?? [];
+      const funcCalls = parts.filter((p: any) => p.functionCall);
+      const textParts = parts.filter((p: any) => p.text);
 
-    // Execute all function calls in this iteration
-    const funcResponseParts: any[] = [];
-    for (const part of funcCalls) {
-      const { name, args } = part.functionCall;
-      sendEvent({ toolCall: { name, args: args ?? {} } });
-      const result = await executeTool(clerkUserId, name, args ?? {}, { originalMessage });
-      sendEvent({ toolResult: { name, success: result.success, summary: result.summary } });
-      funcResponseParts.push({
-        functionResponse: {
-          name,
-          response: { output: result.summary, success: result.success },
-        },
-      });
-    }
+      if (funcCalls.length === 0) {
+        return textParts.map((p: any) => p.text as string).join("");
+      }
 
-    // Append model turn + function responses to continue the conversation
-    contents.push({ role: "model", parts });
-    contents.push({ role: "user", parts: funcResponseParts });
+      const funcResponseParts: any[] = [];
+      for (const part of funcCalls) {
+        const { name, args } = part.functionCall;
+        sendEvent({ toolCall: { name, args: args ?? {} } });
+        const result = await executeTool(clerkUserId, name, args ?? {}, { originalMessage });
+        sendEvent({ toolResult: { name, success: result.success, summary: result.summary } });
+        funcResponseParts.push({ functionResponse: { name, response: { output: result.summary, success: result.success } } });
+        if (result.success) completedSummaries.push(result.summary);
+      }
+      subContents.push({ role: "model", parts });
+      subContents.push({ role: "user", parts: funcResponseParts });
+    }
+    return completedSummaries.join(" "); // hit the sub-loop cap without a final text turn — synthesis/fallback covers this
   }
 
-  // Safety fallback
-  const fallback = "I've completed the requested actions.";
-  sendEvent({ content: fallback });
-  return fallback;
+  const latestMessage = originalMessage || chatMessages[chatMessages.length - 1]?.content || "";
+  const recentContext = chatMessages.slice(-4, -1).map((m) => `${m.role}: ${m.content}`).join("\n");
+  const domains = await classifyDomains(geminiClient, model, latestMessage, recentContext);
+
+  if (domains.length === 0) {
+    // General conversation — no household domain applies, skip tool-calling
+    // machinery entirely (cheaper and faster than exposing ~20 tools).
+    const text = await runSubAgent([]);
+    const fallback = text || "I've completed the requested actions.";
+    streamText(fallback);
+    return fallback;
+  }
+
+  if (domains.length === 1) {
+    // Common case: skip the synthesis call, stream the single domain's
+    // output directly — same cost profile as the old flat loop.
+    const text = await runSubAgent(getToolDeclarationsForDomains(domains));
+    const fallback = text || "I've completed the requested actions.";
+    streamText(fallback);
+    return fallback;
+  }
+
+  // Multiple domains: run each bounded sub-agent (sequentially, so tool
+  // events stream to the user in a sensible order), then synthesize one
+  // coherent reply from their combined output.
+  const results: { domain: string; text: string }[] = [];
+  for (const domain of domains) {
+    try {
+      const text = await runSubAgent(getToolDeclarationsForDomains([domain]));
+      results.push({ domain, text });
+    } catch {
+      // This domain failed outright (e.g. rate limit) before doing anything —
+      // keep going so domains that already succeeded aren't thrown away too.
+      results.push({ domain, text: "" });
+    }
+  }
+
+  const synthesisPrompt =
+    `The user asked: "${latestMessage}"\n\n` +
+    `Here is what happened across different systems:\n` +
+    results.map((r) => `[${r.domain}] ${r.text || "(action performed, see tool results above)"}`).join("\n\n") +
+    `\n\nWrite ONE single, warm, concise reply to the user that combines all of this naturally. Don't just concatenate the sections — synthesize them into a real response.`;
+
+  try {
+    const synthesis = await geminiClient.models.generateContent({
+      model,
+      contents: [{ role: "user", parts: [{ text: synthesisPrompt }] }],
+      config: baseConfig,
+    });
+    const finalText = synthesis.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") || results.map((r) => r.text).filter(Boolean).join("\n\n");
+    streamText(finalText);
+    return finalText;
+  } catch {
+    const fallbackText = results.map((r) => r.text).filter(Boolean).join("\n\n") || "I've completed the requested actions.";
+    streamText(fallbackText);
+    return fallbackText;
+  }
 }
 
 async function runOfflineAgenticFallback(
@@ -805,7 +864,9 @@ router.get("/gemini/digest", requireAuth, async (req, res): Promise<void> => {
       .slice(0, 10);
   }
 
-  if (recent.length === 0) {
+  const crossModuleStats = await getCrossModuleStats(clerkUserId);
+
+  if (recent.length === 0 && !crossModuleStats) {
     res.json({
       summary: "No recent conversations to summarize. Start chatting with Lina to get your daily digest!",
       generatedAt: new Date().toISOString(),
@@ -831,7 +892,10 @@ router.get("/gemini/digest", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
-  const prompt = `You are a personal AI assistant. The user has had ${recent.length} recent conversations. Here's a brief overview:\n\n${snippets.join("\n")}\n\nWrite a warm, concise daily digest (2-3 sentences) summarizing the user's recent AI activity and suggesting what they might want to explore next. Be encouraging and personalized.`;
+  const prompt = `You are a personal household AI assistant. Here is what's going on for this user right now.\n\n` +
+    (recent.length > 0 ? `Recent conversations (${recent.length}):\n${snippets.join("\n")}\n\n` : "") +
+    (crossModuleStats ? `Household status:\n${crossModuleStats}\n\n` : "") +
+    `Write a warm, concise daily digest (2-4 sentences) covering anything worth the user's attention today (overdue chores, expiring pantry items, upcoming events, budget notes) alongside their recent AI activity. Be encouraging, personalized, and specific — reference real numbers/items from above rather than generic advice. If a section has no data, just skip it.`;
 
   try {
     const result = await ai.models.generateContent({

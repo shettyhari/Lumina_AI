@@ -26,3 +26,4 @@ export * from "./wishlists";
 export * from "./pets";
 export * from "./pantryItems";
 export * from "./userCloudTokens";
+export * from "./automations";

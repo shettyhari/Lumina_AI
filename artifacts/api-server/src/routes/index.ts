@@ -29,6 +29,8 @@ import petsRouter from "./pets";
 import pantryRouter from "./pantry";
 import briefingRouter from "./briefing";
 import cloudStorageRouter from "./cloud-storage";
+import automationsRouter from "./automations";
+import cronRouter from "./cron";
 import { requireApproved } from "../middlewares/requireApproved";
 import { getReqUserId } from "../middlewares/requireAuth";
 
@@ -80,5 +82,7 @@ router.use(petsRouter);
 router.use(pantryRouter);
 router.use(briefingRouter);
 router.use(cloudStorageRouter);
+router.use(automationsRouter);
+router.use(cronRouter);
 
 export default router;

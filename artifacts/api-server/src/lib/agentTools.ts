@@ -3,9 +3,18 @@
  * Gemini function-calling declarations + server-side DB executors.
  */
 
-import { db, shoppingItems, chores, reminders, familyEvents, budgetEntries, familyNotes, familyMembers, familyMessages, pantryItems } from "@workspace/db";
+import { db, shoppingItems, chores, reminders, familyEvents, budgetEntries, familyNotes, familyMembers, familyMessages, pantryItems, automations } from "@workspace/db";
 import { eq, and, gte, lte, desc, ilike, inArray } from "drizzle-orm";
 import { isBudgetEntryBlockedByConfidence } from "./intentDetector.js";
+import { parseReceiptDocument, ReceiptParseError } from "./receiptParsing.js";
+import { computeNextRunAt, type AutomationSchedule } from "./automationSchedule.js";
+import { getCrossModuleStats } from "./crossModuleStats.js";
+import { ai } from "@workspace/integrations-gemini-ai";
+
+const AUTOMATABLE_TOOLS = new Set([
+  "add_reminder", "add_chore", "add_calendar_event", "add_shopping_items", "create_note",
+  "send_family_message", "generate_weekly_insight",
+]);
 
 // ─── Type helpers ─────────────────────────────────────────────────────────────
 
@@ -166,8 +175,20 @@ export const TOOL_DECLARATIONS = [
         category: { type: "string", description: "Category (expenses: Groceries, Utilities, Housing, Transportation, Dining, Healthcare, Education, Subscriptions, Clothing, Insurance, Entertainment; income: Salary, Freelance, Reimbursement, Investment, Rental, Gift; Other)" },
         description: { type: "string", description: "Optional description" },
         entry_date: { type: "string", description: "Date in YYYY-MM-DD format (default: today)" },
+        receipt_document_id: { type: "number", description: "Document id of an uploaded receipt image to link to this entry (from parse_receipt_image), optional" },
       },
       required: ["type", "amount", "category"],
+    },
+  },
+  {
+    name: "parse_receipt_image",
+    description: "Read an already-uploaded receipt photo (by its document id) and extract the amount, merchant, category, date, and line items. Returns a DRAFT — present it to the user for confirmation before calling add_budget_entry with the same receipt_document_id.",
+    parameters: {
+      type: "object",
+      properties: {
+        document_file_id: { type: "number", description: "The id of the uploaded document (receipt photo)" },
+      },
+      required: ["document_file_id"],
     },
   },
   {
@@ -229,6 +250,42 @@ export const TOOL_DECLARATIONS = [
         category: { type: "string", description: "Filter by category (optional)" },
         limit: { type: "number", description: "Max results (default 20)" },
       },
+    },
+  },
+  {
+    name: "generate_weekly_insight",
+    description: "Generate a short proactive insight covering budget, chores, pantry, and calendar status across the household. Most useful set up as a weekly automation, but can also be run on demand.",
+    parameters: { type: "object", properties: {} },
+  },
+  // Automations
+  {
+    name: "create_automation",
+    description: "Set up a recurring or one-time automation from a natural-language request, e.g. 'every Sunday remind everyone to take out the trash'. It will run on schedule even when no one is in the chat, performing the underlying action and posting a message about it.",
+    parameters: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "Short human-readable summary of what this automation does, for display in a list (e.g. 'Weekly trash reminder')" },
+        tool_name: {
+          type: "string",
+          enum: ["add_reminder", "add_chore", "add_calendar_event", "add_shopping_items", "create_note", "send_family_message", "generate_weekly_insight"],
+          description: "Which existing tool to run on schedule",
+        },
+        tool_args: {
+          type: "object",
+          description: "The arguments to pass to tool_name, using that tool's own parameter names exactly (e.g. for add_reminder: {message, remind_at, repeat})",
+        },
+        schedule: {
+          type: "object",
+          properties: {
+            freq: { type: "string", enum: ["once", "daily", "weekly"], description: "How often to run" },
+            day_of_week: { type: "number", description: "0=Sunday..6=Saturday, required when freq is weekly" },
+            time: { type: "string", description: "24-hour time to run at, HH:mm" },
+            timezone: { type: "string", description: "IANA timezone (e.g. 'America/New_York'). Use the user's stated timezone, or ask if unknown." },
+          },
+          required: ["freq", "time", "timezone"],
+        },
+      },
+      required: ["description", "tool_name", "tool_args", "schedule"],
     },
   },
   // Family
@@ -396,9 +453,26 @@ async function execAddBudgetEntry(
   const category = (args.category as string) ?? "Other";
   const description = (args.description as string) ?? "";
   const entryDate = (args.entry_date as string) ?? new Date().toISOString().slice(0, 10);
-  await db.insert(budgetEntries).values({ clerkUserId, type, amount, category, description, entryDate });
+  const receiptDocumentId = args.receipt_document_id != null ? Number(args.receipt_document_id) : null;
+  await db.insert(budgetEntries).values({ clerkUserId, type, amount, category, description, entryDate, receiptDocumentId });
   const sign = type === "income" ? "+" : "-";
   return { name: "add_budget_entry", success: true, summary: `Recorded ${type}: ${sign}${args.amount} for ${category}${description ? ` (${description})` : ""}` };
+}
+
+async function execParseReceiptImage(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const documentFileId = Number(args.document_file_id);
+  if (isNaN(documentFileId)) return { name: "parse_receipt_image", success: false, summary: "document_file_id is required." };
+  try {
+    const extraction = await parseReceiptDocument(clerkUserId, documentFileId);
+    if (extraction.amount <= 0) {
+      return { name: "parse_receipt_image", success: false, summary: "Could not read a total amount from that receipt image." };
+    }
+    const summary = `Draft from receipt: ${extraction.merchant ?? "Unknown merchant"} — $${extraction.amount.toFixed(2)} (${extraction.category})${extraction.date ? ` on ${extraction.date}` : ""}. Confirm with the user before logging it.`;
+    return { name: "parse_receipt_image", success: true, summary, data: { documentFileId, ...extraction } };
+  } catch (err) {
+    if (err instanceof ReceiptParseError) return { name: "parse_receipt_image", success: false, summary: err.message };
+    return { name: "parse_receipt_image", success: false, summary: "Failed to read that receipt image." };
+  }
 }
 
 async function execGetBudgetSummary(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
@@ -508,6 +582,54 @@ async function execSendFamilyMessage(clerkUserId: string, args: Args): Promise<T
   return { name: "send_family_message", success: true, summary: `Message sent to ${recipient.displayName ?? recipient.email}: "${message}"` };
 }
 
+async function execGenerateWeeklyInsight(clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
+  const stats = await getCrossModuleStats(clerkUserId);
+  if (!stats) {
+    return { name: "generate_weekly_insight", success: true, summary: "No budget, chore, pantry, or calendar activity to report on yet." };
+  }
+  const prompt = `You are a household AI assistant. Here is this household's current status:\n\n${stats}\n\nWrite a short (2-3 sentence) proactive weekly insight highlighting what's most worth the user's attention, with a specific suggestion if relevant. Be warm and specific, not generic.`;
+  try {
+    const result = await ai.models.generateContent({ model: "gemini-flash-latest", contents: [{ role: "user", parts: [{ text: prompt }] }] });
+    const summary = result.candidates?.[0]?.content?.parts?.[0]?.text ?? stats;
+    return { name: "generate_weekly_insight", success: true, summary };
+  } catch {
+    return { name: "generate_weekly_insight", success: true, summary: `This week: ${stats}` };
+  }
+}
+
+async function execCreateAutomation(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const description = (args.description as string ?? "").trim();
+  const toolName = args.tool_name as string;
+  const toolArgs = (args.tool_args as Record<string, unknown>) ?? {};
+  const scheduleArgs = (args.schedule as Args) ?? {};
+
+  if (!description) return { name: "create_automation", success: false, summary: "A description is required." };
+  if (!AUTOMATABLE_TOOLS.has(toolName)) {
+    return { name: "create_automation", success: false, summary: `"${toolName}" can't be automated. Choose one of: ${[...AUTOMATABLE_TOOLS].join(", ")}.` };
+  }
+
+  const freq = scheduleArgs.freq as string;
+  const time = scheduleArgs.time as string;
+  const timezone = (scheduleArgs.timezone as string) || "UTC";
+  const dayOfWeek = scheduleArgs.day_of_week as number | undefined;
+  if (!["once", "daily", "weekly"].includes(freq) || !time || !/^\d{2}:\d{2}$/.test(time)) {
+    return { name: "create_automation", success: false, summary: "Schedule needs a valid freq (once/daily/weekly) and time (HH:mm)." };
+  }
+  if (freq === "weekly" && (dayOfWeek == null || dayOfWeek < 0 || dayOfWeek > 6)) {
+    return { name: "create_automation", success: false, summary: "Weekly automations need a day_of_week (0=Sunday..6=Saturday)." };
+  }
+
+  const schedule: AutomationSchedule = { freq: freq as AutomationSchedule["freq"], time, timezone, ...(dayOfWeek != null ? { dayOfWeek } : {}) };
+  const nextRunAt = computeNextRunAt(schedule);
+  await db.insert(automations).values({ clerkUserId, description, toolName, toolArgs, schedule, nextRunAt });
+
+  return {
+    name: "create_automation",
+    success: true,
+    summary: `Automation set up: "${description}" — will run ${freq}${freq === "weekly" ? ` on ${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dayOfWeek!]}` : ""} at ${time} (${timezone}). First run: ${nextRunAt.toLocaleString()}.`,
+  };
+}
+
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 
 export interface ToolContext {
@@ -535,6 +657,7 @@ export async function executeTool(
       case "add_calendar_event":      return await execAddCalendarEvent(clerkUserId, args);
       case "get_calendar_events":     return await execGetCalendarEvents(clerkUserId, args);
       case "add_budget_entry":        return await execAddBudgetEntry(clerkUserId, args, context);
+      case "parse_receipt_image":     return await execParseReceiptImage(clerkUserId, args);
       case "get_budget_summary":      return await execGetBudgetSummary(clerkUserId, args);
       case "create_note":             return await execCreateNote(clerkUserId, args);
       case "get_notes":               return await execGetNotes(clerkUserId, args);
@@ -542,6 +665,8 @@ export async function executeTool(
       case "get_pantry":              return await execGetPantry(clerkUserId, args);
       case "get_family_members":      return await execGetFamilyMembers(clerkUserId, args);
       case "send_family_message":     return await execSendFamilyMessage(clerkUserId, args);
+      case "create_automation":       return await execCreateAutomation(clerkUserId, args);
+      case "generate_weekly_insight": return await execGenerateWeeklyInsight(clerkUserId, args);
       default:
         return { name, success: false, summary: `Unknown tool: ${name}` };
     }

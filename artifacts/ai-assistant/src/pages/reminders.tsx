@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bell, Plus, X, Clock, RotateCcw } from "lucide-react";
+import { Bell, Plus, X, Clock, RotateCcw, Zap, Pause, Play } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,23 @@ interface Reminder {
   repeat: "none" | "daily" | "weekly";
   isTriggered: boolean;
   createdAt: string;
+}
+
+interface Automation {
+  id: number;
+  description: string;
+  toolName: string;
+  schedule: { freq: "once" | "daily" | "weekly"; dayOfWeek?: number; time: string; timezone: string };
+  nextRunAt: string;
+  lastRunAt: string | null;
+  isActive: boolean;
+}
+
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function scheduleLabel(s: Automation["schedule"]) {
+  if (s.freq === "weekly") return `${DOW[s.dayOfWeek ?? 0]}s at ${s.time}`;
+  if (s.freq === "daily") return `daily at ${s.time}`;
+  return `once at ${s.time}`;
 }
 
 interface ReminderToast { id: number; message: string }
@@ -57,6 +74,20 @@ export default function RemindersPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => customFetch(`${BASE}/api/reminders/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/reminders"] }),
+  });
+
+  const { data: automationsList = [] } = useQuery<Automation[]>({
+    queryKey: ["/api/automations"],
+    queryFn: () => customFetch(`${BASE}/api/automations`),
+  });
+  const toggleAutomation = useMutation({
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
+      customFetch(`${BASE}/api/automations/${id}`, { method: "PATCH", body: JSON.stringify({ isActive }), headers: { "Content-Type": "application/json" } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/automations"] }),
+  });
+  const deleteAutomation = useMutation({
+    mutationFn: (id: number) => customFetch(`${BASE}/api/automations/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/automations"] }),
   });
 
   const upcoming = remindersList.filter((r) => !r.isTriggered).sort((a, b) => new Date(a.remindAt).getTime() - new Date(b.remindAt).getTime());
@@ -160,6 +191,44 @@ export default function RemindersPage() {
               </div>
             </details>
           )}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 mt-10 mb-4">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
+          <Zap className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">Automations</h2>
+          <p className="text-sm text-muted-foreground">Recurring actions Lina runs on schedule</p>
+        </div>
+      </div>
+
+      {automationsList.length === 0 ? (
+        <div className="flex flex-col items-center justify-center text-center gap-3 text-muted-foreground py-10">
+          <Zap className="h-10 w-10 opacity-20" />
+          <p className="text-sm">No automations yet.<br />Tell Lina in chat, e.g. "every Sunday remind everyone to take out the trash".</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {automationsList.map((a) => (
+            <div key={a.id} className={cn("flex items-start gap-3 px-4 py-3 rounded-xl border transition-colors group", a.isActive ? "border-border/40 bg-card/30" : "border-border/20 bg-muted/10 opacity-60")}>
+              <Zap className={cn("h-4 w-4 mt-0.5 shrink-0", a.isActive ? "text-primary" : "text-muted-foreground")} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-foreground">{a.description}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {scheduleLabel(a.schedule)} · next {new Date(a.nextRunAt).toLocaleString()}
+                </p>
+              </div>
+              <button onClick={() => toggleAutomation.mutate({ id: a.id, isActive: !a.isActive })}
+                className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-primary transition-all shrink-0" title={a.isActive ? "Pause" : "Resume"}>
+                {a.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+              </button>
+              <button onClick={() => deleteAutomation.mutate(a.id)} className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive transition-all shrink-0">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>

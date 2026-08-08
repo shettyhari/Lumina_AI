@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
-import { Plus, Trash2, TrendingUp, TrendingDown, DollarSign, X } from "lucide-react";
+import { Plus, Trash2, TrendingUp, TrendingDown, DollarSign, X, Receipt, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -14,12 +14,15 @@ interface BudgetEntry {
   category: string;
   description: string;
   entryDate: string;
+  receiptDocumentId: number | null;
   memberName: string;
   memberAvatarUrl: string | null;
 }
 interface Summary { month: string; totalIncome: number; totalExpenses: number; net: number; entryCount: number }
+interface ReceiptDraft { documentFileId: number; amount: number; merchant: string | null; category: string; date: string | null; lineItems: string[] }
 
 const CATEGORIES = ["Groceries", "Food", "Utilities", "Transport", "Health", "Education", "Entertainment", "Income", "Other"];
+const MAX_RECEIPT_MB = 10;
 
 function fmt(n: number) { return n.toLocaleString("en-US", { style: "currency", currency: "USD" }); }
 function currentMonth() { return new Date().toISOString().slice(0, 7); }
@@ -28,7 +31,9 @@ export default function BudgetPage() {
   const qc = useQueryClient();
   const [month, setMonth] = useState(currentMonth());
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ type: "expense" as "income" | "expense", amount: "", category: "Food", description: "", entryDate: new Date().toISOString().slice(0, 10) });
+  const [form, setForm] = useState({ type: "expense" as "income" | "expense", amount: "", category: "Food", description: "", entryDate: new Date().toISOString().slice(0, 10), receiptDocumentId: null as number | null });
+  const [scanning, setScanning] = useState(false);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
 
   const entriesKey = ["/api/budget/entries", month];
   const summaryKey = ["/api/budget/summary", month];
@@ -44,12 +49,53 @@ export default function BudgetPage() {
 
   const addMutation = useMutation({
     mutationFn: (data: typeof form) => customFetch(`${BASE}/api/budget/entries`, { method: "POST", body: JSON.stringify(data), headers: { "Content-Type": "application/json" } }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/budget/entries"] }); qc.invalidateQueries({ queryKey: ["/api/budget/summary"] }); setShowModal(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/budget/entries"] }); qc.invalidateQueries({ queryKey: ["/api/budget/summary"] }); setShowModal(false); resetForm(); },
   });
   const deleteMutation = useMutation({
     mutationFn: (id: number) => customFetch(`${BASE}/api/budget/entries/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/budget/entries"] }); qc.invalidateQueries({ queryKey: ["/api/budget/summary"] }); },
   });
+
+  function resetForm() {
+    setForm({ type: "expense", amount: "", category: "Food", description: "", entryDate: new Date().toISOString().slice(0, 10), receiptDocumentId: null });
+  }
+
+  async function handleScanReceipt(file: File) {
+    if (!file.type.startsWith("image/")) { alert("Please select an image file."); return; }
+    if (file.size > MAX_RECEIPT_MB * 1024 * 1024) { alert(`File too large. Max ${MAX_RECEIPT_MB}MB.`); return; }
+    setScanning(true);
+    try {
+      const { uploadURL, objectPath } = await customFetch(`${BASE}/api/documents/upload-url`, {
+        method: "POST",
+        body: JSON.stringify({ filename: file.name, mimeType: file.type, sizeBytes: file.size, folder: "personal" }),
+        headers: { "Content-Type": "application/json" },
+      }) as any;
+      await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      const doc = await customFetch(`${BASE}/api/documents/register`, {
+        method: "POST",
+        body: JSON.stringify({ filename: file.name, storageKey: objectPath, mimeType: file.type, sizeBytes: file.size, folder: "personal" }),
+        headers: { "Content-Type": "application/json" },
+      }) as { id: number };
+      const draft = await customFetch(`${BASE}/api/budget/receipts/parse`, {
+        method: "POST",
+        body: JSON.stringify({ documentFileId: doc.id }),
+        headers: { "Content-Type": "application/json" },
+      }) as ReceiptDraft;
+      setForm({
+        type: "expense",
+        amount: draft.amount > 0 ? String(draft.amount) : "",
+        category: CATEGORIES.includes(draft.category) ? draft.category : "Other",
+        description: draft.merchant ?? "",
+        entryDate: draft.date ?? new Date().toISOString().slice(0, 10),
+        receiptDocumentId: draft.documentFileId,
+      });
+      setShowModal(true);
+    } catch (e) {
+      alert("Couldn't read that receipt. You can still enter it manually.");
+    } finally {
+      setScanning(false);
+    }
+  }
 
   const net = summary?.net ?? 0;
 
@@ -63,7 +109,14 @@ export default function BudgetPage() {
         <div className="flex items-center gap-3">
           <input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
             className="bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
-          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+          <button onClick={() => receiptInputRef.current?.click()} disabled={scanning}
+            className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50">
+            {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}
+            {scanning ? "Reading receipt..." : "Scan Receipt"}
+          </button>
+          <input ref={receiptInputRef} type="file" accept="image/*" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleScanReceipt(f); e.target.value = ""; }} />
+          <button onClick={() => { resetForm(); setShowModal(true); }} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
             <Plus className="h-4 w-4" /> Add Entry
           </button>
         </div>
@@ -141,8 +194,13 @@ export default function BudgetPage() {
           <div className="bg-card border border-border rounded-2xl w-full max-w-md p-6 shadow-2xl flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-foreground">Add Entry</h2>
-              <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+              <button onClick={() => { setShowModal(false); resetForm(); }} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
             </div>
+            {form.receiptDocumentId != null && (
+              <div className="flex items-center gap-2 rounded-lg bg-primary/10 text-primary text-xs px-3 py-2">
+                <Receipt className="h-3.5 w-3.5" /> Filled from scanned receipt — review before saving
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               {(["expense", "income"] as const).map((t) => (
                 <button key={t} onClick={() => setForm((f) => ({ ...f, type: t }))}
@@ -164,7 +222,7 @@ export default function BudgetPage() {
             <input type="date" value={form.entryDate} onChange={(e) => setForm((f) => ({ ...f, entryDate: e.target.value }))}
               className="bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground w-full" />
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:bg-accent">Cancel</button>
+              <button onClick={() => { setShowModal(false); resetForm(); }} className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:bg-accent">Cancel</button>
               <button onClick={() => addMutation.mutate(form)} disabled={!form.amount || addMutation.isPending}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
                 Add
