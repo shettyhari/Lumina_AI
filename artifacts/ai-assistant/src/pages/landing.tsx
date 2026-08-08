@@ -142,9 +142,13 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
       </header>
 
       {/* Hero & Authentication Section */}
-      <main className="flex-1 relative z-10 max-w-7xl mx-auto px-6 py-6 lg:py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center w-full">
+      <main className="flex-1 relative z-10 max-w-7xl mx-auto px-6 py-6 md:py-8 grid grid-cols-1 md:grid-cols-12 gap-8 items-center w-full">
         {/* Left Column: Product Value & Compact Features Grid */}
-        <div className="lg:col-span-7 text-left space-y-6">
+        {/* order-2 on mobile so the auth card (below) renders first — otherwise
+            visitors have to scroll past the entire marketing pitch before
+            reaching the sign-in/sign-up form. Side-by-side layout resets the
+            visual order at md: and up. */}
+        <div className="order-2 md:order-1 md:col-span-7 text-left space-y-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-md">
             <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse" />
             <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Lumina AI Operating System</span>
@@ -293,7 +297,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
         </div>
 
         {/* Right Column: Login & Sign-Up Card */}
-        <div id="auth-section" className="lg:col-span-5 relative w-full">
+        <div id="auth-section" className="order-1 md:order-2 md:col-span-5 relative w-full">
           <div className="w-full bg-card/80 backdrop-blur-2xl border border-border/80 rounded-2xl p-6 shadow-2xl space-y-4 relative overflow-hidden">
             <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/20 rounded-full blur-2xl pointer-events-none" />
 
