@@ -4,7 +4,7 @@ import { db, conversations, messages, users, userApiKeys, aiMemories } from "@wo
 import { detectAndExecuteRelay } from "../../lib/relayDetector";
 import { logger } from "../../lib/logger";
 import { isBudgetQuestion, getBudgetContext, detectBudgetMonth, detectBudgetComparison, detectBudgetLogHint } from "../../lib/intentDetector";
-import { executeTool } from "../../lib/agentTools";
+import { executeTool, TOOL_DECLARATIONS } from "../../lib/agentTools";
 import { classifyDomains, getToolDeclarationsForDomains } from "../../lib/agentDomains";
 import { getCrossModuleStats } from "../../lib/crossModuleStats";
 import { ai } from "@workspace/integrations-gemini-ai";
@@ -162,6 +162,18 @@ Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
   const recentContext = chatMessages.slice(-4, -1).map((m) => `${m.role}: ${m.content}`).join("\n");
   const domains = await classifyDomains(geminiClient, model, latestMessage, recentContext);
 
+  if (domains === null) {
+    // Classification call itself failed (e.g. rate limit) — use one cheap
+    // flat call with every tool exposed rather than cascading into several
+    // sub-agent loops while the quota is already under pressure. If this
+    // also fails, let it throw so the caller's offline fallback (which has
+    // real pattern-matching, unlike a generic placeholder) takes over.
+    const text = await runSubAgent(TOOL_DECLARATIONS);
+    const fallback = text || "I've completed the requested actions.";
+    streamText(fallback);
+    return fallback;
+  }
+
   if (domains.length === 0) {
     // General conversation — no household domain applies, skip tool-calling
     // machinery entirely (cheaper and faster than exposing ~20 tools).
@@ -184,16 +196,21 @@ Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
   // events stream to the user in a sensible order), then synthesize one
   // coherent reply from their combined output.
   const results: { domain: string; text: string }[] = [];
+  let lastError: unknown;
   for (const domain of domains) {
     try {
       const text = await runSubAgent(getToolDeclarationsForDomains([domain]));
       results.push({ domain, text });
-    } catch {
+    } catch (err) {
       // This domain failed outright (e.g. rate limit) before doing anything —
       // keep going so domains that already succeeded aren't thrown away too.
       results.push({ domain, text: "" });
+      lastError = err;
     }
   }
+  // Every domain failed outright — don't fabricate a placeholder success,
+  // let the caller's offline fallback (real pattern-matching) take over.
+  if (lastError !== undefined && results.every((r) => !r.text)) throw lastError;
 
   const synthesisPrompt =
     `The user asked: "${latestMessage}"\n\n` +

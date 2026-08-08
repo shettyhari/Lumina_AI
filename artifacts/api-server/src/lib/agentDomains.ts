@@ -43,14 +43,17 @@ const ROUTE_TOOL_DECLARATION = {
 /** One lightweight Gemini call that decides which domain(s) of tools the
  *  current turn needs, so the orchestrator only loads relevant tools into
  *  each sub-agent instead of exposing the full ~20-tool surface every turn.
- *  Falls back to "all domains" (equivalent to the old flat behavior) on any
- *  classification failure — routing must never be able to block a reply. */
+ *  Returns null on any classification failure (e.g. rate limit) — the
+ *  caller falls back to a single cheap flat call with every tool exposed,
+ *  NOT "all domains" (that would multiply API calls into N sub-agent loops
+ *  right when the quota is already exhausted, guaranteeing every following
+ *  message fails too). */
 export async function classifyDomains(
   geminiClient: { models: { generateContent: (args: any) => Promise<any> } },
   model: string,
   latestMessage: string,
   recentContext: string,
-): Promise<string[]> {
+): Promise<string[] | null> {
   try {
     const response = await geminiClient.models.generateContent({
       model,
@@ -73,6 +76,6 @@ export async function classifyDomains(
     if (valid.length === 0) return domains.includes("general") ? [] : DOMAIN_KEYS;
     return valid;
   } catch {
-    return DOMAIN_KEYS; // router failure must not block the turn — fall back to everything
+    return null; // routing unavailable — caller uses the flat fallback path
   }
 }
