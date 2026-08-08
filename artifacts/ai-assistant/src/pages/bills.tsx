@@ -101,7 +101,7 @@ export default function BillsPage() {
             <div className="space-y-3">
               <input className="w-full rounded-lg border bg-background px-3 py-2 text-sm" placeholder="Bill name (e.g. Netflix, Electric)" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
               <div className="grid grid-cols-2 gap-3">
-                <input type="number" className="rounded-lg border bg-background px-3 py-2 text-sm" placeholder="Amount (cents)" value={form.amountCents} onChange={e => setForm(f => ({ ...f, amountCents: e.target.value }))} />
+                <input type="number" className="rounded-lg border bg-background px-3 py-2 text-sm" placeholder="Amount (e.g. 49.99)" value={form.amountCents} onChange={e => setForm(f => ({ ...f, amountCents: e.target.value }))} />
                 <input type="number" min={1} max={31} className="rounded-lg border bg-background px-3 py-2 text-sm" placeholder="Due day (1-31)" value={form.dueDayOfMonth} onChange={e => setForm(f => ({ ...f, dueDayOfMonth: e.target.value }))} />
               </div>
               <select className="w-full rounded-lg border bg-background px-3 py-2 text-sm" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
