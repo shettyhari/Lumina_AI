@@ -4,6 +4,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import { Gift, Plus, X, ExternalLink, Check, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 interface WishItem { id: number; clerkUserId: string; title: string; description?: string; url?: string; priceCents?: number; priority: string; isClaimed: boolean; claimedBy?: string | null; isClaimedByMe?: boolean; createdAt: string; }
 
@@ -13,7 +14,9 @@ const PRIORITY_STARS: Record<string, number> = { low: 1, medium: 2, high: 3 };
 
 export default function WishlistPage() {
   const qc = useQueryClient();
-  const { user } = useUser();
+  const { user: clerkUser } = useUser();
+  const { user: authUser } = useAuth();
+  const myUserId = authUser?.id ?? clerkUser?.id;
   const [tab, setTab] = useState<"mine" | "family">("mine");
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", url: "", priceCents: "", priority: "medium" });
@@ -36,7 +39,7 @@ export default function WishlistPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["wishlist-family"] }),
   });
 
-  const othersWishes = family.filter(i => i.clerkUserId !== user?.id);
+  const othersWishes = family.filter(i => i.clerkUserId !== myUserId);
 
   function WishCard({ item, isOwner }: { item: WishItem; isOwner: boolean }) {
     return (

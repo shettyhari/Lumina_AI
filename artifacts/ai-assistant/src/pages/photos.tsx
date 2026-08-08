@@ -4,6 +4,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import { Image, Upload, X, Trash2, ZoomIn } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 interface PhotoFile { id: number; clerkUserId: string; fileName: string; fileKey: string; fileSize: number; fileType: string; uploadedAt: string; folder?: string; }
 
@@ -11,7 +12,9 @@ const MAX_SIZE_MB = 10;
 
 export default function PhotosPage() {
   const qc = useQueryClient();
-  const { user } = useUser();
+  const { user: clerkUser } = useUser();
+  const { user: authUser } = useAuth();
+  const myUserId = authUser?.id ?? clerkUser?.id;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -88,7 +91,7 @@ export default function PhotosPage() {
                 <button onClick={() => setLightbox(`/api/documents/${photo.id}/download`)} className="rounded-full bg-white/90 p-2 text-black hover:bg-white">
                   <ZoomIn className="h-4 w-4" />
                 </button>
-                {photo.clerkUserId === user?.id && (
+                {photo.clerkUserId === myUserId && (
                   <button onClick={() => deleteMutation.mutate(photo.id)} className="rounded-full bg-white/90 p-2 text-red-600 hover:bg-white">
                     <Trash2 className="h-4 w-4" />
                   </button>

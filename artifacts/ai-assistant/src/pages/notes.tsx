@@ -4,6 +4,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import { Plus, Pin, PinOff, Edit2, Trash2, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const QK = ["/api/notes"];
@@ -67,8 +68,9 @@ function NoteCard({ note, currentUserId, onEdit, onDelete, onTogglePin }: {
 
 export default function NotesPage() {
   const qc = useQueryClient();
-  const { user } = useUser();
-  const currentUserId = user?.id;
+  const { user: clerkUser } = useUser();
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id ?? clerkUser?.id;
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Note | null>(null);
   const [form, setForm] = useState({ title: "", body: "", color: COLORS[0] });

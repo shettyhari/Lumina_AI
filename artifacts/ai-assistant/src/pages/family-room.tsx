@@ -10,6 +10,7 @@ import { useUser } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Users, Send, Bot, AtSign, Paperclip, X, FileText, Download, Image as ImageIcon, File, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 type AttachmentData = {
   name: string;
@@ -245,7 +246,9 @@ function MentionDropdown({
 }
 
 export default function FamilyRoomPage() {
-  const { user } = useUser();
+  const { user: clerkUser } = useUser();
+  const { user: authUser } = useAuth();
+  const myUserId = authUser?.id ?? clerkUser?.id;
   const queryClient = useQueryClient();
   const [input, setInput] = useState("");
   const [pendingAttachment, setPendingAttachment] = useState<AttachmentData | null>(null);
@@ -529,7 +532,7 @@ export default function FamilyRoomPage() {
             <MessageBubble
               key={msg.id}
               msg={msg}
-              isOwn={msg.clerkUserId === user?.id}
+              isOwn={msg.clerkUserId === myUserId}
               onImageClick={(url, name) => setPreviewImage({ url, name })}
             />
           ))}

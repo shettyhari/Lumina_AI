@@ -4,6 +4,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import { Trophy, Plus, Star, X, Gift, Check, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 interface Reward { id: number; title: string; description?: string; pointCost: number; emoji: string; }
 interface Balance { memberId: number; clerkUserId: string; name: string; earned: number; spent: number; balance: number; }
@@ -11,7 +12,9 @@ interface Redemption { id: number; rewardId: number; clerkUserId: string; points
 
 export default function RewardsPage() {
   const qc = useQueryClient();
-  const { user } = useUser();
+  const { user: clerkUser } = useUser();
+  const { user: authUser } = useAuth();
+  const myUserId = authUser?.id ?? clerkUser?.id;
   const [tab, setTab] = useState<"catalog" | "leaderboard" | "requests">("catalog");
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", pointCost: "", emoji: "🎁" });
@@ -20,7 +23,7 @@ export default function RewardsPage() {
   const { data: balances = [] } = useQuery<Balance[]>({ queryKey: ["rewards-balances"], queryFn: () => customFetch("/api/rewards/balances") });
   const { data: redemptions = [] } = useQuery<Redemption[]>({ queryKey: ["rewards-redemptions"], queryFn: () => customFetch("/api/rewards/redemptions") });
 
-  const myBalance = balances.find(b => b.clerkUserId === user?.id)?.balance ?? 0;
+  const myBalance = balances.find(b => b.clerkUserId === myUserId)?.balance ?? 0;
 
   const redeemMutation = useMutation({
     mutationFn: (rewardId: number) => customFetch("/api/rewards/redeem", { method: "POST", body: JSON.stringify({ rewardId }), headers: { "Content-Type": "application/json" } }),
