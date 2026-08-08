@@ -1,4 +1,5 @@
 export * from "./users";
+export * from "./pendingSignups";
 export * from "./conversations";
 export * from "./messages";
 export * from "./userApiKeys";

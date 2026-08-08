@@ -1,10 +1,16 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
-import { db, users, familyMembers } from "@workspace/db";
+import { db, users, familyMembers, pendingSignups } from "@workspace/db";
 import { hashPassword, verifyPassword } from "../lib/authCrypto.js";
 import { createSessionToken } from "../lib/sessionToken.js";
 import { authRateLimit } from "../middlewares/rateLimiter.js";
 import { requireAuth, getReqUserId } from "../middlewares/requireAuth.js";
+import { generateOtpCode } from "../lib/otp.js";
+import { sendOtpEmail } from "../lib/email.js";
+
+const OTP_EXPIRY_MS = 10 * 60 * 1000;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 
 const router: IRouter = Router();
 
@@ -138,8 +144,11 @@ async function createUser(email: string, passwordHash: string, displayName?: str
 
 /**
  * POST /api/auth/register
- * Validates registration data, creates a new account (rejecting duplicate
- * emails), hashes the password with scrypt, and returns 200 + token.
+ * Step 1 of signup: validates registration data, rejects duplicate emails,
+ * stashes the (hashed) password and a hashed one-time code in
+ * `pending_signups`, emails the code, and returns { pending: true }.
+ * The account itself isn't created until the code is confirmed via
+ * POST /api/auth/verify-otp — see that handler for account creation.
  */
 router.post("/auth/register", authRateLimit, async (req: Request, res: Response): Promise<void> => {
   try {
@@ -156,18 +165,116 @@ router.post("/auth/register", authRateLimit, async (req: Request, res: Response)
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+
+    const existingUser = await findUserByEmail(normalizedEmail);
+    if (existingUser) {
+      res.status(409).json({ error: "An account with this email already exists." });
+      return;
+    }
+
     const passwordHash = hashPassword(password);
+    const code = generateOtpCode();
+    const otpHash = hashPassword(code);
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
+    const finalName = typeof displayName === "string" ? displayName.trim() || undefined : undefined;
+
+    try {
+      const [existingPending] = await db.select().from(pendingSignups).where(eq(pendingSignups.email, normalizedEmail));
+      if (existingPending) {
+        await db.update(pendingSignups)
+          .set({ passwordHash, displayName: finalName, otpHash, attempts: 0, expiresAt, lastSentAt: new Date() })
+          .where(eq(pendingSignups.email, normalizedEmail));
+      } else {
+        await db.insert(pendingSignups).values({ email: normalizedEmail, passwordHash, displayName: finalName, otpHash, expiresAt });
+      }
+    } catch (err) {
+      console.error("pendingSignups persist error:", err);
+      res.status(500).json({ error: "Registration failed. Please try again." });
+      return;
+    }
+
+    try {
+      await sendOtpEmail(normalizedEmail, code);
+    } catch (err) {
+      console.error("sendOtpEmail error:", err);
+      res.status(502).json({ error: "Failed to send verification email. Please try again." });
+      return;
+    }
+
+    res.status(200).json({
+      pending: true,
+      email: normalizedEmail,
+      message: "We've sent a 6-digit verification code to your email.",
+    });
+  } catch (err: any) {
+    console.error("Registration endpoint error:", err);
+    if (req.log?.error) req.log.error({ err }, "Registration error");
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Registration failed. Please try again." });
+    }
+  }
+});
+
+/**
+ * POST /api/auth/verify-otp
+ * Step 2 of signup: confirms the emailed code against `pending_signups`.
+ * On success, creates the real account, clears the pending record, and
+ * returns { token, user } exactly like a successful login.
+ */
+router.post("/auth/verify-otp", authRateLimit, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, code } = req.body ?? {};
+
+    if (!email || typeof email !== "string" || !email.trim()) {
+      res.status(400).json({ error: "Please enter your email address." });
+      return;
+    }
+    if (!code || typeof code !== "string" || !code.trim()) {
+      res.status(400).json({ error: "Please enter the verification code." });
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const [pending] = await db.select().from(pendingSignups).where(eq(pendingSignups.email, normalizedEmail));
+    if (!pending) {
+      res.status(400).json({ error: "No pending signup found for this email. Please sign up again." });
+      return;
+    }
+
+    if (pending.expiresAt.getTime() < Date.now()) {
+      await db.delete(pendingSignups).where(eq(pendingSignups.email, normalizedEmail));
+      res.status(400).json({ error: "Verification code expired. Please sign up again." });
+      return;
+    }
+
+    if (pending.attempts >= OTP_MAX_ATTEMPTS) {
+      await db.delete(pendingSignups).where(eq(pendingSignups.email, normalizedEmail));
+      res.status(429).json({ error: "Too many incorrect attempts. Please sign up again." });
+      return;
+    }
+
+    if (!verifyPassword(code.trim(), pending.otpHash)) {
+      await db.update(pendingSignups)
+        .set({ attempts: pending.attempts + 1 })
+        .where(eq(pendingSignups.email, normalizedEmail));
+      res.status(401).json({ error: "Incorrect verification code." });
+      return;
+    }
 
     let user: StoredUser;
     try {
-      user = await createUser(normalizedEmail, passwordHash, displayName);
+      user = await createUser(normalizedEmail, pending.passwordHash, pending.displayName ?? undefined);
     } catch (err) {
       if (err instanceof DuplicateEmailError) {
+        await db.delete(pendingSignups).where(eq(pendingSignups.email, normalizedEmail));
         res.status(409).json({ error: err.message });
         return;
       }
       throw err;
     }
+
+    await db.delete(pendingSignups).where(eq(pendingSignups.email, normalizedEmail));
 
     const token = createSessionToken({
       userId: user.clerkUserId,
@@ -195,10 +302,63 @@ router.post("/auth/register", authRateLimit, async (req: Request, res: Response)
       },
     });
   } catch (err: any) {
-    console.error("Registration endpoint error:", err);
-    if (req.log?.error) req.log.error({ err }, "Registration error");
+    console.error("Verify OTP endpoint error:", err);
+    if (req.log?.error) req.log.error({ err }, "Verify OTP error");
     if (!res.headersSent) {
-      res.status(500).json({ error: "Registration failed. Please try again." });
+      res.status(500).json({ error: "Verification failed. Please try again." });
+    }
+  }
+});
+
+/**
+ * POST /api/auth/resend-otp
+ * Regenerates and re-sends a code for an existing pending signup, subject
+ * to a cooldown so an email address can't be spammed.
+ */
+router.post("/auth/resend-otp", authRateLimit, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body ?? {};
+    if (!email || typeof email !== "string" || !email.trim()) {
+      res.status(400).json({ error: "Please enter your email address." });
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const [pending] = await db.select().from(pendingSignups).where(eq(pendingSignups.email, normalizedEmail));
+    if (!pending) {
+      res.status(400).json({ error: "No pending signup found for this email. Please sign up again." });
+      return;
+    }
+
+    const msSinceLastSend = Date.now() - pending.lastSentAt.getTime();
+    if (msSinceLastSend < OTP_RESEND_COOLDOWN_MS) {
+      const waitSeconds = Math.ceil((OTP_RESEND_COOLDOWN_MS - msSinceLastSend) / 1000);
+      res.status(429).json({ error: `Please wait ${waitSeconds}s before requesting another code.` });
+      return;
+    }
+
+    const code = generateOtpCode();
+    const otpHash = hashPassword(code);
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
+
+    await db.update(pendingSignups)
+      .set({ otpHash, attempts: 0, expiresAt, lastSentAt: new Date() })
+      .where(eq(pendingSignups.email, normalizedEmail));
+
+    try {
+      await sendOtpEmail(normalizedEmail, code);
+    } catch (err) {
+      console.error("sendOtpEmail (resend) error:", err);
+      res.status(502).json({ error: "Failed to send verification email. Please try again." });
+      return;
+    }
+
+    res.status(200).json({ message: "A new code has been sent." });
+  } catch (err: any) {
+    console.error("Resend OTP endpoint error:", err);
+    if (req.log?.error) req.log.error({ err }, "Resend OTP error");
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to resend code. Please try again." });
     }
   }
 });

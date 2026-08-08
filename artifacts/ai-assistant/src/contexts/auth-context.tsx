@@ -13,7 +13,12 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  /** Step 1 of signup — sends a verification code to the given email. Does not log the user in. */
   register: (email: string, password: string, displayName?: string) => Promise<void>;
+  /** Step 2 of signup — confirms the emailed code and completes login. */
+  verifySignupOtp: (email: string, code: string) => Promise<void>;
+  /** Re-sends the signup verification code for a pending signup. */
+  resendSignupOtp: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -147,6 +152,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!ok) {
         throw new Error(data?.error || "Registration failed. Please try again.");
       }
+      // Signup step 1 only sends a verification code — no session yet.
+      // The caller (AuthForm) transitions to the OTP-entry step from here.
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifySignupOtp = async (email: string, code: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      let data: any = null;
+      let ok = false;
+      try {
+        const response = await fetch(`${basePath}/api/auth/verify-otp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, code }),
+          credentials: "include",
+        });
+        ok = response.ok;
+        data = await response.json().catch(() => null);
+      } catch {
+        throw new Error("Unable to reach the server. Please check your connection and try again.");
+      }
+
+      if (!ok) {
+        throw new Error(data?.error || "Verification failed. Please try again.");
+      }
 
       const newToken = data.token;
       const newUser = data.user;
@@ -159,6 +192,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(newUser);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const resendSignupOtp = async (email: string): Promise<void> => {
+    let data: any = null;
+    let ok = false;
+    try {
+      const response = await fetch(`${basePath}/api/auth/resend-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+        credentials: "include",
+      });
+      ok = response.ok;
+      data = await response.json().catch(() => null);
+    } catch {
+      throw new Error("Unable to reach the server. Please check your connection and try again.");
+    }
+
+    if (!ok) {
+      throw new Error(data?.error || "Failed to resend code. Please try again.");
     }
   };
 
@@ -186,6 +240,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         register,
+        verifySignupOtp,
+        resendSignupOtp,
         logout,
       }}
     >
