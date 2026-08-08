@@ -151,18 +151,18 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
         <div className="order-2 md:order-1 md:col-span-7 text-left space-y-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-md">
             <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse" />
-            <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Lumina AI Operating System</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-primary">The Agentic AI Operating System for Families</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.15]">
-            Your Mind & Family, <br />
+            Meet Lina — Your Family's <br />
             <span className="bg-gradient-to-r from-primary via-purple-400 to-cyan-400 bg-clip-text text-transparent">
-              Powered by Agentic AI.
+              Agentic AI Assistant.
             </span>
           </h1>
 
           <p className="text-sm sm:text-base text-muted-foreground max-w-xl leading-relaxed">
-            The all-in-one personal AI assistant and family operating system. Connect Google Gemini, Claude, and GPT-4 with real tool execution for pantry sync, expenses, calendar, and family chat.
+            Lina doesn't just chat — she acts. Ask her to add milk to the shopping list, log an expense, or set a reminder, and it's actually done, powered by Google Gemini, GPT-4, and Claude. One AI assistant for your whole family's shopping, budget, calendar, chores, and conversations.
           </p>
 
           {/* Primary Action Buttons */}
@@ -201,10 +201,10 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                 <Bot className="w-4 h-4 text-primary shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
                 <div>
                   <div className="flex items-center gap-1">
-                    <h4 className="text-xs font-bold">Agentic AI Chat</h4>
+                    <h4 className="text-xs font-bold">AI Chat That Takes Action</h4>
                     <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
                   </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1">Gemini & GPT-4 tools</p>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">Real tool execution, not just replies</p>
                 </div>
               </button>
 
@@ -215,10 +215,10 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                 <Users className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
                 <div>
                   <div className="flex items-center gap-1">
-                    <h4 className="text-xs font-bold">Family Hub</h4>
+                    <h4 className="text-xs font-bold">Family Chat Room</h4>
                     <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-cyan-400 transition-opacity" />
                   </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1">Roles & Direct Chat</p>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">Everyone talks to Lina together</p>
                 </div>
               </button>
 
@@ -229,10 +229,10 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                 <ShoppingCart className="w-4 h-4 text-purple-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
                 <div>
                   <div className="flex items-center gap-1">
-                    <h4 className="text-xs font-bold">Pantry Sync</h4>
+                    <h4 className="text-xs font-bold">Smart Shopping List</h4>
                     <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-purple-400 transition-opacity" />
                   </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1">Auto Grocery Lists</p>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">Ask Lina to add items, she adds them</p>
                 </div>
               </button>
 
@@ -243,10 +243,10 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                 <Wallet className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
                 <div>
                   <div className="flex items-center gap-1">
-                    <h4 className="text-xs font-bold">Expense Analytics</h4>
+                    <h4 className="text-xs font-bold">Family Budget Tracking</h4>
                     <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-emerald-400 transition-opacity" />
                   </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1">Budget Intent Detection</p>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">Log expenses just by asking</p>
                 </div>
               </button>
 
@@ -257,10 +257,10 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                 <Calendar className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
                 <div>
                   <div className="flex items-center gap-1">
-                    <h4 className="text-xs font-bold">Smart Calendar</h4>
+                    <h4 className="text-xs font-bold">Shared Calendar & Reminders</h4>
                     <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-amber-400 transition-opacity" />
                   </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1">Voice Reminders</p>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">Set by voice or chat</p>
                 </div>
               </button>
 
@@ -271,10 +271,10 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
                 <ImageIcon className="w-4 h-4 text-rose-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
                 <div>
                   <div className="flex items-center gap-1">
-                    <h4 className="text-xs font-bold">AI Image Studio</h4>
+                    <h4 className="text-xs font-bold">AI Image Generation</h4>
                     <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-rose-400 transition-opacity" />
                   </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1">Imagen 3 Generation</p>
+                  <p className="text-[11px] text-muted-foreground line-clamp-1">Create images from a prompt</p>
                 </div>
               </button>
             </div>
@@ -433,7 +433,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
             )}
 
             <p className="text-center text-[10px] text-muted-foreground pt-1">
-              By signing in, you agree to Lumina's Terms of Service and Privacy Policy.
+              By signing in, you agree to Lina's Terms of Service and Privacy Policy.
             </p>
           </div>
         </div>
@@ -444,12 +444,12 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
         <div className="max-w-7xl mx-auto px-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
             <Cpu className="w-4 h-4 text-cyan-400" />
-            <span>Supported Models: Google Gemini 2.0, OpenAI GPT-4o, Anthropic Claude 3.5, OpenRouter</span>
+            <span>Supported Models: Google Gemini, OpenAI GPT-4o, Anthropic Claude 3.5, OpenRouter</span>
           </div>
 
           <div className="flex items-center gap-2 text-xs font-semibold text-primary">
             <Shield className="w-3.5 h-3.5 text-amber-400" />
-            <span>Custom API Keys supported in Settings</span>
+            <span>Bring your own API key in Settings — or use Lina's built-in Gemini access</span>
           </div>
         </div>
       </section>
@@ -459,7 +459,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
         <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <LinaLogo className="h-5 w-auto" showSubtitle={false} />
-            <span>© 2026 Lumina AI. All rights reserved.</span>
+            <span>© 2026 Lina AI. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-4">
             <button onClick={() => setLocation("/sign-in")} className="hover:text-foreground transition-colors cursor-pointer">

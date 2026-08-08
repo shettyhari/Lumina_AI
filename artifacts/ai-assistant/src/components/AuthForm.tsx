@@ -226,7 +226,7 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
           {mode === "sign-in"
-            ? "Log in to access your Lumina AI workspace"
+            ? "Log in to access your Lina AI workspace"
             : "Sign up to start using your personal AI assistant"}
         </p>
       </div>
@@ -296,7 +296,7 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
           ) : (
             <>
-              {mode === "sign-in" ? "Log In to Lumina AI" : "Create Account"}
+              {mode === "sign-in" ? "Log In to Lina AI" : "Create Account"}
               <ArrowRight className="w-4 h-4" />
             </>
           )}

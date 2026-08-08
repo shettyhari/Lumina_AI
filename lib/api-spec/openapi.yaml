@@ -668,7 +668,7 @@ paths:
     post:
       operationId: sendFamilyRoomMessage
       tags: [family]
-      summary: Post a message to the family room (triggers AI if @Lumina is mentioned)
+      summary: Post a message to the family room (triggers AI if @Lina is mentioned)
       requestBody:
         required: true
         content:

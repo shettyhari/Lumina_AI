@@ -466,8 +466,8 @@ router.get("/auth/me", requireAuth, async (req: Request, res: Response): Promise
   res.status(200).json({
     user: {
       id: userId,
-      email: session?.email ?? "user@lumina.ai",
-      displayName: session?.displayName ?? "Lumina User",
+      email: session?.email ?? "user@lina.ai",
+      displayName: session?.displayName ?? "Lina User",
       role: session?.role ?? "admin",
     },
   });

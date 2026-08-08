@@ -2803,7 +2803,7 @@ export const getSendFamilyRoomMessageUrl = () => {
 }
 
 /**
- * @summary Post a message to the family room (triggers AI if @Lumina is mentioned)
+ * @summary Post a message to the family room (triggers AI if @Lina is mentioned)
  */
 export const sendFamilyRoomMessage = async (sendFamilyRoomMessageInput: SendFamilyRoomMessageInput, options?: RequestInit): Promise<SendFamilyRoomMessageResponse> => {
 
@@ -2852,7 +2852,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SendFamilyRoomMessageMutationError = ErrorType<void>
 
     /**
- * @summary Post a message to the family room (triggers AI if @Lumina is mentioned)
+ * @summary Post a message to the family room (triggers AI if @Lina is mentioned)
  */
 export const useSendFamilyRoomMessage = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendFamilyRoomMessage>>, TError,{data: BodyType<SendFamilyRoomMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

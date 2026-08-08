@@ -562,7 +562,7 @@ export const ListFamilyRoomMessagesResponse = zod.array(ListFamilyRoomMessagesRe
 
 
 /**
- * @summary Post a message to the family room (triggers AI if @Lumina is mentioned)
+ * @summary Post a message to the family room (triggers AI if @Lina is mentioned)
  */
 export const SendFamilyRoomMessageBody = zod.object({
   "content": zod.string()

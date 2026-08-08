@@ -50,7 +50,7 @@ function PageLoader() {
     <div className="flex h-[100dvh] items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <span className="text-sm font-medium text-muted-foreground animate-pulse">Loading Lumina AI...</span>
+        <span className="text-sm font-medium text-muted-foreground animate-pulse">Loading Lina AI...</span>
       </div>
     </div>
   );
@@ -67,7 +67,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 
   componentDidCatch(error: Error, errorInfo: any) {
-    console.error("Lumina AI App Error:", error, errorInfo);
+    console.error("Lina AI App Error:", error, errorInfo);
   }
 
   render() {
@@ -75,7 +75,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
       return (
         <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 text-center">
           <div className="flex flex-col items-center gap-4 max-w-md">
-            <h1 className="text-3xl font-bold text-iridescent">Lumina AI</h1>
+            <h1 className="text-3xl font-bold text-iridescent">Lina AI</h1>
             <p className="text-muted-foreground">An unexpected error occurred while loading the workspace.</p>
             <button
               onClick={() => window.location.reload()}

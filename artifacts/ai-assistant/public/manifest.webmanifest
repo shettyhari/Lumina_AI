@@ -1,7 +1,7 @@
 {
-  "name": "Lumina AI",
-  "short_name": "Lumina",
-  "description": "Your personal AI assistant — chat, image generation, voice, memory, and more.",
+  "name": "Lina AI",
+  "short_name": "Lina",
+  "description": "Lina is your family's AI operating system — one agentic assistant that manages your shopping list, calendar, budget, chores, and family chat.",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#0c1120",
