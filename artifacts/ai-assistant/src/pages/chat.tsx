@@ -632,7 +632,7 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-full w-full">
       {voiceOpen && (
-        <VoiceOrb state={voice.state} interimText={voice.interimText} onClose={handleCloseVoice} onStopSpeaking={voice.stopSpeaking} />
+        <VoiceOrb state={voice.state} interimText={voice.interimText} errorMessage={voice.errorMessage} onClose={handleCloseVoice} onStopSpeaking={voice.stopSpeaking} onRetry={voice.toggleWake} />
       )}
       <RelayToast message={relayToast} onDismiss={() => setRelayToast(null)} />
 

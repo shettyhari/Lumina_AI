@@ -7,7 +7,8 @@ export type VoiceState =
   | "wake"          // always-on, waiting for "hey lumina"
   | "listening"     // actively capturing user query
   | "thinking"      // sent to AI, waiting
-  | "speaking";     // TTS playing response
+  | "speaking"      // TTS playing response
+  | "error";        // mic permission denied / unavailable — needs user action, not silently retried
 
 export interface UseVoiceAgentOptions {
   onTranscript: (text: string) => void; // called when user finishes speaking a query
@@ -17,6 +18,7 @@ export interface UseVoiceAgentOptions {
 export interface UseVoiceAgentReturn {
   state: VoiceState;
   interimText: string;           // live partial transcript shown in UI
+  errorMessage: string | null;
   isSupported: boolean;
   toggleWake: () => void;        // enable/disable always-on wake mode
   startListening: () => void;    // manual mic start (no wake word needed)
@@ -24,6 +26,23 @@ export interface UseVoiceAgentReturn {
   setThinking: (v: boolean) => void;
   speak: (text: string) => void;
   stopSpeaking: () => void;
+}
+
+// Errors that mean "retrying won't help without the user doing something" —
+// these must NOT be silently retried, or the app just loops start() forever
+// with the UI stuck on "Listening for Hey Lina" and no explanation.
+const FATAL_MIC_ERRORS = new Set(["not-allowed", "service-not-allowed", "audio-capture"]);
+
+function describeMicError(code: string): string {
+  switch (code) {
+    case "not-allowed":
+    case "service-not-allowed":
+      return "Microphone access is blocked. Please allow microphone permissions for this site in your browser settings, then try again.";
+    case "audio-capture":
+      return "No microphone was found. Please connect a microphone and try again.";
+    default:
+      return "Voice mode couldn't access your microphone. Please try again.";
+  }
 }
 
 // Strip markdown so TTS doesn't say "asterisk asterisk bold asterisk asterisk"
@@ -68,6 +87,7 @@ function pickVoice(): SpeechSynthesisVoice | null {
 export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina"] }: UseVoiceAgentOptions): UseVoiceAgentReturn {
   const [state, setState] = useState<VoiceState>("idle");
   const [interimText, setInterimText] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSupported] = useState(() =>
     typeof window !== "undefined" &&
     ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)
@@ -126,6 +146,7 @@ export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina
   const startWakeMode = useCallback(() => {
     if (!isSupported) return;
     stopAll();
+    setErrorMessage(null);
     setState("wake");
 
     const r = buildRecognition()!;
@@ -153,10 +174,17 @@ export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     r.onerror = (e: any) => {
       if (e.error === "no-speech" || e.error === "network") return; // restart on these
+      if (FATAL_MIC_ERRORS.has(e.error)) {
+        // Don't silently retry start() forever — nothing will change until
+        // the user grants permission / plugs in a mic.
+        setErrorMessage(describeMicError(e.error));
+        setState("error");
+      }
     };
 
     r.onend = () => {
-      // Auto-restart wake mode unless we've switched state
+      // Auto-restart wake mode unless we've switched state (including into
+      // the fatal-error state set by onerror above, which fires first)
       if (stateRef.current === "wake" && !restartScheduledRef.current) {
         restartScheduledRef.current = true;
         setTimeout(() => {
@@ -166,7 +194,7 @@ export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina
       }
     };
 
-    try { r.start(); } catch { /* ignore */ }
+    try { r.start(); } catch { setErrorMessage(describeMicError("unknown")); setState("error"); }
   }, [isSupported, buildRecognition, wakeWords, stopAll]); // eslint-disable-line
 
   // ── Active listening (capture user query) ─────────────────────────────
@@ -208,15 +236,23 @@ export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     r.onerror = (e: any) => {
-      if (e.error !== "no-speech") {
-        setState(fromWake ? "wake" : "idle");
+      if (e.error === "no-speech") return;
+      if (FATAL_MIC_ERRORS.has(e.error)) {
+        setErrorMessage(describeMicError(e.error));
+        setState("error");
         setInterimText("");
-        if (fromWake) startWakeMode();
+        return;
       }
+      setState(fromWake ? "wake" : "idle");
+      setInterimText("");
+      if (fromWake) startWakeMode();
     };
 
     r.onend = () => {
       clearSilenceTimer();
+      // A fatal error already moved us to the "error" state above — don't
+      // let this unconditional onend logic bounce us back into wake mode.
+      if (stateRef.current === "error") return;
       const combined = finalText.trim();
       setInterimText("");
       if (combined) {
@@ -238,12 +274,13 @@ export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina
   // ── Public API ─────────────────────────────────────────────────────────
 
   const toggleWake = useCallback(() => {
-    if (stateRef.current === "idle") {
+    if (stateRef.current === "idle" || stateRef.current === "error") {
       startWakeMode();
     } else {
       stopAll();
       setState("idle");
       setInterimText("");
+      setErrorMessage(null);
     }
   }, [startWakeMode, stopAll]);
 
@@ -258,6 +295,7 @@ export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina
     }
     setState("idle");
     setInterimText("");
+    setErrorMessage(null);
     clearSilenceTimer();
   }, [clearSilenceTimer]);
 
@@ -343,6 +381,7 @@ export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina
   return {
     state,
     interimText,
+    errorMessage,
     isSupported,
     toggleWake,
     startListening,

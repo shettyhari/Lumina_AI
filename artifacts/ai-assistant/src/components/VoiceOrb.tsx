@@ -1,13 +1,15 @@
 import { useEffect, useRef } from "react";
-import { Mic, MicOff, Volume2, Loader2, X } from "lucide-react";
+import { Mic, MicOff, Volume2, Loader2, X, AlertTriangle } from "lucide-react";
 import { VoiceState } from "@/hooks/useVoiceAgent";
 import { cn } from "@/lib/utils";
 
 interface VoiceOrbProps {
   state: VoiceState;
   interimText: string;
+  errorMessage?: string | null;
   onClose: () => void;
   onStopSpeaking: () => void;
+  onRetry?: () => void;
 }
 
 // State metadata
@@ -41,6 +43,12 @@ const STATE_META: Record<VoiceState, { label: string; hint: string; ringColor: s
     hint: "Tap to stop",
     ringColor: "border-teal-400/70",
     orbColor: "bg-teal-500/15",
+  },
+  error: {
+    label: "Microphone Unavailable",
+    hint: "Tap to try again",
+    ringColor: "border-destructive/50",
+    orbColor: "bg-destructive/10",
   },
 };
 
@@ -76,7 +84,7 @@ function PulseRing({ active, color }: { active: boolean; color: string }) {
   );
 }
 
-export default function VoiceOrb({ state, interimText, onClose, onStopSpeaking }: VoiceOrbProps) {
+export default function VoiceOrb({ state, interimText, errorMessage, onClose, onStopSpeaking, onRetry }: VoiceOrbProps) {
   const meta = STATE_META[state];
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
@@ -137,6 +145,7 @@ export default function VoiceOrb({ state, interimText, onClose, onStopSpeaking }
 
   const handleOrbClick = () => {
     if (state === "speaking") onStopSpeaking();
+    if (state === "error") onRetry?.();
   };
 
   return (
@@ -160,7 +169,7 @@ export default function VoiceOrb({ state, interimText, onClose, onStopSpeaking }
           className={cn(
             "relative w-28 h-28 rounded-full border-2 flex items-center justify-center transition-all duration-500 shadow-2xl",
             meta.orbColor, meta.ringColor,
-            state === "speaking" && "cursor-pointer hover:scale-95"
+            (state === "speaking" || state === "error") && "cursor-pointer hover:scale-95"
           )}
         >
           <PulseRing active={state === "wake" || state === "listening"} color={meta.ringColor} />
@@ -187,12 +196,16 @@ export default function VoiceOrb({ state, interimText, onClose, onStopSpeaking }
               <SoundWave active color="bg-teal-400" />
             </div>
           )}
+          {state === "error" && <AlertTriangle className="w-10 h-10 text-destructive" />}
         </button>
       </div>
 
       {/* State label */}
       <div className="mt-8 text-center space-y-2 px-8 max-w-sm">
         <p className="text-lg font-semibold text-foreground tracking-tight">{meta.label}</p>
+        {state === "error" && errorMessage && (
+          <p className="text-sm text-destructive/90">{errorMessage}</p>
+        )}
         {meta.hint && (
           <p className="text-sm text-muted-foreground">{meta.hint}</p>
         )}
