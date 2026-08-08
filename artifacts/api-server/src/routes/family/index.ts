@@ -139,6 +139,7 @@ async function runFamilyRoomAgent(
   clerkUserId: string,
   history: { role: "user" | "model"; parts: { text: string }[] }[],
   originalMessage: string,
+  webSearch = true,
 ): Promise<string> {
   const systemInstruction = `You are Lina, an agentic AI assistant for a family, replying in their shared family chat room. You have access to tools that let you take real actions:
 - Manage the shopping list (add items, check them off, view the list)
@@ -148,17 +149,19 @@ async function runFamilyRoomAgent(
 - Record budget entries and view spending summaries
 - Create and search notes
 - Manage the pantry inventory
-- View family members and send direct messages to them
+- View family members and send direct messages to them${webSearch ? "\n- Search the web for current information (news, facts, anything you don't already know)" : ""}
 
 When a family member asks you to do something you can accomplish with a tool, USE THE TOOL immediately — don't just describe what you would do, and never claim to have done something without actually calling the tool for it. After taking action, confirm what you did concisely. Keep replies warm, friendly, and brief.
 
 Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`;
 
   const contents: any[] = [...history];
+  const toolsList: any[] = [{ functionDeclarations: TOOL_DECLARATIONS }];
+  if (webSearch) toolsList.push({ googleSearch: {} });
   const config: Record<string, unknown> = {
     maxOutputTokens: 1024,
     systemInstruction,
-    tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+    tools: toolsList,
   };
 
   const MAX_ITERATIONS = 6;
@@ -285,7 +288,17 @@ router.post("/family/room/messages", requireAuth, async (req, res): Promise<void
         ],
       }));
 
-      const aiContent = await runFamilyRoomAgent(clerkUserId, history, content.trim());
+      let aiContent: string;
+      try {
+        aiContent = await runFamilyRoomAgent(clerkUserId, history, content.trim());
+      } catch (err) {
+        // Google Search grounding requires billing enabled on the
+        // underlying Google Cloud project -- on a free-tier key it errors
+        // out even for trivial requests. Retry without it so the family
+        // still gets a real answer instead of nothing.
+        logger.warn({ err }, "Family Room agent call failed — retrying without web search");
+        aiContent = await runFamilyRoomAgent(clerkUserId, history, content.trim(), false);
+      }
 
       [aiMsg] = await db
         .insert(familyRoomMessages)

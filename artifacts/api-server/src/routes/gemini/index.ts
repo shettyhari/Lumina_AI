@@ -652,11 +652,36 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
         );
       } catch (err: any) {
         logger.warn({ err }, "Gemini API call failed — using offline agentic fallback");
-        fullResponse = await runOfflineAgenticFallback(
-          clerkUserId,
-          parsed.data.content,
-          (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`),
-        );
+        // Google Search grounding requires billing enabled on the underlying
+        // Google Cloud project — on a free-tier key it 429s even for a
+        // trivial request. Rather than give up entirely and return an
+        // unrelated canned reply, retry once without the search tool so the
+        // user still gets a real answer from the model's own knowledge.
+        if (webSearch) {
+          try {
+            fullResponse = await streamGeminiAgentic(
+              model, chatMessages, systemPrompt || undefined, clerkUserId,
+              (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`),
+              reasoningMode,
+              parsed.data.content,
+              false,
+              userGeminiKey || undefined,
+            );
+          } catch (err2: any) {
+            logger.warn({ err: err2 }, "Gemini retry without web search also failed — using offline agentic fallback");
+            fullResponse = await runOfflineAgenticFallback(
+              clerkUserId,
+              parsed.data.content,
+              (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`),
+            );
+          }
+        } else {
+          fullResponse = await runOfflineAgenticFallback(
+            clerkUserId,
+            parsed.data.content,
+            (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`),
+          );
+        }
       }
     } else if (provider === "openai") {
       const key = await getUserApiKey(clerkUserId, "openai");
