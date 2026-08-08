@@ -3,6 +3,8 @@ import { eq, desc, gt, and } from "drizzle-orm";
 import { db, familyMembers, familyMessages, familyRoomMessages } from "@workspace/db";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { requireAuth } from "../../middlewares/requireAuth";
+import { TOOL_DECLARATIONS, executeTool } from "../../lib/agentTools";
+import { logger } from "../../lib/logger";
 
 const router: IRouter = Router();
 
@@ -123,6 +125,71 @@ router.patch("/family/notifications/read-all", requireAuth, async (req, res): Pr
   res.status(204).end();
 });
 
+// ─── Family Room agentic reply ────────────────────────────────────────────────
+
+/**
+ * Runs the same tool-calling agent loop as the main chat (see
+ * routes/gemini/index.ts's streamGeminiAgentic), but non-streaming: Family
+ * Room messages are a single request/response, not SSE. Without this, "Lina"
+ * in the family room was a plain generateContent() call with no tools at
+ * all — it could only describe what it would do, never actually do it, so
+ * "added milk to the shopping list" was pure hallucination.
+ */
+async function runFamilyRoomAgent(
+  clerkUserId: string,
+  history: { role: "user" | "model"; parts: { text: string }[] }[],
+  originalMessage: string,
+): Promise<string> {
+  const systemInstruction = `You are Lina, an agentic AI assistant for a family, replying in their shared family chat room. You have access to tools that let you take real actions:
+- Manage the shopping list (add items, check them off, view the list)
+- Set and view reminders
+- Manage chores (add, complete, list)
+- Add and view calendar events
+- Record budget entries and view spending summaries
+- Create and search notes
+- Manage the pantry inventory
+- View family members and send direct messages to them
+
+When a family member asks you to do something you can accomplish with a tool, USE THE TOOL immediately — don't just describe what you would do, and never claim to have done something without actually calling the tool for it. After taking action, confirm what you did concisely. Keep replies warm, friendly, and brief.
+
+Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`;
+
+  const contents: any[] = [...history];
+  const config: Record<string, unknown> = {
+    maxOutputTokens: 1024,
+    systemInstruction,
+    tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+  };
+
+  const MAX_ITERATIONS = 6;
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    const response = await ai.models.generateContent({ model: "gemini-flash-latest", contents, config });
+    const parts: any[] = response.candidates?.[0]?.content?.parts ?? [];
+
+    const funcCalls = parts.filter((p: any) => p.functionCall);
+    const textParts = parts.filter((p: any) => p.text);
+
+    if (funcCalls.length === 0) {
+      const text = textParts.map((p: any) => p.text as string).join("");
+      return text || "I'm here! How can I help the family?";
+    }
+
+    const funcResponseParts: any[] = [];
+    for (const part of funcCalls) {
+      const { name, args } = part.functionCall;
+      const result = await executeTool(clerkUserId, name, args ?? {}, { originalMessage });
+      funcResponseParts.push({
+        functionResponse: { name, response: { output: result.summary, success: result.success } },
+      });
+    }
+
+    contents.push({ role: "model", parts });
+    contents.push({ role: "user", parts: funcResponseParts });
+  }
+
+  return "I've completed the requested actions.";
+}
+
 // ─── Family Room ──────────────────────────────────────────────────────────────
 
 router.get("/family/room/messages", requireAuth, async (_req, res): Promise<void> => {
@@ -218,25 +285,14 @@ router.post("/family/room/messages", requireAuth, async (req, res): Promise<void
         ],
       }));
 
-      const result = await ai.models.generateContent({
-        model: "gemini-flash-latest",
-        contents: history,
-        config: {
-          systemInstruction:
-            "You are Lina, a warm and helpful family AI assistant in a shared family chat room. Keep responses friendly, concise, and useful. Address the family member who mentioned you.",
-          maxOutputTokens: 1024,
-        },
-      });
-
-      const aiContent =
-        result.candidates?.[0]?.content?.parts?.[0]?.text ??
-        "I'm here! How can I help the family?";
+      const aiContent = await runFamilyRoomAgent(clerkUserId, history, content.trim());
 
       [aiMsg] = await db
         .insert(familyRoomMessages)
         .values({ clerkUserId: null, content: aiContent, role: "assistant" })
         .returning();
-    } catch (_err) {
+    } catch (err) {
+      logger.error({ err }, "Family Room agent error");
       // AI failed silently — still return user message
     }
   }
