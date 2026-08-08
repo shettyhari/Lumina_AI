@@ -9,7 +9,7 @@ import {
   StickyNote, DollarSign, PhoneCall, CloudSun, FolderOpen,
   Wrench, Receipt, Package, Trophy, Gift, PawPrint, ShoppingBasket,
   Sun, Camera, Cloud, ChevronDown, Bot, Home, Banknote,
-  BookOpen, Newspaper, Globe,
+  BookOpen, Newspaper,
 } from "lucide-react";
 import {
   useGetRecentActivity, getGetRecentActivityQueryKey,
@@ -98,7 +98,6 @@ const categories = [
 // Top-level items always visible (not in a collapsible group)
 const topItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/landing",   icon: Globe,           label: "Landing Page" },
   { href: "/settings",  icon: Settings,        label: "Settings" },
 ];
 
