@@ -146,6 +146,9 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
           <p className="text-xs text-muted-foreground mt-1">
             We sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>
           </p>
+          <p className="text-[11px] text-muted-foreground/70 mt-2">
+            Don't see it? Check your spam or junk folder — it can take a minute to arrive.
+          </p>
         </div>
 
         {otpError && (
