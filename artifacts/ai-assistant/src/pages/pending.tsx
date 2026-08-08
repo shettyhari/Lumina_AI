@@ -1,12 +1,18 @@
 import { useUser, useClerk } from "@clerk/react";
 import { Clock, ShieldCheck, LogOut, Mail } from "lucide-react";
 import { useFamilyStatus } from "@/contexts/family-context";
+import { useAuth } from "@/contexts/auth-context";
 import { useEffect } from "react";
 
 export default function PendingPage({ rejected = false }: { rejected?: boolean }) {
-  const { user } = useUser();
+  const { user: clerkUser } = useUser();
   const { signOut } = useClerk();
+  const { user: authUser, logout: authLogout } = useAuth();
   const { refetch } = useFamilyStatus();
+
+  const displayName = authUser?.displayName || clerkUser?.fullName;
+  const displayEmail = authUser?.email || clerkUser?.primaryEmailAddress?.emailAddress;
+  const avatarUrl = clerkUser?.imageUrl;
 
   // Poll for approval every 30s so the user gets in automatically when approved
   useEffect(() => {
@@ -53,18 +59,24 @@ export default function PendingPage({ rejected = false }: { rejected?: boolean }
         </div>
 
         {/* User card */}
-        {user && (
+        {(authUser || clerkUser) && (
           <div className="w-full rounded-xl border border-border bg-card p-4 flex items-center gap-3">
-            <img
-              src={user.imageUrl}
-              alt={user.fullName || "User"}
-              className="h-10 w-10 rounded-full border border-border"
-            />
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={displayName || "User"}
+                className="h-10 w-10 rounded-full border border-border object-cover"
+              />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-primary/10 text-sm font-semibold text-primary">
+                {(displayName || "?").trim().charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="flex flex-col items-start overflow-hidden">
-              <span className="truncate text-sm font-medium text-foreground">{user.fullName || "Your Account"}</span>
+              <span className="truncate text-sm font-medium text-foreground">{displayName || "Your Account"}</span>
               <span className="truncate text-xs text-muted-foreground flex items-center gap-1">
                 <Mail className="h-3 w-3" />
-                {user.primaryEmailAddress?.emailAddress}
+                {displayEmail}
               </span>
             </div>
             <div className={`ml-auto shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${rejected ? "bg-destructive/20 text-destructive" : "bg-amber-500/20 text-amber-400"}`}>
@@ -84,17 +96,18 @@ export default function PendingPage({ rejected = false }: { rejected?: boolean }
         <button
           onClick={async () => {
             try {
-              localStorage.removeItem("lumina_admin_session");
-              localStorage.clear();
-              sessionStorage.clear();
+              await authLogout();
             } catch {}
             try {
-              if (user && typeof signOut === "function") {
+              if (clerkUser && typeof signOut === "function") {
                 await signOut();
               }
             } catch (err) {
               console.error("Sign out error:", err);
             }
+            try {
+              sessionStorage.clear();
+            } catch {}
             window.location.href = "/";
           }}
           className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-secondary/50 hover:text-foreground transition-colors"

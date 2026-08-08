@@ -42,6 +42,7 @@ const PantryPage = lazy(() => import("./pages/pantry"));
 const BriefingPage = lazy(() => import("./pages/briefing"));
 const PhotosPage = lazy(() => import("./pages/photos"));
 const CloudStoragePage = lazy(() => import("./pages/cloud-storage"));
+const PendingPage = lazy(() => import("./pages/pending"));
 
 // Fallback loader component for lazy-loaded routes
 function PageLoader() {
@@ -226,10 +227,17 @@ function HomeRedirect() {
   return isSignedIn ? <Redirect to="/chat" /> : <LandingPage />;
 }
 
-/** Shows a loading spinner while family status is being fetched */
+/**
+ * Shows a loading spinner while family status is being fetched, and blocks
+ * pending/rejected members from the app shell — without this, a pending
+ * member could navigate every page (the backend's requireApproved still
+ * blocks their actual data with 403s, so it wasn't a security hole, but it
+ * rendered a broken-looking empty app instead of a clear "awaiting
+ * approval" screen).
+ */
 function FamilyStatusGate({ children }: { children: ReactNode }) {
   const { isSignedIn } = useSafeUser();
-  const { isLoading } = useFamilyStatus();
+  const { isLoading, status } = useFamilyStatus();
 
   if (!isSignedIn) return <>{children}</>;
 
@@ -240,6 +248,9 @@ function FamilyStatusGate({ children }: { children: ReactNode }) {
       </div>
     );
   }
+
+  if (status === "pending") return <PendingPage />;
+  if (status === "rejected") return <PendingPage rejected />;
 
   return <>{children}</>;
 }
