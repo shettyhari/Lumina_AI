@@ -3,8 +3,8 @@
  * Gemini function-calling declarations + server-side DB executors.
  */
 
-import { db, shoppingItems, chores, reminders, familyEvents, budgetEntries, familyNotes, familyMembers, familyMessages, pantryItems, automations } from "@workspace/db";
-import { eq, and, gte, lte, desc, ilike, inArray } from "drizzle-orm";
+import { db, shoppingItems, chores, reminders, familyEvents, budgetEntries, familyNotes, familyMembers, familyMessages, pantryItems, automations, documentFiles } from "@workspace/db";
+import { eq, and, or, gte, lte, desc, ilike, inArray } from "drizzle-orm";
 import { isBudgetEntryBlockedByConfidence } from "./intentDetector.js";
 import { parseReceiptDocument, ReceiptParseError } from "./receiptParsing.js";
 import { computeNextRunAt, type AutomationSchedule } from "./automationSchedule.js";
@@ -416,9 +416,11 @@ async function execGetCalendarEvents(clerkUserId: string, args: Args): Promise<T
   const limit = (args.limit as number) ?? 10;
   const now = new Date();
   const until = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+  // Calendar is shared across the whole family (see routes/calendar/index.ts
+  // GET /calendar, which has no clerkUserId filter) — don't scope to just
+  // this user or events other members added would go unreported.
   const rows = await db.select().from(familyEvents)
     .where(and(
-      eq(familyEvents.clerkUserId, clerkUserId),
       gte(familyEvents.startAt, now),
       lte(familyEvents.startAt, until),
     ))
@@ -449,14 +451,32 @@ async function execAddBudgetEntry(
   }
 
   const type = args.type as string;
-  const amount = String(args.amount as number);
+  if (!["income", "expense"].includes(type)) {
+    return { name: "add_budget_entry", success: false, summary: "type must be income or expense." };
+  }
+  const amountNum = Number(args.amount);
+  if (isNaN(amountNum) || amountNum <= 0) {
+    return { name: "add_budget_entry", success: false, summary: "amount must be a positive number." };
+  }
+  const amount = String(amountNum.toFixed(2));
   const category = (args.category as string) ?? "Other";
   const description = (args.description as string) ?? "";
   const entryDate = (args.entry_date as string) ?? new Date().toISOString().slice(0, 10);
-  const receiptDocumentId = args.receipt_document_id != null ? Number(args.receipt_document_id) : null;
+
+  let receiptDocumentId: number | null = null;
+  if (args.receipt_document_id != null) {
+    const parsedId = Number(args.receipt_document_id);
+    if (isNaN(parsedId)) return { name: "add_budget_entry", success: false, summary: "receipt_document_id must be a number." };
+    const [doc] = await db.select().from(documentFiles).where(eq(documentFiles.id, parsedId));
+    if (!doc || doc.clerkUserId !== clerkUserId) {
+      return { name: "add_budget_entry", success: false, summary: "That receipt image wasn't found." };
+    }
+    receiptDocumentId = parsedId;
+  }
+
   await db.insert(budgetEntries).values({ clerkUserId, type, amount, category, description, entryDate, receiptDocumentId });
   const sign = type === "income" ? "+" : "-";
-  return { name: "add_budget_entry", success: true, summary: `Recorded ${type}: ${sign}${args.amount} for ${category}${description ? ` (${description})` : ""}` };
+  return { name: "add_budget_entry", success: true, summary: `Recorded ${type}: ${sign}${amountNum} for ${category}${description ? ` (${description})` : ""}` };
 }
 
 async function execParseReceiptImage(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
@@ -482,9 +502,10 @@ async function execGetBudgetSummary(clerkUserId: string, args: Args): Promise<To
   const start = `${year}-${String(month).padStart(2, "0")}-01`;
   const lastDay = new Date(year, month, 0).getDate();
   const end = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  // Budget is shared across the family (see routes/budget/index.ts
+  // GET /budget/summary, unscoped) — don't exclude other members' entries.
   const rows = await db.select().from(budgetEntries)
     .where(and(
-      eq(budgetEntries.clerkUserId, clerkUserId),
       gte(budgetEntries.entryDate, start),
       lte(budgetEntries.entryDate, end),
     ));
@@ -512,19 +533,20 @@ async function execCreateNote(clerkUserId: string, args: Args): Promise<ToolResu
 async function execGetNotes(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
   const search = args.search as string | undefined;
   const limit = (args.limit as number) ?? 10;
+  // Notes are shared across the family (see routes/notes/index.ts GET
+  // /notes, unscoped) — don't exclude notes other members wrote.
   let rows;
   if (search) {
     rows = await db.select().from(familyNotes)
-      .where(and(eq(familyNotes.clerkUserId, clerkUserId), ilike(familyNotes.title, `%${search}%`)))
+      .where(ilike(familyNotes.title, `%${search}%`))
       .orderBy(desc(familyNotes.updatedAt)).limit(limit);
     if (rows.length === 0) {
       rows = await db.select().from(familyNotes)
-        .where(and(eq(familyNotes.clerkUserId, clerkUserId), ilike(familyNotes.body, `%${search}%`)))
+        .where(ilike(familyNotes.body, `%${search}%`))
         .orderBy(desc(familyNotes.updatedAt)).limit(limit);
     }
   } else {
     rows = await db.select().from(familyNotes)
-      .where(eq(familyNotes.clerkUserId, clerkUserId))
       .orderBy(desc(familyNotes.updatedAt)).limit(limit);
   }
   const summary = rows.length === 0
@@ -557,8 +579,11 @@ async function execGetPantry(clerkUserId: string, args: Args): Promise<ToolResul
   return { name: "get_pantry", success: true, summary, data: rows };
 }
 
+// Matches routes/family/index.ts GET /family/members visibility: a freshly
+// self-approved admin has status "pending" but should still be visible.
 async function execGetFamilyMembers(_clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
-  const members = await db.select().from(familyMembers).where(eq(familyMembers.status, "approved"));
+  const members = await db.select().from(familyMembers)
+    .where(or(eq(familyMembers.status, "approved"), eq(familyMembers.role, "admin")));
   const summary = members.map(m => `• ${m.displayName ?? m.email ?? m.clerkUserId} (${m.role})`).join("\n");
   return { name: "get_family_members", success: true, summary, data: members };
 }
@@ -566,7 +591,8 @@ async function execGetFamilyMembers(_clerkUserId: string, _args: Args): Promise<
 async function execSendFamilyMessage(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
   const toName = (args.to_name as string ?? "").toLowerCase();
   const message = args.message as string;
-  const members = await db.select().from(familyMembers).where(eq(familyMembers.status, "approved"));
+  const members = await db.select().from(familyMembers)
+    .where(or(eq(familyMembers.status, "approved"), eq(familyMembers.role, "admin")));
   const recipient = members.find(m =>
     (m.displayName ?? "").toLowerCase().includes(toName) ||
     (m.email ?? "").toLowerCase().includes(toName)
