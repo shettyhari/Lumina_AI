@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, Volume2, Loader2, X, AlertTriangle } from "lucide-react";
 import { VoiceState } from "@/hooks/useVoiceAgent";
 import { cn } from "@/lib/utils";
@@ -12,122 +12,171 @@ interface VoiceOrbProps {
   onRetry?: () => void;
 }
 
-// State metadata
-const STATE_META: Record<VoiceState, { label: string; hint: string; ringColor: string; orbColor: string }> = {
+// State metadata — HUD palette, cyan/blue "arc reactor" family with amber/red
+// reserved for diagnostic (thinking) and alert (error) states.
+const STATE_META: Record<
+  VoiceState,
+  { label: string; hint: string; hex: string; ring: string; text: string }
+> = {
   idle: {
-    label: "Voice Off",
+    label: "SYSTEM STANDBY",
     hint: "",
-    ringColor: "border-border/40",
-    orbColor: "bg-muted/50",
+    hex: "#3b4a5a",
+    ring: "border-slate-500/30",
+    text: "text-slate-400",
   },
   wake: {
-    label: 'Listening for \u201cHey Lina\u201d',
-    hint: 'Say \u201cHey Lina\u201d to start talking',
-    ringColor: "border-primary/40",
-    orbColor: "bg-primary/10",
+    label: 'AWAITING "HEY LINA"',
+    hint: "Say “Hey Lina” to begin",
+    hex: "#38d6ff",
+    ring: "border-cyan-400/40",
+    text: "text-cyan-300",
   },
   listening: {
-    label: "Listening…",
-    hint: "Speak your message — pause to send",
-    ringColor: "border-cyan-400/70",
-    orbColor: "bg-cyan-500/15",
+    label: "LISTENING",
+    hint: "Speak now — pause to send",
+    hex: "#22e3ff",
+    ring: "border-cyan-300/70",
+    text: "text-cyan-300",
   },
   thinking: {
-    label: "Thinking…",
+    label: "PROCESSING",
     hint: "",
-    ringColor: "border-violet-400/70",
-    orbColor: "bg-violet-500/15",
+    hex: "#8b7bff",
+    ring: "border-indigo-400/70",
+    text: "text-indigo-300",
   },
   speaking: {
-    label: "Speaking…",
-    hint: "Tap to stop",
-    ringColor: "border-teal-400/70",
-    orbColor: "bg-teal-500/15",
+    label: "RESPONDING",
+    hint: "Tap core to stop",
+    hex: "#2dd4bf",
+    ring: "border-teal-300/70",
+    text: "text-teal-300",
   },
   error: {
-    label: "Microphone Unavailable",
-    hint: "Tap to try again",
-    ringColor: "border-destructive/50",
-    orbColor: "bg-destructive/10",
+    label: "LINK FAULT",
+    hint: "Tap core to retry",
+    hex: "#ff4d4f",
+    ring: "border-red-400/60",
+    text: "text-red-400",
   },
 };
 
 // Animated sound-wave bars
-function SoundWave({ active, color = "bg-primary" }: { active: boolean; color?: string }) {
+function SoundWave({ active, hex }: { active: boolean; hex: string }) {
   return (
     <div className="flex items-end gap-[3px] h-6">
-      {[0, 1, 2, 3, 4].map(i => (
+      {[0, 1, 2, 3, 4].map((i) => (
         <div
           key={i}
-          className={cn(
-            "w-[3px] rounded-full transition-all duration-150",
-            color,
-            active ? "animate-voice-bar" : "h-[4px] opacity-30"
-          )}
-          style={active ? { animationDelay: `${i * 80}ms` } : undefined}
+          className={cn("w-[3px] rounded-full transition-all duration-150", active ? "animate-voice-bar" : "h-[4px] opacity-30")}
+          style={{ background: hex, animationDelay: active ? `${i * 80}ms` : undefined }}
         />
       ))}
     </div>
   );
 }
 
-// Pulsing glow ring
-function PulseRing({ active, color }: { active: boolean; color: string }) {
+// Concentric HUD rings: tick-marked outer ring, dashed mid ring, orbiting node
+function HudRings({ hex, active }: { hex: string; active: boolean }) {
+  const ticks = Array.from({ length: 48 });
   return (
-    <span
-      className={cn(
-        "absolute inset-0 rounded-full border-2 transition-all duration-700",
-        color,
-        active && "animate-pulse-ring"
+    <svg viewBox="0 0 240 240" className="absolute inset-0 w-full h-full pointer-events-none" style={{ color: hex }}>
+      {/* outer tick ring — slow rotation */}
+      <g className="animate-hud-spin origin-center" style={{ transformOrigin: "120px 120px" }}>
+        {ticks.map((_, i) => {
+          const angle = (i / ticks.length) * 360;
+          const long = i % 4 === 0;
+          return (
+            <line
+              key={i}
+              x1={120}
+              y1={long ? 8 : 14}
+              x2={120}
+              y2={long ? 18 : 20}
+              stroke="currentColor"
+              strokeWidth={long ? 2 : 1}
+              opacity={long ? 0.85 : 0.4}
+              transform={`rotate(${angle} 120 120)`}
+            />
+          );
+        })}
+      </g>
+
+      {/* dashed mid ring — reverse rotation */}
+      <circle
+        cx={120}
+        cy={120}
+        r={92}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1}
+        strokeDasharray="2 10"
+        opacity={0.5}
+        className="animate-hud-spin-reverse origin-center"
+        style={{ transformOrigin: "120px 120px" }}
+      />
+
+      {/* solid base ring */}
+      <circle cx={120} cy={120} r={104} fill="none" stroke="currentColor" strokeWidth={1} opacity={0.25} />
+
+      {/* radar sweep arc — only visible while actively engaged */}
+      {active && (
+        <g className="animate-hud-spin-fast origin-center" style={{ transformOrigin: "120px 120px" }}>
+          <path d="M 120 120 L 120 16 A 104 104 0 0 1 190 46 Z" fill="currentColor" opacity={0.08} />
+        </g>
       )}
-    />
+
+      {/* orbiting node */}
+      <g className="animate-hud-spin origin-center" style={{ transformOrigin: "120px 120px", animationDuration: "9s" }}>
+        <circle cx={120} cy={16} r={3} fill="currentColor" className="animate-hud-blip" />
+      </g>
+    </svg>
   );
+}
+
+function Clock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <>{now.toLocaleTimeString("en-US", { hour12: false })}</>;
 }
 
 export default function VoiceOrb({ state, interimText, errorMessage, onClose, onStopSpeaking, onRetry }: VoiceOrbProps) {
   const meta = STATE_META[state];
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
+  const active = state === "listening" || state === "speaking" || state === "thinking";
 
-  // Particle canvas animation for the orb background
+  // Plasma-core canvas animation
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const W = canvas.width = 200;
-    const H = canvas.height = 200;
-    const cx = W / 2, cy = H / 2;
+    const W = (canvas.width = 240);
+    const H = (canvas.height = 240);
+    const cx = W / 2,
+      cy = H / 2;
 
     let t = 0;
     const draw = () => {
       ctx.clearRect(0, 0, W, H);
 
-      const active = state === "listening" || state === "speaking";
       const rings = active ? 3 : 1;
-      const baseRadius = 60;
+      const baseRadius = 34;
 
       for (let r = 0; r < rings; r++) {
-        const phase = t * 0.02 + r * 2.1;
-        const wobble = active ? Math.sin(t * 0.05 + r) * 12 : 0;
-        const radius = baseRadius + wobble + r * 14;
-        const alpha = active ? 0.12 - r * 0.03 : 0.06;
+        const wobble = active ? Math.sin(t * 0.06 + r * 1.4) * 6 : Math.sin(t * 0.015) * 2;
+        const radius = baseRadius + wobble + r * 9;
+        const alpha = active ? 0.28 - r * 0.06 : 0.14;
 
         const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-        if (state === "listening") {
-          grad.addColorStop(0, `rgba(34, 211, 238, ${alpha * 2})`);
-          grad.addColorStop(1, `rgba(99, 102, 241, 0)`);
-        } else if (state === "speaking") {
-          grad.addColorStop(0, `rgba(20, 184, 166, ${alpha * 2})`);
-          grad.addColorStop(1, `rgba(16, 185, 129, 0)`);
-        } else if (state === "thinking") {
-          grad.addColorStop(0, `rgba(139, 92, 246, ${alpha * 2.5})`);
-          grad.addColorStop(1, `rgba(99, 102, 241, 0)`);
-        } else {
-          grad.addColorStop(0, `rgba(99, 102, 241, ${alpha})`);
-          grad.addColorStop(1, `rgba(99, 102, 241, 0)`);
-        }
+        grad.addColorStop(0, hexToRgba(meta.hex, alpha * 2));
+        grad.addColorStop(1, hexToRgba(meta.hex, 0));
 
         ctx.beginPath();
         ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -135,13 +184,22 @@ export default function VoiceOrb({ state, interimText, errorMessage, onClose, on
         ctx.fill();
       }
 
+      // bright core
+      const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 16);
+      coreGrad.addColorStop(0, hexToRgba("#ffffff", active ? 0.9 : 0.5));
+      coreGrad.addColorStop(1, hexToRgba(meta.hex, 0));
+      ctx.beginPath();
+      ctx.arc(cx, cy, 16, 0, Math.PI * 2);
+      ctx.fillStyle = coreGrad;
+      ctx.fill();
+
       t++;
       animRef.current = requestAnimationFrame(draw);
     };
 
     animRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animRef.current);
-  }, [state]);
+  }, [state, active, meta.hex]);
 
   const handleOrbClick = () => {
     if (state === "speaking") onStopSpeaking();
@@ -149,84 +207,124 @@ export default function VoiceOrb({ state, interimText, errorMessage, onClose, on
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-md animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#02060c]/95 hud-grid-bg backdrop-blur-md animate-in fade-in duration-300 overflow-hidden font-mono">
+      {/* radial vignette */}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(circle at center, transparent 0%, #02060c 78%)" }} />
+
+      {/* scanning sweep band */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-40">
+        <div
+          className="absolute left-0 right-0 h-24 animate-hud-scan"
+          style={{ background: `linear-gradient(180deg, transparent, ${meta.hex}22, transparent)` }}
+        />
+      </div>
+
+      {/* ─── Corner telemetry ─── */}
+      <div className="absolute top-6 left-6 text-[10px] tracking-[0.2em] text-cyan-400/70 space-y-0.5 select-none animate-hud-flicker">
+        <div className="hud-text-glow text-cyan-400">LINA // NEURAL LINK</div>
+        <div className="text-cyan-400/50">PROTOCOL: SECURE</div>
+      </div>
+      <div className="absolute top-6 right-6 text-[10px] tracking-[0.2em] text-cyan-400/70 text-right space-y-0.5 select-none">
+        <div className="hud-text-glow text-cyan-400"><Clock /></div>
+        <div className="text-cyan-400/50">STATUS: {state === "idle" ? "STANDBY" : "ONLINE"}</div>
+      </div>
+      <div className="absolute bottom-6 left-6 text-[10px] tracking-[0.2em] text-cyan-400/50 select-none hidden sm:block">
+        <div>STATE_CODE: {state.toUpperCase().padEnd(8, "_")}</div>
+      </div>
+      <div className="absolute bottom-6 right-6 text-[10px] tracking-[0.2em] text-cyan-400/50 select-none hidden sm:block">
+        <div className="flex items-center gap-1.5 justify-end">
+          <span className={cn("w-1.5 h-1.5 rounded-full", active ? "bg-cyan-400 animate-hud-blip" : "bg-slate-600")} />
+          AUDIO CHANNEL {active ? "LIVE" : "IDLE"}
+        </div>
+      </div>
+
+      {/* corner brackets */}
+      {[
+        "top-4 left-4 border-t-2 border-l-2",
+        "top-4 right-4 border-t-2 border-r-2",
+        "bottom-4 left-4 border-b-2 border-l-2",
+        "bottom-4 right-4 border-b-2 border-r-2",
+      ].map((pos) => (
+        <div key={pos} className={cn("absolute w-8 h-8 border-cyan-400/30 pointer-events-none", pos)} />
+      ))}
 
       {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-6 right-6 p-2 rounded-full bg-card/80 border border-border/50 text-muted-foreground hover:text-foreground hover:bg-card transition-all"
+        className="absolute top-16 right-6 sm:top-6 sm:right-24 p-2 rounded-full bg-cyan-500/5 border border-cyan-400/20 text-cyan-400/70 hover:text-cyan-300 hover:border-cyan-400/50 hover:bg-cyan-500/10 transition-all"
         aria-label="Close voice mode"
       >
         <X className="w-5 h-5" />
       </button>
 
-      {/* Orb */}
-      <div className="relative flex items-center justify-center">
-        <canvas ref={canvasRef} width={200} height={200} className="absolute pointer-events-none" />
+      {/* ─── Core HUD orb ─── */}
+      <div className="relative flex items-center justify-center w-60 h-60">
+        <HudRings hex={meta.hex} active={active} />
+        <canvas ref={canvasRef} width={240} height={240} className="absolute pointer-events-none" />
 
         <button
           onClick={handleOrbClick}
           className={cn(
-            "relative w-28 h-28 rounded-full border-2 flex items-center justify-center transition-all duration-500 shadow-2xl",
-            meta.orbColor, meta.ringColor,
-            (state === "speaking" || state === "error") && "cursor-pointer hover:scale-95"
+            "relative w-24 h-24 rounded-full border flex items-center justify-center transition-all duration-500",
+            meta.ring,
+            (state === "speaking" || state === "error") && "cursor-pointer hover:scale-95",
           )}
+          style={{ boxShadow: `0 0 30px ${hexToRgba(meta.hex, 0.35)}, inset 0 0 20px ${hexToRgba(meta.hex, 0.15)}` }}
         >
-          <PulseRing active={state === "wake" || state === "listening"} color={meta.ringColor} />
-
-          {state === "idle" && <MicOff className="w-10 h-10 text-muted-foreground" />}
+          {state === "idle" && <MicOff className="w-9 h-9 text-slate-500" />}
           {state === "wake" && (
             <div className="flex flex-col items-center gap-2">
-              <Mic className="w-8 h-8 text-primary/70" />
-              <SoundWave active={false} color="bg-primary/40" />
+              <Mic className="w-7 h-7" style={{ color: meta.hex }} />
+              <SoundWave active={false} hex={meta.hex} />
             </div>
           )}
           {state === "listening" && (
             <div className="flex flex-col items-center gap-2">
-              <Mic className="w-8 h-8 text-cyan-400" />
-              <SoundWave active color="bg-cyan-400" />
+              <Mic className="w-7 h-7" style={{ color: meta.hex }} />
+              <SoundWave active hex={meta.hex} />
             </div>
           )}
-          {state === "thinking" && (
-            <Loader2 className="w-10 h-10 text-violet-400 animate-spin" />
-          )}
+          {state === "thinking" && <Loader2 className="w-9 h-9 animate-spin" style={{ color: meta.hex }} />}
           {state === "speaking" && (
             <div className="flex flex-col items-center gap-2">
-              <Volume2 className="w-8 h-8 text-teal-400" />
-              <SoundWave active color="bg-teal-400" />
+              <Volume2 className="w-7 h-7" style={{ color: meta.hex }} />
+              <SoundWave active hex={meta.hex} />
             </div>
           )}
-          {state === "error" && <AlertTriangle className="w-10 h-10 text-destructive" />}
+          {state === "error" && <AlertTriangle className="w-9 h-9 text-red-400" />}
         </button>
       </div>
 
       {/* State label */}
       <div className="mt-8 text-center space-y-2 px-8 max-w-sm">
-        <p className="text-lg font-semibold text-foreground tracking-tight">{meta.label}</p>
-        {state === "error" && errorMessage && (
-          <p className="text-sm text-destructive/90">{errorMessage}</p>
-        )}
-        {meta.hint && (
-          <p className="text-sm text-muted-foreground">{meta.hint}</p>
-        )}
+        <p className={cn("text-sm font-bold tracking-[0.25em] hud-text-glow", meta.text)}>{meta.label}</p>
+        {state === "error" && errorMessage && <p className="text-xs text-red-400/90 font-sans">{errorMessage}</p>}
+        {meta.hint && <p className="text-xs text-cyan-100/40 tracking-wide">{meta.hint}</p>}
       </div>
 
       {/* Interim transcript */}
       {interimText && (
         <div className="mt-6 max-w-md px-8 text-center">
-          <p className="text-base text-foreground/80 italic leading-relaxed animate-in fade-in">
-            "{interimText}"
-          </p>
+          <p className="text-base text-cyan-100/80 italic leading-relaxed animate-in fade-in font-sans">"{interimText}"</p>
         </div>
       )}
 
-      {/* Wake-word pill — always shown when in wake state */}
+      {/* Wake-word pill */}
       {state === "wake" && (
-        <div className="mt-6 flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 text-xs text-primary animate-pulse">
-          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-          Wake word active
+        <div className="mt-6 flex items-center gap-2 bg-cyan-500/10 border border-cyan-400/20 rounded-full px-4 py-1.5 text-[11px] tracking-wider text-cyan-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-hud-blip" />
+          WAKE WORD ACTIVE
         </div>
       )}
     </div>
   );
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const bigint = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }

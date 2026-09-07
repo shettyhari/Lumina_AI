@@ -140,6 +140,52 @@
   body {
     @apply font-sans antialiased bg-background text-foreground transition-colors duration-300;
   }
+
+  ::selection {
+    @apply bg-primary/30 text-foreground;
+  }
+
+  /* Thin, brand-tinted scrollbar instead of the bulky OS default */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.35) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--primary) / 0.25);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--primary) / 0.45);
+    background-clip: content-box;
+  }
+}
+
+@layer utilities {
+  /* Elevation scale — soft, brand-tinted depth instead of flat grey shadows */
+  .shadow-elevate-sm {
+    box-shadow: 0 1px 2px hsl(var(--primary) / 0.06), 0 1px 3px hsl(220 40% 2% / 0.08);
+  }
+  .shadow-elevate-md {
+    box-shadow: 0 4px 12px hsl(var(--primary) / 0.08), 0 2px 6px hsl(220 40% 2% / 0.12);
+  }
+  .shadow-elevate-lg {
+    box-shadow: 0 12px 32px hsl(var(--primary) / 0.12), 0 4px 12px hsl(220 40% 2% / 0.16);
+  }
+  .hover-lift {
+    @apply transition-[transform,box-shadow] duration-300 ease-out;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+  }
 }
 
 @layer utilities {
@@ -221,5 +267,51 @@
   }
   .animate-voice-glow {
     animation: voice-glow 2s ease-in-out infinite;
+  }
+}
+
+/* ─── JARVIS-style HUD (voice agent overlay) ──────────────────────────────── */
+
+@keyframes hud-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes hud-spin-reverse {
+  to { transform: rotate(-360deg); }
+}
+@keyframes hud-scan {
+  0%   { transform: translateY(-110%); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateY(110%); opacity: 0; }
+}
+@keyframes hud-flicker {
+  0%, 100%, 92% { opacity: 1; }
+  93% { opacity: 0.4; }
+  94% { opacity: 1; }
+  96% { opacity: 0.55; }
+  97% { opacity: 1; }
+}
+@keyframes hud-blip {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+@layer utilities {
+  .animate-hud-spin { animation: hud-spin 22s linear infinite; }
+  .animate-hud-spin-fast { animation: hud-spin 6s linear infinite; }
+  .animate-hud-spin-reverse { animation: hud-spin-reverse 30s linear infinite; }
+  .animate-hud-scan { animation: hud-scan 2.6s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  .animate-hud-flicker { animation: hud-flicker 4.5s ease-in-out infinite; }
+  .animate-hud-blip { animation: hud-blip 1.6s ease-in-out infinite; }
+
+  .hud-grid-bg {
+    background-image:
+      linear-gradient(rgba(56, 214, 255, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56, 214, 255, 0.06) 1px, transparent 1px);
+    background-size: 36px 36px;
+  }
+
+  .hud-text-glow {
+    text-shadow: 0 0 8px currentColor, 0 0 20px currentColor;
   }
 }

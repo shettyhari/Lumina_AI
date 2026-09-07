@@ -9,7 +9,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Settings2, Save, Moon, Sun, Monitor, Key, Eye, EyeOff, Trash2,
-  CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Brain, Sparkles, ArrowRight
+  CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Brain, Sparkles, ArrowRight, Home
 } from "lucide-react";
 import { SiGoogle } from "react-icons/si";
 import { Bot } from "lucide-react";
@@ -126,6 +126,114 @@ function ProviderKeyRow({ provider, maskedKey, onSave, onDelete }: {
                 <Trash2 className="w-4 h-4" />
               </button>
             )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HomeAssistantRow({ connected, onSave, onDelete }: {
+  connected: boolean;
+  onSave: (baseUrl: string, token: string) => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
+  const [expanded, setExpanded] = useState(!connected);
+  const [baseUrl, setBaseUrl] = useState("");
+  const [token, setToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    const url = baseUrl.trim().replace(/\/+$/, "");
+    if (!url || !token.trim()) return;
+    setError(null);
+    setSaving(true);
+    try {
+      await onSave(url, token.trim());
+      setBaseUrl(""); setToken(""); setExpanded(false); setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setError("Couldn't save. Check the URL and try again.");
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Disconnect Home Assistant?")) return;
+    setDeleting(true);
+    try { await onDelete(); } finally { setDeleting(false); }
+  };
+
+  return (
+    <div className={cn("border rounded-xl transition-all overflow-hidden", connected ? "border-primary/30 bg-primary/5" : "border-border/50 bg-card/30")}>
+      <div className="flex items-center gap-3 p-4 cursor-pointer hover:bg-white/5 transition-colors" onClick={() => setExpanded(!expanded)}>
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-background/50 text-cyan-400">
+          <Home className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-foreground">Home Assistant</span>
+            {connected ? (
+              <span className="flex items-center gap-1 text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">
+                <CheckCircle2 className="w-3 h-3" /> Connected
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/20 px-2 py-0.5 rounded-full">
+                <AlertCircle className="w-3 h-3" /> Not connected
+              </span>
+            )}
+            {saved && <span className="text-xs text-green-400">Saved!</span>}
+          </div>
+          <p className="text-xs text-muted-foreground truncate mt-0.5">Let Lina control your lights, switches, thermostats, locks, and covers</p>
+        </div>
+        {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+      </div>
+
+      {expanded && (
+        <div className="px-4 pb-4 border-t border-border/30 pt-4 space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Create a long-lived access token from your Home Assistant profile page (bottom of{" "}
+            <span className="font-mono">Settings → Your profile → Security</span>). The URL and token are encrypted with AES-256-GCM before storage.
+          </p>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">Home Assistant URL</label>
+            <input
+              type="text"
+              value={baseUrl} onChange={e => setBaseUrl(e.target.value)}
+              placeholder="http://homeassistant.local:8123"
+              className="w-full bg-input/50 border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-foreground"
+              data-testid="input-ha-base-url"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">Long-Lived Access Token</label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={showToken ? "text" : "password"}
+                  value={token} onChange={e => setToken(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleSave()}
+                  placeholder="eyJhbGciOi..."
+                  className="w-full bg-input/50 border border-border rounded-lg px-3 py-2 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-foreground"
+                  data-testid="input-ha-token"
+                />
+                <button onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" type="button">
+                  {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <button onClick={handleSave} disabled={!baseUrl.trim() || !token.trim() || saving} data-testid="button-save-ha" className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
+                {saving ? "Saving..." : "Save"}
+              </button>
+              {connected && (
+                <button onClick={handleDelete} disabled={deleting} data-testid="button-delete-ha" className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors" title="Disconnect">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -287,6 +395,30 @@ export default function SettingsPage() {
               onSave={handleSaveKey} onDelete={handleDeleteKey}
             />
           ))}
+        </div>
+
+        {/* Smart Home */}
+        <div className="bg-glass rounded-2xl p-6 space-y-5">
+          <div>
+            <h3 className="text-lg font-semibold border-b border-border/50 pb-2 flex items-center gap-2">
+              <Home className="w-5 h-5 text-cyan-400" />
+              Smart Home
+            </h3>
+            <p className="text-sm text-muted-foreground mt-2">
+              Connect Home Assistant so Lina can check and control your devices by chat or voice.
+            </p>
+          </div>
+          <HomeAssistantRow
+            connected={!!apiKeys?.some(k => k.provider === "home_assistant")}
+            onSave={async (baseUrl, token) => {
+              await upsertKey.mutateAsync({ data: { provider: "home_assistant", key: JSON.stringify({ baseUrl, token }) } });
+              queryClient.invalidateQueries({ queryKey: getListUserApiKeysQueryKey() });
+            }}
+            onDelete={async () => {
+              await deleteKey.mutateAsync({ provider: "home_assistant" });
+              queryClient.invalidateQueries({ queryKey: getListUserApiKeysQueryKey() });
+            }}
+          />
         </div>
 
         {/* AI Preferences */}

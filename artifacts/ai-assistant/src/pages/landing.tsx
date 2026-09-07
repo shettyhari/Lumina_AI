@@ -169,7 +169,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <button
               onClick={() => handleRequireAuth("/chat")}
-              className="px-6 py-3 rounded-full bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-bold text-xs sm:text-sm hover:opacity-95 transition-all shadow-lg shadow-primary/25 flex items-center gap-2 group cursor-pointer"
+              className="px-6 py-3 rounded-full bg-gradient-to-r from-primary via-purple-600 to-cyan-500 text-white font-bold text-xs sm:text-sm hover:opacity-95 hover-lift transition-[opacity,transform,box-shadow] shadow-elevate-lg flex items-center gap-2 group cursor-pointer"
             >
               <LayoutDashboard className="w-4 h-4" />
               <span>Launch Web Application</span>
@@ -196,9 +196,11 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <button
                 onClick={() => handleRequireAuth("/chat")}
-                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary hover:bg-primary/5 transition-all text-left group cursor-pointer"
+                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-primary hover:bg-primary/5 hover-lift shadow-elevate-sm hover:shadow-elevate-md transition-colors text-left group cursor-pointer"
               >
-                <Bot className="w-4 h-4 text-primary shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <div className="rounded-lg bg-primary/10 p-1.5 shrink-0 group-hover:scale-110 transition-transform">
+                  <Bot className="w-4 h-4 text-primary" />
+                </div>
                 <div>
                   <div className="flex items-center gap-1">
                     <h4 className="text-xs font-bold">AI Chat That Takes Action</h4>
@@ -210,9 +212,11 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
 
               <button
                 onClick={() => handleRequireAuth("/family-room")}
-                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-cyan-400 hover:bg-cyan-500/5 transition-all text-left group cursor-pointer"
+                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-cyan-400 hover:bg-cyan-500/5 hover-lift shadow-elevate-sm hover:shadow-elevate-md transition-colors text-left group cursor-pointer"
               >
-                <Users className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <div className="rounded-lg bg-cyan-500/10 p-1.5 shrink-0 group-hover:scale-110 transition-transform">
+                  <Users className="w-4 h-4 text-cyan-400" />
+                </div>
                 <div>
                   <div className="flex items-center gap-1">
                     <h4 className="text-xs font-bold">Family Chat Room</h4>
@@ -224,9 +228,11 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
 
               <button
                 onClick={() => handleRequireAuth("/pantry")}
-                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-purple-400 hover:bg-purple-500/5 transition-all text-left group cursor-pointer"
+                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-purple-400 hover:bg-purple-500/5 hover-lift shadow-elevate-sm hover:shadow-elevate-md transition-colors text-left group cursor-pointer"
               >
-                <ShoppingCart className="w-4 h-4 text-purple-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <div className="rounded-lg bg-purple-500/10 p-1.5 shrink-0 group-hover:scale-110 transition-transform">
+                  <ShoppingCart className="w-4 h-4 text-purple-400" />
+                </div>
                 <div>
                   <div className="flex items-center gap-1">
                     <h4 className="text-xs font-bold">Smart Shopping List</h4>
@@ -238,9 +244,11 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
 
               <button
                 onClick={() => handleRequireAuth("/budget")}
-                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-emerald-400 hover:bg-emerald-500/5 transition-all text-left group cursor-pointer"
+                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-emerald-400 hover:bg-emerald-500/5 hover-lift shadow-elevate-sm hover:shadow-elevate-md transition-colors text-left group cursor-pointer"
               >
-                <Wallet className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <div className="rounded-lg bg-emerald-500/10 p-1.5 shrink-0 group-hover:scale-110 transition-transform">
+                  <Wallet className="w-4 h-4 text-emerald-400" />
+                </div>
                 <div>
                   <div className="flex items-center gap-1">
                     <h4 className="text-xs font-bold">Family Budget Tracking</h4>
@@ -252,9 +260,11 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
 
               <button
                 onClick={() => handleRequireAuth("/calendar")}
-                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-amber-400 hover:bg-amber-500/5 transition-all text-left group cursor-pointer"
+                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-amber-400 hover:bg-amber-500/5 hover-lift shadow-elevate-sm hover:shadow-elevate-md transition-colors text-left group cursor-pointer"
               >
-                <Calendar className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <div className="rounded-lg bg-amber-500/10 p-1.5 shrink-0 group-hover:scale-110 transition-transform">
+                  <Calendar className="w-4 h-4 text-amber-400" />
+                </div>
                 <div>
                   <div className="flex items-center gap-1">
                     <h4 className="text-xs font-bold">Shared Calendar & Reminders</h4>
@@ -266,9 +276,11 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
 
               <button
                 onClick={() => handleRequireAuth("/image-gen")}
-                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-rose-400 hover:bg-rose-500/5 transition-all text-left group cursor-pointer"
+                className="bg-card/50 border border-border/50 rounded-xl p-3 flex items-start gap-2.5 hover:border-rose-400 hover:bg-rose-500/5 hover-lift shadow-elevate-sm hover:shadow-elevate-md transition-colors text-left group cursor-pointer"
               >
-                <ImageIcon className="w-4 h-4 text-rose-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <div className="rounded-lg bg-rose-500/10 p-1.5 shrink-0 group-hover:scale-110 transition-transform">
+                  <ImageIcon className="w-4 h-4 text-rose-400" />
+                </div>
                 <div>
                   <div className="flex items-center gap-1">
                     <h4 className="text-xs font-bold">AI Image Generation</h4>
@@ -298,7 +310,7 @@ export default function LandingPage({ ignoreRedirect = false }: { ignoreRedirect
 
         {/* Right Column: Login & Sign-Up Card */}
         <div id="auth-section" className="order-1 md:order-2 md:col-span-5 relative w-full">
-          <div className="w-full bg-card/80 backdrop-blur-2xl border border-border/80 rounded-2xl p-6 shadow-2xl space-y-4 relative overflow-hidden">
+          <div className="w-full bg-card/80 backdrop-blur-2xl border border-border/80 rounded-2xl p-6 shadow-elevate-lg space-y-4 relative overflow-hidden">
             <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/20 rounded-full blur-2xl pointer-events-none" />
 
             <div className="flex items-center justify-between border-b border-border/40 pb-3">

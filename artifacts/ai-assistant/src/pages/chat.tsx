@@ -359,7 +359,7 @@ export default function ChatPage() {
   const [streamError, setStreamError] = useState<{ message: string; provider?: string } | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [reasoningMode, setReasoningMode] = useState(false);
-  const [webSearch, setWebSearch] = useState(false);
+  const [webSearch, setWebSearch] = useState(true);
   const [attachedImage, setAttachedImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [relayToast, setRelayToast] = useState<string | null>(null);

@@ -10,10 +10,11 @@ import { parseReceiptDocument, ReceiptParseError } from "./receiptParsing.js";
 import { computeNextRunAt, type AutomationSchedule } from "./automationSchedule.js";
 import { getCrossModuleStats } from "./crossModuleStats.js";
 import { ai } from "@workspace/integrations-gemini-ai";
+import { getHomeAssistantConfig, listEntities, controlEntity, HomeAssistantError } from "./homeAssistant.js";
 
 const AUTOMATABLE_TOOLS = new Set([
   "add_reminder", "add_chore", "add_calendar_event", "add_shopping_items", "create_note",
-  "send_family_message", "generate_weekly_insight",
+  "send_family_message", "generate_weekly_insight", "control_smart_home_device",
 ]);
 
 // ─── Type helpers ─────────────────────────────────────────────────────────────
@@ -286,6 +287,37 @@ export const TOOL_DECLARATIONS = [
         },
       },
       required: ["description", "tool_name", "tool_args", "schedule"],
+    },
+  },
+  // Smart Home (Home Assistant)
+  {
+    name: "get_smart_home_devices",
+    description: "List the user's Home Assistant smart-home devices and their current state (on/off, temperature, brightness, etc.). Requires the user to have connected Home Assistant in Settings.",
+    parameters: {
+      type: "object",
+      properties: {
+        domain: {
+          type: "string",
+          description: "Optional filter by device type, e.g. 'light', 'switch', 'climate', 'lock', 'cover', 'fan', 'sensor'. Omit to list everything.",
+        },
+      },
+    },
+  },
+  {
+    name: "control_smart_home_device",
+    description: "Control a Home Assistant smart-home device (turn lights/switches on or off, set thermostat temperature, dim lights, lock/unlock, open/close covers). Call get_smart_home_devices first if you don't already know the exact entity_id.",
+    parameters: {
+      type: "object",
+      properties: {
+        entity_id: { type: "string", description: "The Home Assistant entity id, e.g. 'light.living_room' or 'climate.thermostat' (from get_smart_home_devices)" },
+        action: {
+          type: "string",
+          enum: ["turn_on", "turn_off", "toggle", "set_temperature", "set_brightness", "lock", "unlock", "open", "close"],
+          description: "What to do to the device",
+        },
+        value: { type: "number", description: "Required for set_temperature (degrees) and set_brightness (0-100 percent). Omit otherwise." },
+      },
+      required: ["entity_id", "action"],
     },
   },
   // Family
@@ -579,6 +611,48 @@ async function execGetPantry(clerkUserId: string, args: Args): Promise<ToolResul
   return { name: "get_pantry", success: true, summary, data: rows };
 }
 
+async function execGetSmartHomeDevices(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const config = await getHomeAssistantConfig(clerkUserId);
+  if (!config) {
+    return { name: "get_smart_home_devices", success: false, summary: "Home Assistant isn't connected yet. Add your Home Assistant URL and a long-lived access token in Settings → Smart Home." };
+  }
+  try {
+    const domain = args.domain as string | undefined;
+    const entities = await listEntities(config, domain);
+    if (entities.length === 0) {
+      return { name: "get_smart_home_devices", success: true, summary: domain ? `No ${domain} devices found.` : "No devices found." };
+    }
+    const summary = entities
+      .slice(0, 40)
+      .map((e) => `• ${(e.attributes.friendly_name as string) ?? e.entity_id} (${e.entity_id}): ${e.state}`)
+      .join("\n");
+    return { name: "get_smart_home_devices", success: true, summary, data: entities };
+  } catch (err) {
+    if (err instanceof HomeAssistantError) return { name: "get_smart_home_devices", success: false, summary: err.message };
+    throw err;
+  }
+}
+
+async function execControlSmartHomeDevice(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const config = await getHomeAssistantConfig(clerkUserId);
+  if (!config) {
+    return { name: "control_smart_home_device", success: false, summary: "Home Assistant isn't connected yet. Add your Home Assistant URL and a long-lived access token in Settings → Smart Home." };
+  }
+  const entityId = args.entity_id as string;
+  const action = args.action as string;
+  const value = args.value != null ? Number(args.value) : undefined;
+  if (!entityId || !action) {
+    return { name: "control_smart_home_device", success: false, summary: "entity_id and action are required." };
+  }
+  try {
+    await controlEntity(config, entityId, action, value);
+    return { name: "control_smart_home_device", success: true, summary: `Done — ${action.replace(/_/g, " ")} on ${entityId}${value != null ? ` (${value})` : ""}.` };
+  } catch (err) {
+    if (err instanceof HomeAssistantError) return { name: "control_smart_home_device", success: false, summary: err.message };
+    throw err;
+  }
+}
+
 // Matches routes/family/index.ts GET /family/members visibility: a freshly
 // self-approved admin has status "pending" but should still be visible.
 async function execGetFamilyMembers(_clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
@@ -689,6 +763,8 @@ export async function executeTool(
       case "get_notes":               return await execGetNotes(clerkUserId, args);
       case "add_pantry_item":         return await execAddPantryItem(clerkUserId, args);
       case "get_pantry":              return await execGetPantry(clerkUserId, args);
+      case "get_smart_home_devices": return await execGetSmartHomeDevices(clerkUserId, args);
+      case "control_smart_home_device": return await execControlSmartHomeDevice(clerkUserId, args);
       case "get_family_members":      return await execGetFamilyMembers(clerkUserId, args);
       case "send_family_message":     return await execSendFamilyMessage(clerkUserId, args);
       case "create_automation":       return await execCreateAutomation(clerkUserId, args);

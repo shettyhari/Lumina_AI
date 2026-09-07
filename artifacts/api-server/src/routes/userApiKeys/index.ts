@@ -12,7 +12,7 @@ import {
   deleteUserApiKeyRecord,
 } from "../../lib/userApiKeysStore";
 
-const VALID_PROVIDERS = ["gemini", "openai", "anthropic", "openrouter"] as const;
+const VALID_PROVIDERS = ["gemini", "openai", "anthropic", "openrouter", "home_assistant"] as const;
 
 const router: IRouter = Router();
 

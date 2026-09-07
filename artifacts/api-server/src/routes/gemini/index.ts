@@ -95,6 +95,7 @@ async function streamGeminiAgentic(
 - Create and search notes
 - Manage the pantry inventory
 - View family members and send direct messages to them
+- Control smart-home devices via Home Assistant (lights, switches, thermostats, locks, covers) — if the user has connected it in Settings
 
 When the user asks you to do something you can accomplish with a tool, USE THE TOOL immediately — don't just describe what you would do. After taking action, confirm what you did concisely.
 

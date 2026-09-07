@@ -5,7 +5,11 @@ packages:
   - scripts
 
 allowBuilds:
-  '@embedded-postgres/windows-x64': set this to true or false
+  '@clerk/shared': true
+  '@embedded-postgres/windows-x64': false
+  '@google/genai': true
+  esbuild: true
+  protobufjs: true
 
 autoInstallPeers: false
 
