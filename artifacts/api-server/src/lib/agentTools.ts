@@ -3,7 +3,7 @@
  * Gemini function-calling declarations + server-side DB executors.
  */
 
-import { db, shoppingItems, chores, reminders, familyEvents, budgetEntries, familyNotes, familyMembers, familyMessages, pantryItems, automations, documentFiles } from "@workspace/db";
+import { db, shoppingItems, chores, reminders, familyEvents, budgetEntries, familyNotes, familyMembers, familyMessages, pantryItems, automations, documentFiles, homeSettings } from "@workspace/db";
 import { eq, and, or, gte, lte, desc, ilike, inArray } from "drizzle-orm";
 import { isBudgetEntryBlockedByConfidence } from "./intentDetector.js";
 import { parseReceiptDocument, ReceiptParseError } from "./receiptParsing.js";
@@ -11,6 +11,7 @@ import { computeNextRunAt, type AutomationSchedule } from "./automationSchedule.
 import { getCrossModuleStats } from "./crossModuleStats.js";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { getHomeAssistantConfig, listEntities, controlEntity, HomeAssistantError } from "./homeAssistant.js";
+import { fetchWeatherBriefing } from "./weather.js";
 
 const AUTOMATABLE_TOOLS = new Set([
   "add_reminder", "add_chore", "add_calendar_event", "add_shopping_items", "create_note",
@@ -289,6 +290,22 @@ export const TOOL_DECLARATIONS = [
       required: ["description", "tool_name", "tool_args", "schedule"],
     },
   },
+  // Weather & status
+  {
+    name: "get_weather",
+    description: "Get the current weather and 5-day forecast for the family's home city (from Settings), using real forecast data. Optionally pass a different city.",
+    parameters: {
+      type: "object",
+      properties: {
+        city: { type: "string", description: "Optional — city to check instead of the home city, e.g. 'Austin, TX'" },
+      },
+    },
+  },
+  {
+    name: "get_status_briefing",
+    description: "Give a full household status report — like asking \"status report\": today's weather, upcoming calendar events, open/overdue chores, bills due soon, budget snapshot, pantry items expiring soon, and a smart-home summary if connected. Use this for broad check-ins ('how are things looking', 'give me a rundown', 'status report'), not for a single specific question.",
+    parameters: { type: "object", properties: {} },
+  },
   // Smart Home (Home Assistant)
   {
     name: "get_smart_home_devices",
@@ -439,8 +456,27 @@ async function execAddCalendarEvent(clerkUserId: string, args: Args): Promise<To
   const endAt = args.end_at ? new Date(args.end_at as string) : undefined;
   const notes = args.notes as string | undefined;
   if (isNaN(startAt.getTime())) return { name: "add_calendar_event", success: false, summary: "Invalid start date/time." };
+
+  // Conflict check: treat events with no end time as 1hr for comparison
+  // purposes only (never persisted) — same visibility scope as
+  // execGetCalendarEvents (shared family calendar, see routes/calendar).
+  const effectiveEnd = endAt ?? new Date(startAt.getTime() + 60 * 60 * 1000);
+  const dayBefore = new Date(startAt.getTime() - 24 * 60 * 60 * 1000);
+  const dayAfter = new Date(effectiveEnd.getTime() + 24 * 60 * 60 * 1000);
+  const nearby = await db.select().from(familyEvents)
+    .where(and(gte(familyEvents.startAt, dayBefore), lte(familyEvents.startAt, dayAfter)));
+  const conflict = nearby.find((e) => {
+    const eStart = new Date(e.startAt).getTime();
+    const eEnd = e.endAt ? new Date(e.endAt).getTime() : eStart + 60 * 60 * 1000;
+    return eStart < effectiveEnd.getTime() && eEnd > startAt.getTime();
+  });
+
   await db.insert(familyEvents).values({ clerkUserId, title, startAt, endAt, notes });
-  return { name: "add_calendar_event", success: true, summary: `Calendar event added: "${title}" on ${startAt.toLocaleString()}` };
+  const base = `Calendar event added: "${title}" on ${startAt.toLocaleString()}`;
+  if (conflict) {
+    return { name: "add_calendar_event", success: true, summary: `${base}. Heads up — this overlaps with "${conflict.title}" at ${new Date(conflict.startAt).toLocaleString()}.` };
+  }
+  return { name: "add_calendar_event", success: true, summary: base };
 }
 
 async function execGetCalendarEvents(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
@@ -611,6 +647,59 @@ async function execGetPantry(clerkUserId: string, args: Args): Promise<ToolResul
   return { name: "get_pantry", success: true, summary, data: rows };
 }
 
+async function execGetWeather(_clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  let city = (args.city as string | undefined)?.trim();
+  if (!city) {
+    const [row] = await db.select().from(homeSettings).where(eq(homeSettings.key, "city")).limit(1);
+    city = row?.value;
+  }
+  if (!city) {
+    return { name: "get_weather", success: false, summary: "No home city is set. Add one in Settings → Home, or ask again with a specific city." };
+  }
+  try {
+    const briefing = await fetchWeatherBriefing(city);
+    return { name: "get_weather", success: true, summary: briefing.text, data: briefing };
+  } catch (err) {
+    return { name: "get_weather", success: false, summary: err instanceof Error ? err.message : "Couldn't fetch the weather right now." };
+  }
+}
+
+async function execGetStatusBriefing(clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
+  const parts: string[] = [];
+
+  const [cityRow] = await db.select().from(homeSettings).where(eq(homeSettings.key, "city")).limit(1);
+  if (cityRow?.value) {
+    try {
+      const weather = await fetchWeatherBriefing(cityRow.value);
+      parts.push(`Weather: ${weather.text}`);
+    } catch { /* weather unavailable, skip */ }
+  }
+
+  const stats = await getCrossModuleStats(clerkUserId);
+  if (stats) parts.push(stats);
+
+  const haConfig = await getHomeAssistantConfig(clerkUserId);
+  if (haConfig) {
+    try {
+      const entities = await listEntities(haConfig);
+      const on = entities.filter((e) => e.state === "on");
+      const climate = entities.filter((e) => e.entity_id.startsWith("climate."));
+      const bits: string[] = [];
+      if (on.length > 0) bits.push(`${on.length} device(s) on`);
+      for (const c of climate) {
+        const target = (c.attributes.temperature as number | undefined);
+        if (target != null) bits.push(`${(c.attributes.friendly_name as string) ?? c.entity_id} set to ${target}°`);
+      }
+      if (bits.length > 0) parts.push(`Smart home: ${bits.join(", ")}.`);
+    } catch { /* HA unreachable, skip */ }
+  }
+
+  if (parts.length === 0) {
+    return { name: "get_status_briefing", success: true, summary: "Nothing notable to report — no weather city set, and no household activity yet." };
+  }
+  return { name: "get_status_briefing", success: true, summary: parts.join("\n") };
+}
+
 async function execGetSmartHomeDevices(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
   const config = await getHomeAssistantConfig(clerkUserId);
   if (!config) {
@@ -763,6 +852,8 @@ export async function executeTool(
       case "get_notes":               return await execGetNotes(clerkUserId, args);
       case "add_pantry_item":         return await execAddPantryItem(clerkUserId, args);
       case "get_pantry":              return await execGetPantry(clerkUserId, args);
+      case "get_weather":              return await execGetWeather(clerkUserId, args);
+      case "get_status_briefing":     return await execGetStatusBriefing(clerkUserId, args);
       case "get_smart_home_devices": return await execGetSmartHomeDevices(clerkUserId, args);
       case "control_smart_home_device": return await execControlSmartHomeDevice(clerkUserId, args);
       case "get_family_members":      return await execGetFamilyMembers(clerkUserId, args);

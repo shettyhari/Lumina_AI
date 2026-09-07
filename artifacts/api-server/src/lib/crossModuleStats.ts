@@ -1,4 +1,4 @@
-import { db, budgetEntries, chores, pantryItems, familyEvents } from "@workspace/db";
+import { db, budgetEntries, chores, pantryItems, familyEvents, bills } from "@workspace/db";
 import { eq, and, gte, lte } from "drizzle-orm";
 
 /** Small aggregate queries across budget/chores/pantry/calendar, formatted as
@@ -38,6 +38,16 @@ export async function getCrossModuleStats(clerkUserId: string): Promise<string> 
     const eventRows = await db.select().from(familyEvents)
       .where(and(eq(familyEvents.clerkUserId, clerkUserId), gte(familyEvents.startAt, now), lte(familyEvents.startAt, weekOut)));
     if (eventRows.length > 0) lines.push(`Calendar: ${eventRows.length} event(s) in the next 7 days (${eventRows.map((e) => e.title).slice(0, 5).join(", ")}).`);
+  } catch { /* module data unavailable, skip */ }
+
+  try {
+    const allBills = await db.select().from(bills).where(eq(bills.isActive, true));
+    const today = now.getDate();
+    const dueSoon = allBills.filter((b) => b.dueDayOfMonth >= today && b.dueDayOfMonth <= today + 7);
+    if (dueSoon.length > 0) {
+      const list = dueSoon.map((b) => `${b.name} ($${(b.amountCents / 100).toFixed(2)}, due day ${b.dueDayOfMonth})`).join(", ");
+      lines.push(`Bills due within 7 days: ${list}.`);
+    }
   } catch { /* module data unavailable, skip */ }
 
   return lines.join("\n");
