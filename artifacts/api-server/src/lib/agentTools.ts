@@ -3,7 +3,11 @@
  * Gemini function-calling declarations + server-side DB executors.
  */
 
-import { db, shoppingItems, chores, reminders, familyEvents, budgetEntries, familyNotes, familyMembers, familyMessages, pantryItems, automations, documentFiles, homeSettings } from "@workspace/db";
+import {
+  db, shoppingItems, chores, reminders, familyEvents, budgetEntries, familyNotes, familyMembers, familyMessages,
+  pantryItems, automations, documentFiles, homeSettings, users, bills, mealPlans, pets, petCareLogs, homeInventory,
+  maintenanceTasks, choreRewards, rewardRedemptions, wishlists,
+} from "@workspace/db";
 import { eq, and, or, gte, lte, desc, ilike, inArray } from "drizzle-orm";
 import { isBudgetEntryBlockedByConfidence } from "./intentDetector.js";
 import { parseReceiptDocument, ReceiptParseError } from "./receiptParsing.js";
@@ -12,10 +16,11 @@ import { getCrossModuleStats } from "./crossModuleStats.js";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { getHomeAssistantConfig, listEntities, controlEntity, HomeAssistantError } from "./homeAssistant.js";
 import { fetchWeatherBriefing } from "./weather.js";
+import { sendStatusBriefingEmail } from "./email.js";
 
 const AUTOMATABLE_TOOLS = new Set([
   "add_reminder", "add_chore", "add_calendar_event", "add_shopping_items", "create_note",
-  "send_family_message", "generate_weekly_insight", "control_smart_home_device",
+  "send_family_message", "generate_weekly_insight", "control_smart_home_device", "send_status_briefing_email",
 ]);
 
 // ─── Type helpers ─────────────────────────────────────────────────────────────
@@ -269,7 +274,7 @@ export const TOOL_DECLARATIONS = [
         description: { type: "string", description: "Short human-readable summary of what this automation does, for display in a list (e.g. 'Weekly trash reminder')" },
         tool_name: {
           type: "string",
-          enum: ["add_reminder", "add_chore", "add_calendar_event", "add_shopping_items", "create_note", "send_family_message", "generate_weekly_insight"],
+          enum: ["add_reminder", "add_chore", "add_calendar_event", "add_shopping_items", "create_note", "send_family_message", "generate_weekly_insight", "control_smart_home_device", "send_status_briefing_email"],
           description: "Which existing tool to run on schedule",
         },
         tool_args: {
@@ -305,6 +310,180 @@ export const TOOL_DECLARATIONS = [
     name: "get_status_briefing",
     description: "Give a full household status report — like asking \"status report\": today's weather, upcoming calendar events, open/overdue chores, bills due soon, budget snapshot, pantry items expiring soon, and a smart-home summary if connected. Use this for broad check-ins ('how are things looking', 'give me a rundown', 'status report'), not for a single specific question.",
     parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "send_status_briefing_email",
+    description: "Email the full household status briefing to the user's account email. Use when the user asks to have the briefing emailed, or to set up a recurring morning digest via create_automation.",
+    parameters: { type: "object", properties: {} },
+  },
+  // Bills
+  {
+    name: "add_bill",
+    description: "Add a recurring monthly bill to track (rent, utilities, subscriptions, etc.).",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Bill name, e.g. 'Electric' or 'Netflix'" },
+        amount: { type: "number", description: "Amount in dollars" },
+        due_day_of_month: { type: "number", description: "Day of the month it's due, 1-31" },
+        category: { type: "string", description: "Category, e.g. utilities, rent, subscription, insurance (default: other)" },
+        auto_pay: { type: "boolean", description: "Whether it's on autopay (default false)" },
+      },
+      required: ["name", "amount", "due_day_of_month"],
+    },
+  },
+  {
+    name: "get_bills",
+    description: "List the household's active recurring bills.",
+    parameters: { type: "object", properties: {} },
+  },
+  // Meal planning
+  {
+    name: "plan_meal",
+    description: "Add a dish to the meal plan for a specific day and slot.",
+    parameters: {
+      type: "object",
+      properties: {
+        date: { type: "string", description: "Date in YYYY-MM-DD format" },
+        meal_slot: { type: "string", enum: ["breakfast", "lunch", "dinner"], description: "Which meal" },
+        dish_name: { type: "string", description: "What's being made" },
+        notes: { type: "string", description: "Optional notes, e.g. recipe link" },
+      },
+      required: ["date", "meal_slot", "dish_name"],
+    },
+  },
+  {
+    name: "get_meal_plan",
+    description: "Get the meal plan for a date range (defaults to the current week).",
+    parameters: {
+      type: "object",
+      properties: {
+        days_ahead: { type: "number", description: "How many days ahead to include, from today (default 7)" },
+      },
+    },
+  },
+  // Pets
+  {
+    name: "get_pets",
+    description: "List the household's pets.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "log_pet_care",
+    description: "Log a care event for a pet — feeding, walk, medication, vet visit, grooming, etc.",
+    parameters: {
+      type: "object",
+      properties: {
+        pet_name: { type: "string", description: "Name of the pet (partial match ok)" },
+        type: { type: "string", description: "Type of care, e.g. 'fed', 'walked', 'medication', 'vet visit'" },
+        notes: { type: "string", description: "Optional details" },
+      },
+      required: ["pet_name", "type"],
+    },
+  },
+  // Home inventory
+  {
+    name: "add_inventory_item",
+    description: "Add an item to the home inventory (appliances, electronics, furniture) — useful for tracking warranties and value.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Item name" },
+        category: { type: "string", description: "Category, e.g. appliance, electronics, furniture (default: appliance)" },
+        brand: { type: "string", description: "Optional brand" },
+        location: { type: "string", description: "Optional location in the home" },
+        warranty_expiry: { type: "string", description: "Optional ISO date the warranty expires" },
+        purchase_price: { type: "number", description: "Optional purchase price in dollars" },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "get_inventory",
+    description: "List home inventory items, optionally filtered by category. Useful for 'when does X's warranty expire' questions.",
+    parameters: {
+      type: "object",
+      properties: {
+        category: { type: "string", description: "Optional category filter" },
+      },
+    },
+  },
+  // Home maintenance
+  {
+    name: "add_maintenance_task",
+    description: "Add a recurring or one-off home maintenance task (HVAC service, gutter cleaning, filter changes, etc.).",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Task title" },
+        category: { type: "string", description: "Category, e.g. HVAC, plumbing, exterior (default: general)" },
+        interval_days: { type: "number", description: "Optional — how often it repeats, in days" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "get_maintenance_tasks",
+    description: "List home maintenance tasks, ordered by what's due soonest.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "complete_maintenance_task",
+    description: "Mark a maintenance task as done today, advancing its next-due date if it recurs.",
+    parameters: {
+      type: "object",
+      properties: {
+        task_title: { type: "string", description: "Title of the task (partial match ok)" },
+      },
+      required: ["task_title"],
+    },
+  },
+  // Chore rewards
+  {
+    name: "get_reward_balance",
+    description: "Get a family member's chore-reward point balance (10 points per completed chore, minus spent redemptions).",
+    parameters: {
+      type: "object",
+      properties: {
+        member_name: { type: "string", description: "Whose balance — defaults to the current user if omitted" },
+      },
+    },
+  },
+  {
+    name: "redeem_reward",
+    description: "Request redemption of a reward with points. Creates a pending request that a parent/admin must approve — points aren't deducted until approved.",
+    parameters: {
+      type: "object",
+      properties: {
+        reward_title: { type: "string", description: "Name of the reward (partial match ok)" },
+      },
+      required: ["reward_title"],
+    },
+  },
+  // Wishlist
+  {
+    name: "add_wishlist_item",
+    description: "Add an item to the current user's gift wishlist.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Item name" },
+        price: { type: "number", description: "Optional price in dollars" },
+        url: { type: "string", description: "Optional link to the item" },
+        priority: { type: "string", enum: ["low", "medium", "high"], description: "Default: medium" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "get_wishlist",
+    description: "Get a family member's wishlist (defaults to the current user).",
+    parameters: {
+      type: "object",
+      properties: {
+        member_name: { type: "string", description: "Whose wishlist — defaults to the current user if omitted" },
+      },
+    },
   },
   // Smart Home (Home Assistant)
   {
@@ -526,6 +705,23 @@ async function execAddBudgetEntry(
   if (isNaN(amountNum) || amountNum <= 0) {
     return { name: "add_budget_entry", success: false, summary: "amount must be a positive number." };
   }
+
+  // Large-amount gate: same shape as the confidence gate above, but keyed on
+  // size rather than ambiguity. Only fires while the triggering message still
+  // contains no confirmation language — once the user replies "yes"/"confirm"
+  // etc. (with no fresh amount to re-trigger this), the call goes through.
+  const LARGE_AMOUNT_THRESHOLD = 500;
+  const CONFIRMATION_WORDS = /\b(yes|yep|yeah|confirm(ed)?|correct|go ahead|log it|that'?s right|sounds right|please do)\b/i;
+  if (amountNum >= LARGE_AMOUNT_THRESHOLD && context?.originalMessage && !CONFIRMATION_WORDS.test(context.originalMessage)) {
+    return {
+      name: "add_budget_entry",
+      success: false,
+      summary:
+        `This is a large ${type} ($${amountNum.toFixed(2)}) — confirm the amount and category with the user before logging it. ` +
+        `Call add_budget_entry again once they confirm.`,
+    };
+  }
+
   const amount = String(amountNum.toFixed(2));
   const category = (args.category as string) ?? "Other";
   const description = (args.description as string) ?? "";
@@ -664,7 +860,7 @@ async function execGetWeather(_clerkUserId: string, args: Args): Promise<ToolRes
   }
 }
 
-async function execGetStatusBriefing(clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
+async function buildStatusBriefingText(clerkUserId: string): Promise<string> {
   const parts: string[] = [];
 
   const [cityRow] = await db.select().from(homeSettings).where(eq(homeSettings.key, "city")).limit(1);
@@ -694,10 +890,220 @@ async function execGetStatusBriefing(clerkUserId: string, _args: Args): Promise<
     } catch { /* HA unreachable, skip */ }
   }
 
-  if (parts.length === 0) {
-    return { name: "get_status_briefing", success: true, summary: "Nothing notable to report — no weather city set, and no household activity yet." };
+  return parts.length === 0
+    ? "Nothing notable to report — no weather city set, and no household activity yet."
+    : parts.join("\n");
+}
+
+async function execGetStatusBriefing(clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
+  const summary = await buildStatusBriefingText(clerkUserId);
+  return { name: "get_status_briefing", success: true, summary };
+}
+
+async function execSendStatusBriefingEmail(clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
+  const [userRow] = await db.select().from(users).where(eq(users.clerkUserId, clerkUserId));
+  const to = userRow?.email;
+  if (!to) {
+    return { name: "send_status_briefing_email", success: false, summary: "No email address on file for this account." };
   }
-  return { name: "get_status_briefing", success: true, summary: parts.join("\n") };
+  const briefingText = await buildStatusBriefingText(clerkUserId);
+  try {
+    await sendStatusBriefingEmail(to, briefingText);
+    return { name: "send_status_briefing_email", success: true, summary: `Sent the status briefing to ${to}.` };
+  } catch (err) {
+    return { name: "send_status_briefing_email", success: false, summary: err instanceof Error ? err.message : "Failed to send the briefing email." };
+  }
+}
+
+async function execAddBill(_clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const name = args.name as string;
+  const amountNum = Number(args.amount);
+  const dueDay = Number(args.due_day_of_month);
+  if (isNaN(amountNum) || amountNum <= 0) return { name: "add_bill", success: false, summary: "amount must be a positive number." };
+  if (isNaN(dueDay) || dueDay < 1 || dueDay > 31) return { name: "add_bill", success: false, summary: "due_day_of_month must be between 1 and 31." };
+  await db.insert(bills).values({
+    name,
+    amountCents: Math.round(amountNum * 100),
+    dueDayOfMonth: dueDay,
+    category: (args.category as string) ?? "other",
+    autoPay: (args.auto_pay as boolean) ?? false,
+  });
+  return { name: "add_bill", success: true, summary: `Bill added: "${name}" — $${amountNum.toFixed(2)}, due on day ${dueDay} of each month.` };
+}
+
+async function execGetBills(_clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
+  const rows = await db.select().from(bills).where(eq(bills.isActive, true));
+  const summary = rows.length === 0
+    ? "No active bills tracked."
+    : rows.map((b) => `• ${b.name} — $${(b.amountCents / 100).toFixed(2)}, due day ${b.dueDayOfMonth}${b.autoPay ? " (autopay)" : ""}`).join("\n");
+  return { name: "get_bills", success: true, summary, data: rows };
+}
+
+function mealPlanAbsoluteDate(weekStart: string, dayOfWeek: number): Date {
+  const d = new Date(`${weekStart}T00:00:00`);
+  d.setDate(d.getDate() + dayOfWeek);
+  return d;
+}
+
+async function execPlanMeal(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const dateStr = args.date as string;
+  const mealSlot = args.meal_slot as string;
+  const dishName = args.dish_name as string;
+  const notes = args.notes as string | undefined;
+  const date = new Date(`${dateStr}T00:00:00`);
+  if (isNaN(date.getTime())) return { name: "plan_meal", success: false, summary: "Invalid date." };
+
+  const jsDay = date.getDay(); // 0=Sun..6=Sat
+  const dayOfWeek = (jsDay + 6) % 7; // 0=Mon..6=Sun, matches mealPlans schema
+  const weekStartDate = new Date(date);
+  weekStartDate.setDate(date.getDate() - dayOfWeek);
+  const weekStart = weekStartDate.toISOString().slice(0, 10);
+
+  await db.insert(mealPlans).values({ clerkUserId, weekStart, dayOfWeek, mealSlot, dishName, notes });
+  return { name: "plan_meal", success: true, summary: `Planned ${mealSlot} for ${date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}: ${dishName}` };
+}
+
+async function execGetMealPlan(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const daysAhead = (args.days_ahead as number) ?? 7;
+  const now = new Date();
+  const until = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+
+  const rows = await db.select().from(mealPlans).where(eq(mealPlans.clerkUserId, clerkUserId));
+  const inRange = rows
+    .map((r) => ({ ...r, absoluteDate: mealPlanAbsoluteDate(r.weekStart, r.dayOfWeek) }))
+    .filter((r) => r.absoluteDate >= new Date(now.toISOString().slice(0, 10)) && r.absoluteDate <= until)
+    .sort((a, b) => a.absoluteDate.getTime() - b.absoluteDate.getTime());
+
+  const summary = inRange.length === 0
+    ? `No meals planned in the next ${daysAhead} days.`
+    : inRange.map((r) => `• ${r.absoluteDate.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} ${r.mealSlot}: ${r.dishName}`).join("\n");
+  return { name: "get_meal_plan", success: true, summary, data: inRange };
+}
+
+async function execGetPets(_clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
+  const rows = await db.select().from(pets);
+  const summary = rows.length === 0
+    ? "No pets on file."
+    : rows.map((p) => `• ${p.avatarEmoji} ${p.name} (${p.species}${p.breed ? `, ${p.breed}` : ""})`).join("\n");
+  return { name: "get_pets", success: true, summary, data: rows };
+}
+
+async function execLogPetCare(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const nameQuery = (args.pet_name as string ?? "").toLowerCase();
+  const type = args.type as string;
+  const notes = args.notes as string | undefined;
+  const allPets = await db.select().from(pets);
+  const match = allPets.find((p) => p.name.toLowerCase().includes(nameQuery));
+  if (!match) return { name: "log_pet_care", success: false, summary: `Could not find a pet named "${args.pet_name}".` };
+  await db.insert(petCareLogs).values({ petId: match.id, clerkUserId, type, notes });
+  return { name: "log_pet_care", success: true, summary: `Logged "${type}" for ${match.name}.` };
+}
+
+async function execAddInventoryItem(_clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const name = args.name as string;
+  const price = args.purchase_price != null ? Number(args.purchase_price) : undefined;
+  await db.insert(homeInventory).values({
+    name,
+    category: (args.category as string) ?? "appliance",
+    brand: args.brand as string | undefined,
+    location: args.location as string | undefined,
+    warrantyExpiry: args.warranty_expiry ? new Date(args.warranty_expiry as string) : undefined,
+    purchasePriceCents: price != null && !isNaN(price) ? Math.round(price * 100) : undefined,
+  });
+  return { name: "add_inventory_item", success: true, summary: `Added "${name}" to home inventory.` };
+}
+
+async function execGetInventory(_clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const category = args.category as string | undefined;
+  const rows = category
+    ? await db.select().from(homeInventory).where(eq(homeInventory.category, category))
+    : await db.select().from(homeInventory);
+  const summary = rows.length === 0
+    ? "No inventory items found."
+    : rows.map((i) => `• ${i.name}${i.brand ? ` (${i.brand})` : ""}${i.warrantyExpiry ? ` — warranty until ${new Date(i.warrantyExpiry).toLocaleDateString()}` : ""}`).join("\n");
+  return { name: "get_inventory", success: true, summary, data: rows };
+}
+
+async function execAddMaintenanceTask(_clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const title = args.title as string;
+  const intervalDays = args.interval_days != null ? Number(args.interval_days) : undefined;
+  const nextDueAt = intervalDays != null && !isNaN(intervalDays) ? new Date(Date.now() + intervalDays * 24 * 60 * 60 * 1000) : undefined;
+  await db.insert(maintenanceTasks).values({
+    title,
+    category: (args.category as string) ?? "general",
+    intervalDays: intervalDays != null && !isNaN(intervalDays) ? intervalDays : undefined,
+    nextDueAt,
+  });
+  return { name: "add_maintenance_task", success: true, summary: `Maintenance task added: "${title}"${nextDueAt ? `, next due ${nextDueAt.toLocaleDateString()}` : ""}.` };
+}
+
+async function execGetMaintenanceTasks(_clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
+  const rows = await db.select().from(maintenanceTasks).orderBy(maintenanceTasks.nextDueAt);
+  const summary = rows.length === 0
+    ? "No maintenance tasks tracked."
+    : rows.map((t) => `• ${t.title}${t.nextDueAt ? ` — due ${new Date(t.nextDueAt).toLocaleDateString()}` : ""}`).join("\n");
+  return { name: "get_maintenance_tasks", success: true, summary, data: rows };
+}
+
+async function execCompleteMaintenanceTask(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const titleQuery = (args.task_title as string ?? "").toLowerCase();
+  const rows = await db.select().from(maintenanceTasks);
+  const match = rows.find((t) => t.title.toLowerCase().includes(titleQuery));
+  if (!match) return { name: "complete_maintenance_task", success: false, summary: `Could not find maintenance task "${args.task_title}".` };
+  const now = new Date();
+  const nextDueAt = match.intervalDays ? new Date(now.getTime() + match.intervalDays * 24 * 60 * 60 * 1000) : null;
+  await db.update(maintenanceTasks).set({ lastDoneAt: now, lastDoneBy: clerkUserId, nextDueAt }).where(eq(maintenanceTasks.id, match.id));
+  return { name: "complete_maintenance_task", success: true, summary: `Marked "${match.title}" as done.${nextDueAt ? ` Next due ${nextDueAt.toLocaleDateString()}.` : ""}` };
+}
+
+async function resolveMemberClerkId(clerkUserId: string, memberName?: string): Promise<string> {
+  if (!memberName) return clerkUserId;
+  const members = await db.select().from(familyMembers);
+  const match = members.find((m) => (m.displayName ?? "").toLowerCase().includes(memberName.toLowerCase()));
+  return match?.clerkUserId ?? clerkUserId;
+}
+
+async function execGetRewardBalance(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const targetId = await resolveMemberClerkId(clerkUserId, args.member_name as string | undefined);
+  const [member] = await db.select().from(familyMembers).where(eq(familyMembers.clerkUserId, targetId));
+  const completedChores = await db.select().from(chores).where(and(eq(chores.status, "done"), eq(chores.assignedToClerkUserId, targetId)));
+  const approvedRedemptions = await db.select().from(rewardRedemptions).where(and(eq(rewardRedemptions.clerkUserId, targetId), eq(rewardRedemptions.status, "approved")));
+  const POINTS_PER_CHORE = 10;
+  const earned = completedChores.length * POINTS_PER_CHORE;
+  const spent = approvedRedemptions.reduce((acc, r) => acc + r.pointsSpent, 0);
+  const who = member?.displayName ?? "This member";
+  return { name: "get_reward_balance", success: true, summary: `${who} has ${earned - spent} point(s) (${earned} earned, ${spent} spent).` };
+}
+
+async function execRedeemReward(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const titleQuery = (args.reward_title as string ?? "").toLowerCase();
+  const rewards = await db.select().from(choreRewards).where(eq(choreRewards.isActive, true));
+  const match = rewards.find((r) => r.title.toLowerCase().includes(titleQuery));
+  if (!match) return { name: "redeem_reward", success: false, summary: `Could not find an active reward matching "${args.reward_title}".` };
+  await db.insert(rewardRedemptions).values({ rewardId: match.id, clerkUserId, pointsSpent: match.pointCost });
+  return { name: "redeem_reward", success: true, summary: `Requested "${match.title}" for ${match.pointCost} points — pending a parent/admin's approval.` };
+}
+
+async function execAddWishlistItem(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const title = args.title as string;
+  const price = args.price != null ? Number(args.price) : undefined;
+  await db.insert(wishlists).values({
+    clerkUserId,
+    title,
+    url: args.url as string | undefined,
+    priority: (args.priority as string) ?? "medium",
+    priceCents: price != null && !isNaN(price) ? Math.round(price * 100) : undefined,
+  });
+  return { name: "add_wishlist_item", success: true, summary: `Added "${title}" to the wishlist.` };
+}
+
+async function execGetWishlist(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const targetId = await resolveMemberClerkId(clerkUserId, args.member_name as string | undefined);
+  const rows = await db.select().from(wishlists).where(eq(wishlists.clerkUserId, targetId));
+  const summary = rows.length === 0
+    ? "No items on this wishlist."
+    : rows.map((w) => `• ${w.title}${w.priceCents ? ` — $${(w.priceCents / 100).toFixed(2)}` : ""}${w.isClaimed ? " (claimed)" : ""}`).join("\n");
+  return { name: "get_wishlist", success: true, summary, data: rows };
 }
 
 async function execGetSmartHomeDevices(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
@@ -854,6 +1260,22 @@ export async function executeTool(
       case "get_pantry":              return await execGetPantry(clerkUserId, args);
       case "get_weather":              return await execGetWeather(clerkUserId, args);
       case "get_status_briefing":     return await execGetStatusBriefing(clerkUserId, args);
+      case "send_status_briefing_email": return await execSendStatusBriefingEmail(clerkUserId, args);
+      case "add_bill":                return await execAddBill(clerkUserId, args);
+      case "get_bills":                return await execGetBills(clerkUserId, args);
+      case "plan_meal":                return await execPlanMeal(clerkUserId, args);
+      case "get_meal_plan":            return await execGetMealPlan(clerkUserId, args);
+      case "get_pets":                  return await execGetPets(clerkUserId, args);
+      case "log_pet_care":             return await execLogPetCare(clerkUserId, args);
+      case "add_inventory_item":      return await execAddInventoryItem(clerkUserId, args);
+      case "get_inventory":            return await execGetInventory(clerkUserId, args);
+      case "add_maintenance_task":    return await execAddMaintenanceTask(clerkUserId, args);
+      case "get_maintenance_tasks":   return await execGetMaintenanceTasks(clerkUserId, args);
+      case "complete_maintenance_task": return await execCompleteMaintenanceTask(clerkUserId, args);
+      case "get_reward_balance":      return await execGetRewardBalance(clerkUserId, args);
+      case "redeem_reward":            return await execRedeemReward(clerkUserId, args);
+      case "add_wishlist_item":       return await execAddWishlistItem(clerkUserId, args);
+      case "get_wishlist":             return await execGetWishlist(clerkUserId, args);
       case "get_smart_home_devices": return await execGetSmartHomeDevices(clerkUserId, args);
       case "control_smart_home_device": return await execControlSmartHomeDevice(clerkUserId, args);
       case "get_family_members":      return await execGetFamilyMembers(clerkUserId, args);

@@ -13,7 +13,13 @@ export const DOMAIN_TOOLS: Record<string, string[]> = {
   family: ["get_family_members", "send_family_message"],
   automation: ["create_automation", "generate_weekly_insight"],
   smart_home: ["get_smart_home_devices", "control_smart_home_device"],
-  status: ["get_weather", "get_status_briefing"],
+  status: ["get_weather", "get_status_briefing", "send_status_briefing_email"],
+  bills: ["add_bill", "get_bills"],
+  meals: ["plan_meal", "get_meal_plan"],
+  pets: ["get_pets", "log_pet_care"],
+  home_upkeep: ["add_inventory_item", "get_inventory", "add_maintenance_task", "get_maintenance_tasks", "complete_maintenance_task"],
+  rewards: ["get_reward_balance", "redeem_reward"],
+  wishlist: ["add_wishlist_item", "get_wishlist"],
 };
 
 export const DOMAIN_KEYS = Object.keys(DOMAIN_TOOLS);
