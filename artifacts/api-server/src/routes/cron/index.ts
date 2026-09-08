@@ -4,6 +4,7 @@ import { db, automations } from "@workspace/db";
 import { executeTool } from "../../lib/agentTools";
 import { computeNextRunAt } from "../../lib/automationSchedule";
 import { postAssistantMessage } from "../../lib/chatMessaging";
+import { sendPushToUser } from "../../lib/webPush";
 
 const router: IRouter = Router();
 
@@ -34,6 +35,14 @@ router.post("/cron/run-due", async (req, res): Promise<void> => {
       result.success
         ? `⏰ Automation ran: "${automation.description}"\n\n${result.summary}`
         : `⚠️ Automation "${automation.description}" didn't run: ${result.summary}`,
+    );
+    // Reach the user even when the app is closed — an automation firing
+    // into a conversation nobody has open doesn't help anyone.
+    await sendPushToUser(
+      automation.clerkUserId,
+      result.success ? "Lina" : "Lina — automation failed",
+      result.success ? `${automation.description}: ${result.summary}` : `"${automation.description}" didn't run: ${result.summary}`,
+      "/chat",
     );
 
     if (automation.schedule.freq === "once") {

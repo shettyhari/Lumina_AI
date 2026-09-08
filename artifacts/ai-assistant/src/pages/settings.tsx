@@ -10,8 +10,9 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Settings2, Save, Moon, Sun, Monitor, Key, Eye, EyeOff, Trash2,
-  CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Brain, Sparkles, ArrowRight, Home, Copy, DoorOpen
+  CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Brain, Sparkles, ArrowRight, Home, Copy, DoorOpen, Bell, BellOff
 } from "lucide-react";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { SiGoogle } from "react-icons/si";
 import { Bot } from "lucide-react";
 import { Link } from "wouter";
@@ -341,6 +342,44 @@ function ArrivalWebhookRow() {
   );
 }
 
+function NotificationsCard() {
+  const { state, loading, supported, subscribe, unsubscribe } = usePushNotifications();
+  const subscribed = state === "subscribed";
+
+  return (
+    <div className="bg-glass rounded-2xl p-6 space-y-4">
+      <h3 className="text-lg font-semibold border-b border-border/50 pb-2 flex items-center gap-2">
+        {subscribed ? <Bell className="w-5 h-5 text-primary" /> : <BellOff className="w-5 h-5 text-muted-foreground" />}
+        Notifications
+      </h3>
+
+      {!supported && state !== "unknown" ? (
+        <p className="text-sm text-muted-foreground">Push notifications aren't supported in this browser.</p>
+      ) : state === "denied" ? (
+        <p className="text-sm text-muted-foreground">
+          Notifications are blocked for this site. Allow them in your browser's site settings to enable this.
+        </p>
+      ) : (
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">
+            Get notified when an automation fires or you arrive home — even when the app's closed.
+          </p>
+          <button
+            onClick={subscribed ? unsubscribe : subscribe}
+            disabled={loading || state === "unknown"}
+            className={cn(
+              "shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50",
+              subscribed ? "bg-secondary hover:bg-secondary/70 text-foreground" : "bg-primary text-primary-foreground hover:bg-primary/90",
+            )}
+          >
+            {loading ? "Working..." : subscribed ? "Disable" : "Enable"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: profile, isLoading } = useGetUserProfile({ query: { queryKey: getGetUserProfileQueryKey() } });
@@ -521,6 +560,9 @@ export default function SettingsPage() {
           />
           <ArrivalWebhookRow />
         </div>
+
+        {/* Notifications */}
+        <NotificationsCard />
 
         {/* AI Preferences */}
         <div className="bg-glass rounded-2xl p-6 space-y-5">

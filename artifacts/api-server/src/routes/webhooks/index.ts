@@ -6,6 +6,7 @@ import {
 } from "../../lib/userApiKeysStore";
 import { buildStatusBriefingText } from "../../lib/agentTools";
 import { postAssistantMessage } from "../../lib/chatMessaging";
+import { sendPushToUser } from "../../lib/webPush";
 
 const PROVIDER = "arrival_webhook";
 
@@ -51,6 +52,7 @@ router.post("/webhooks/arrival", async (req, res): Promise<void> => {
   try {
     const briefing = await buildStatusBriefingText(clerkUserId);
     await postAssistantMessage(clerkUserId, `🏠 Welcome home! Here's where things stand:\n\n${briefing}`);
+    await sendPushToUser(clerkUserId, "Welcome home", briefing.split("\n")[0] || "Your status briefing is ready.", "/chat");
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to build welcome briefing" });

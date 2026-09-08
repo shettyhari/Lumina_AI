@@ -33,6 +33,7 @@ import cloudStorageRouter from "./cloud-storage";
 import automationsRouter from "./automations";
 import cronRouter from "./cron";
 import webhooksRouter from "./webhooks";
+import pushRouter from "./push";
 import { requireApproved } from "../middlewares/requireApproved";
 import { getReqUserId } from "../middlewares/requireAuth";
 
@@ -88,5 +89,6 @@ router.use(cloudStorageRouter);
 router.use(automationsRouter);
 router.use(cronRouter);
 router.use(webhooksRouter);
+router.use(pushRouter);
 
 export default router;

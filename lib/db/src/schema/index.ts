@@ -27,3 +27,4 @@ export * from "./pets";
 export * from "./pantryItems";
 export * from "./userCloudTokens";
 export * from "./automations";
+export * from "./pushSubscriptions";
