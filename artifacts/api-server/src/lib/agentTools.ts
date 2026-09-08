@@ -33,7 +33,7 @@ const AUTOMATABLE_TOOLS = new Set([
 // whatever originally triggered the gate (a dollar figure, a delete verb).
 const CONFIRMATION_WORDS = /\b(yes|yep|yeah|confirm(ed)?|correct|go ahead|do it|log it|delete it|remove it|that'?s right|sounds right|please do)\b/i;
 
-function needsConfirmation(originalMessage?: string): boolean {
+export function needsConfirmation(originalMessage?: string): boolean {
   return !originalMessage || !CONFIRMATION_WORDS.test(originalMessage);
 }
 
@@ -767,13 +767,13 @@ async function execDeleteChore(_clerkUserId: string, args: Args, context?: ToolC
 // re-deriving occurrences everywhere familyEvents is read, at the cost of a
 // series not extending itself forever (a fixed, generous horizon per
 // frequency instead).
-const RECURRENCE_HORIZON: Record<string, { stepDays?: number; stepMonths?: number; count: number }> = {
+export const RECURRENCE_HORIZON: Record<string, { stepDays?: number; stepMonths?: number; count: number }> = {
   daily: { stepDays: 1, count: 30 },
   weekly: { stepDays: 7, count: 12 },
   monthly: { stepMonths: 1, count: 6 },
 };
 
-function addRecurrenceStep(date: Date, freq: string): Date {
+export function addRecurrenceStep(date: Date, freq: string): Date {
   const rule = RECURRENCE_HORIZON[freq];
   const next = new Date(date);
   if (rule.stepDays) next.setDate(next.getDate() + rule.stepDays);
@@ -1177,7 +1177,7 @@ async function execGetBills(_clerkUserId: string, _args: Args): Promise<ToolResu
   return { name: "get_bills", success: true, summary, data: rows };
 }
 
-function mealPlanAbsoluteDate(weekStart: string, dayOfWeek: number): Date {
+export function mealPlanAbsoluteDate(weekStart: string, dayOfWeek: number): Date {
   const d = new Date(`${weekStart}T00:00:00`);
   d.setDate(d.getDate() + dayOfWeek);
   return d;
