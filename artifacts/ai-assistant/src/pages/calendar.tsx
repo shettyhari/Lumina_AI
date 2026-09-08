@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarIcon, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarIcon, Plus, X, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
@@ -53,6 +53,24 @@ export default function CalendarPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/calendar"] }); setSelectedEvent(null); },
   });
 
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  async function handleSyncGoogle() {
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const result = await customFetch(`${BASE}/api/calendar/sync-google`, { method: "POST", headers: { "Content-Type": "application/json" } }) as { imported: number; updated: number; skipped: number };
+      setSyncMessage(result.imported === 0 && result.updated === 0
+        ? "Already up to date."
+        : `Imported ${result.imported}, updated ${result.updated}.`);
+      qc.invalidateQueries({ queryKey: ["/api/calendar"] });
+    } catch (e: any) {
+      setSyncMessage(e?.message?.includes("connect") ? "Connect Google from Cloud Storage in Settings first." : "Sync failed — try again.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   // Build grid
   const firstDay = new Date(year, month - 1, 1);
   const lastDay = new Date(year, month, 0);
@@ -90,12 +108,23 @@ export default function CalendarPage() {
           <button onClick={() => setViewDate(new Date(year, month - 2))} className="p-2 rounded-lg border border-border/40 hover:bg-accent transition-colors"><ChevronLeft className="h-4 w-4" /></button>
           <span className="text-sm font-medium min-w-28 text-center">{firstDay.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span>
           <button onClick={() => setViewDate(new Date(year, month))} className="p-2 rounded-lg border border-border/40 hover:bg-accent transition-colors"><ChevronRight className="h-4 w-4" /></button>
+          <button onClick={handleSyncGoogle} disabled={syncing} title="One-way import from Google Calendar" className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-border/40 text-muted-foreground hover:bg-accent transition-colors ml-2 disabled:opacity-50">
+            <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
+            {syncing ? "Syncing…" : "Sync Google"}
+          </button>
           <button onClick={() => { setSelectedDay(null); setShowForm(!showForm); }} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors ml-2">
             {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
             {showForm ? "Cancel" : "Add event"}
           </button>
         </div>
       </div>
+
+      {syncMessage && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-border/40 bg-card/50 px-4 py-2 text-sm text-muted-foreground">
+          <span>{syncMessage}</span>
+          <button onClick={() => setSyncMessage(null)} className="hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
 
       {showForm && (
         <div className="mb-6 p-4 rounded-xl border border-border/50 bg-card/50 space-y-3">

@@ -48,7 +48,7 @@ const STATE_META: Record<
   },
   speaking: {
     label: "RESPONDING",
-    hint: "Tap core to stop",
+    hint: "Just start talking to interrupt, or tap core to stop",
     hex: "#2dd4bf",
     ring: "border-teal-300/70",
     text: "text-teal-300",

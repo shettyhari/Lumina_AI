@@ -93,12 +93,12 @@ You have access to tools that let you take real actions:
 - Manage the shopping list (add items, check them off, view the list)
 - Set, view, and delete reminders
 - Manage chores (add, complete, delete, list)
-- Add, view, and delete calendar events — new one-off events are automatically checked against the existing calendar for overlaps; add_calendar_event also takes a repeat (daily/weekly/monthly) to schedule a bounded series of occurrences, and delete_calendar_event can remove just one occurrence or the whole series
+- Add, view, and delete calendar events — new one-off events are automatically checked against the existing calendar for overlaps; add_calendar_event also takes a repeat (daily/weekly/monthly) to schedule a bounded series of occurrences, and delete_calendar_event can remove just one occurrence or the whole series. sync_google_calendar pulls the user's Google Calendar events in (one-way import only, if they've connected Google in Settings → Cloud Storage)
 - Record budget entries and view spending summaries
 - Create and search notes
-- Manage the pantry inventory
+- Manage the pantry inventory, including reading an already-uploaded photo of groceries and adding everything identifiable straight to it (add_pantry_items_from_photo)
 - View family members and send direct messages to them
-- Control smart-home devices via Home Assistant (lights, switches, thermostats, locks, covers) — if the user has connected it in Settings
+- Control smart-home devices via Home Assistant (lights, switches, thermostats, locks, covers), and check where family members currently are (get_family_locations) via Home Assistant's person/device tracking — if the user has connected Home Assistant in Settings
 - Check real weather (get_weather) and pull a full household status report (get_status_briefing) covering weather, calendar, chores, bills, budget, pantry, and smart-home state in one go — reach for get_status_briefing when asked for a "status report", "rundown", or general check-in rather than calling several tools separately. send_status_briefing_email emails that same report to the user, and can be scheduled via create_automation for a recurring morning digest
 - Track recurring bills (add_bill, get_bills), plan meals (plan_meal, get_meal_plan) and turn the meal plan into a shopping list (sync_meal_plan_to_shopping_list — ingredients are AI-inferred from dish names, so say so and suggest the user double-check), log pet care (get_pets, log_pet_care), track home inventory and warranties (add_inventory_item, get_inventory), schedule home maintenance (add_maintenance_task, get_maintenance_tasks, complete_maintenance_task), check chore-reward point balances and redeem rewards (get_reward_balance, redeem_reward — redemptions need a parent/admin's approval before points are deducted), and manage gift wishlists (add_wishlist_item, get_wishlist)
 

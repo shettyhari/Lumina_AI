@@ -10,6 +10,7 @@ export const familyEvents = pgTable("family_events", {
   color: text("color").default("#6366f1"),
   repeat: text("repeat").default("none"), // none | daily | weekly | monthly
   recurrenceGroupId: text("recurrence_group_id"), // shared across all instances of one recurring series
+  externalId: text("external_id"), // Google Calendar event id, for imported events — lets sync be idempotent
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

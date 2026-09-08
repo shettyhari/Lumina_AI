@@ -3,6 +3,7 @@ import { db, pantryItems } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import { requireAuth } from "../../middlewares/requireAuth";
 import { ai } from "@workspace/integrations-gemini-ai";
+import { parseGroceryPhoto, GroceryPhotoParseError } from "../../lib/groceryPhotoParsing";
 
 const router: IRouter = Router();
 
@@ -37,6 +38,29 @@ router.patch("/pantry/:id", requireAuth, async (req: Request, res: Response): Pr
 router.delete("/pantry/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
   await db.delete(pantryItems).where(eq(pantryItems.id, Number(req.params.id)));
   res.status(204).end();
+});
+
+// Scan a photo of groceries (already uploaded via /documents) and add
+// everything identifiable straight to the pantry — same underlying
+// extraction as the add_pantry_items_from_photo agent tool, exposed here
+// as a direct button on the Pantry page since referencing a document by id
+// from chat isn't a great flow for something this routine.
+router.post("/pantry/scan", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const clerkUserId = (req as any).clerkUserId as string;
+  const documentFileId = Number(req.body?.documentFileId);
+  if (isNaN(documentFileId)) { res.status(400).json({ error: "documentFileId required" }); return; }
+  try {
+    const extraction = await parseGroceryPhoto(clerkUserId, documentFileId);
+    const inserted = [];
+    for (const item of extraction.items) {
+      const [row] = await db.insert(pantryItems).values({ clerkUserId, name: item.name, quantity: item.quantity ?? undefined, category: item.category }).returning();
+      inserted.push(row);
+    }
+    res.json({ items: inserted });
+  } catch (err) {
+    if (err instanceof GroceryPhotoParseError) { res.status(400).json({ error: err.message }); return; }
+    res.status(500).json({ error: "Failed to read that grocery photo." });
+  }
 });
 
 // AI meal suggestions based on pantry contents

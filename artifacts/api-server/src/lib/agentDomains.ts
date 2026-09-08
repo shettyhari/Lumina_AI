@@ -5,14 +5,14 @@ import { TOOL_DECLARATIONS } from "./agentTools.js";
  *  which tool declarations a given sub-agent turn is allowed to see/call. */
 export const DOMAIN_TOOLS: Record<string, string[]> = {
   shopping: ["add_shopping_items", "get_shopping_list", "check_off_shopping_item"],
-  reminders_calendar: ["add_reminder", "get_reminders", "add_calendar_event", "get_calendar_events"],
-  chores: ["add_chore", "get_chores", "complete_chore"],
+  reminders_calendar: ["add_reminder", "get_reminders", "delete_reminder", "add_calendar_event", "get_calendar_events", "delete_calendar_event", "sync_google_calendar"],
+  chores: ["add_chore", "get_chores", "complete_chore", "delete_chore"],
   budget: ["add_budget_entry", "parse_receipt_image", "get_budget_summary"],
   notes: ["create_note", "get_notes"],
-  pantry: ["add_pantry_item", "get_pantry"],
+  pantry: ["add_pantry_item", "get_pantry", "add_pantry_items_from_photo"],
   family: ["get_family_members", "send_family_message"],
   automation: ["create_automation", "generate_weekly_insight"],
-  smart_home: ["get_smart_home_devices", "control_smart_home_device"],
+  smart_home: ["get_smart_home_devices", "control_smart_home_device", "get_family_locations"],
   status: ["get_weather", "get_status_briefing", "send_status_briefing_email"],
   bills: ["add_bill", "get_bills"],
   meals: ["plan_meal", "get_meal_plan", "sync_meal_plan_to_shopping_list"],

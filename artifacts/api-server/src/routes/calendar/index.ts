@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { db, familyEvents, familyMembers } from "@workspace/db";
 import { requireAuth } from "../../middlewares/requireAuth";
+import { syncGoogleCalendarEvents, GoogleCalendarError } from "../../lib/googleCalendar";
 
 const router: IRouter = Router();
 
@@ -49,6 +50,19 @@ router.post("/calendar", requireAuth, async (req, res): Promise<void> => {
   }).returning();
   const [enriched] = await enrichEvents([event]);
   res.status(201).json(enriched);
+});
+
+// One-way import from Google Calendar (see lib/googleCalendar.ts) — not a
+// two-way sync, events created here don't get pushed back to Google.
+router.post("/calendar/sync-google", requireAuth, async (req, res): Promise<void> => {
+  const clerkUserId = (req as any).clerkUserId as string;
+  try {
+    const result = await syncGoogleCalendarEvents(clerkUserId);
+    res.json(result);
+  } catch (err) {
+    if (err instanceof GoogleCalendarError) { res.status(400).json({ error: err.message }); return; }
+    res.status(500).json({ error: "Google Calendar sync failed." });
+  }
 });
 
 router.delete("/calendar/:id", requireAuth, async (req, res): Promise<void> => {

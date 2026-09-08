@@ -18,6 +18,8 @@ import { ai } from "@workspace/integrations-gemini-ai";
 import { getHomeAssistantConfig, listEntities, controlEntity, HomeAssistantError } from "./homeAssistant.js";
 import { fetchWeatherBriefing } from "./weather.js";
 import { sendStatusBriefingEmail } from "./email.js";
+import { parseGroceryPhoto, GroceryPhotoParseError } from "./groceryPhotoParsing.js";
+import { syncGoogleCalendarEvents, GoogleCalendarError } from "./googleCalendar.js";
 
 const AUTOMATABLE_TOOLS = new Set([
   "add_reminder", "add_chore", "add_calendar_event", "add_shopping_items", "create_note",
@@ -235,6 +237,11 @@ export const TOOL_DECLARATIONS = [
     },
   },
   {
+    name: "sync_google_calendar",
+    description: "Import upcoming events (next 60 days) from the user's connected Google Calendar into the family calendar. One-way only — events added in Lina are not pushed back to Google. Requires Google connected in Settings → Cloud Storage.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
     name: "delete_calendar_event",
     description: "Delete a calendar event. If it's part of a recurring series, deletes just that one occurrence unless delete_entire_series is set.",
     parameters: {
@@ -333,6 +340,17 @@ export const TOOL_DECLARATIONS = [
         category: { type: "string", description: "Filter by category (optional)" },
         limit: { type: "number", description: "Max results (default 20)" },
       },
+    },
+  },
+  {
+    name: "add_pantry_items_from_photo",
+    description: "Read an already-uploaded photo of groceries (items on a counter, in bags) and add everything identifiable straight to the pantry. Unlike parse_receipt_image, this looks at the actual items in the photo, not a receipt's printed text — for a receipt, use parse_receipt_image instead.",
+    parameters: {
+      type: "object",
+      properties: {
+        document_file_id: { type: "number", description: "The id of the uploaded document (grocery photo)" },
+      },
+      required: ["document_file_id"],
     },
   },
   {
@@ -584,6 +602,11 @@ export const TOOL_DECLARATIONS = [
         },
       },
     },
+  },
+  {
+    name: "get_family_locations",
+    description: "Show where family members currently are (home, away, or a named place) via Home Assistant person/device_tracker entities. Requires Home Assistant connected in Settings, and the user's Home Assistant to actually have person/device tracking set up.",
+    parameters: { type: "object", properties: {} },
   },
   {
     name: "control_smart_home_device",
@@ -840,6 +863,19 @@ async function execGetCalendarEvents(clerkUserId: string, args: Args): Promise<T
   return { name: "get_calendar_events", success: true, summary, data: rows };
 }
 
+async function execSyncGoogleCalendar(clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
+  try {
+    const result = await syncGoogleCalendarEvents(clerkUserId);
+    if (result.imported === 0 && result.updated === 0) {
+      return { name: "sync_google_calendar", success: true, summary: `Synced with Google Calendar — everything was already up to date (${result.skipped} event(s) unchanged).` };
+    }
+    return { name: "sync_google_calendar", success: true, summary: `Synced with Google Calendar: ${result.imported} new event(s) imported, ${result.updated} updated.` };
+  } catch (err) {
+    if (err instanceof GoogleCalendarError) return { name: "sync_google_calendar", success: false, summary: err.message };
+    return { name: "sync_google_calendar", success: false, summary: "Google Calendar sync failed." };
+  }
+}
+
 async function execDeleteCalendarEvent(_clerkUserId: string, args: Args, context?: ToolContext): Promise<ToolResultEvent> {
   const titleQuery = (args.title_query as string ?? "").toLowerCase();
   const deleteSeries = (args.delete_entire_series as boolean) ?? false;
@@ -1024,6 +1060,25 @@ async function execGetPantry(clerkUserId: string, args: Args): Promise<ToolResul
     ? "Pantry is empty."
     : rows.map(p => `• ${p.name}${p.quantity ? ` (${p.quantity})` : ""}${p.category ? ` [${p.category}]` : ""}`).join("\n");
   return { name: "get_pantry", success: true, summary, data: rows };
+}
+
+async function execAddPantryItemsFromPhoto(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const documentFileId = Number(args.document_file_id);
+  if (isNaN(documentFileId)) return { name: "add_pantry_items_from_photo", success: false, summary: "document_file_id is required." };
+  try {
+    const extraction = await parseGroceryPhoto(clerkUserId, documentFileId);
+    if (extraction.items.length === 0) {
+      return { name: "add_pantry_items_from_photo", success: true, summary: "Couldn't identify any grocery items in that photo." };
+    }
+    for (const item of extraction.items) {
+      await db.insert(pantryItems).values({ clerkUserId, name: item.name, quantity: item.quantity ?? undefined, category: item.category });
+    }
+    const summary = `Added ${extraction.items.length} item(s) from the photo to the pantry: ${extraction.items.map((i) => i.name).join(", ")}. Double-check quantities/categories, since these are AI-read from the image.`;
+    return { name: "add_pantry_items_from_photo", success: true, summary, data: extraction.items };
+  } catch (err) {
+    if (err instanceof GroceryPhotoParseError) return { name: "add_pantry_items_from_photo", success: false, summary: err.message };
+    return { name: "add_pantry_items_from_photo", success: false, summary: "Failed to read that grocery photo." };
+  }
 }
 
 async function execGetWeather(_clerkUserId: string, args: Args): Promise<ToolResultEvent> {
@@ -1359,6 +1414,33 @@ async function execGetSmartHomeDevices(clerkUserId: string, args: Args): Promise
   }
 }
 
+function describeLocationState(state: string): string {
+  if (state === "home") return "home";
+  if (state === "not_home") return "away";
+  return state; // a named zone, e.g. "Work", "School"
+}
+
+async function execGetFamilyLocations(clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
+  const config = await getHomeAssistantConfig(clerkUserId);
+  if (!config) {
+    return { name: "get_family_locations", success: false, summary: "Home Assistant isn't connected yet. Add your Home Assistant URL and a long-lived access token in Settings → Smart Home." };
+  }
+  try {
+    let entities = await listEntities(config, "person");
+    if (entities.length === 0) entities = await listEntities(config, "device_tracker");
+    if (entities.length === 0) {
+      return { name: "get_family_locations", success: true, summary: "Home Assistant isn't tracking any person or device_tracker entities — nothing to report." };
+    }
+    const summary = entities
+      .map((e) => `• ${(e.attributes.friendly_name as string) ?? e.entity_id} is ${describeLocationState(e.state)}`)
+      .join("\n");
+    return { name: "get_family_locations", success: true, summary, data: entities };
+  } catch (err) {
+    if (err instanceof HomeAssistantError) return { name: "get_family_locations", success: false, summary: err.message };
+    throw err;
+  }
+}
+
 async function execControlSmartHomeDevice(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
   const config = await getHomeAssistantConfig(clerkUserId);
   if (!config) {
@@ -1488,6 +1570,7 @@ export async function executeTool(
       case "add_calendar_event":      return await execAddCalendarEvent(clerkUserId, args);
       case "get_calendar_events":     return await execGetCalendarEvents(clerkUserId, args);
       case "delete_calendar_event":   return await execDeleteCalendarEvent(clerkUserId, args, context);
+      case "sync_google_calendar":    return await execSyncGoogleCalendar(clerkUserId, args);
       case "add_budget_entry":        return await execAddBudgetEntry(clerkUserId, args, context);
       case "parse_receipt_image":     return await execParseReceiptImage(clerkUserId, args);
       case "get_budget_summary":      return await execGetBudgetSummary(clerkUserId, args);
@@ -1495,6 +1578,7 @@ export async function executeTool(
       case "get_notes":               return await execGetNotes(clerkUserId, args);
       case "add_pantry_item":         return await execAddPantryItem(clerkUserId, args);
       case "get_pantry":              return await execGetPantry(clerkUserId, args);
+      case "add_pantry_items_from_photo": return await execAddPantryItemsFromPhoto(clerkUserId, args);
       case "get_weather":              return await execGetWeather(clerkUserId, args);
       case "get_status_briefing":     return await execGetStatusBriefing(clerkUserId, args);
       case "send_status_briefing_email": return await execSendStatusBriefingEmail(clerkUserId, args);
@@ -1515,6 +1599,7 @@ export async function executeTool(
       case "add_wishlist_item":       return await execAddWishlistItem(clerkUserId, args);
       case "get_wishlist":             return await execGetWishlist(clerkUserId, args);
       case "get_smart_home_devices": return await execGetSmartHomeDevices(clerkUserId, args);
+      case "get_family_locations":   return await execGetFamilyLocations(clerkUserId, args);
       case "control_smart_home_device": return await execControlSmartHomeDevice(clerkUserId, args);
       case "get_family_members":      return await execGetFamilyMembers(clerkUserId, args);
       case "send_family_message":     return await execSendFamilyMessage(clerkUserId, args);

@@ -271,6 +271,53 @@ export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina
     try { r.start(); } catch { /* ignore */ }
   }, [isSupported, buildRecognition, clearSilenceTimer, resetSilenceTimer, onTranscript, startWakeMode]);
 
+  // ── Barge-in (interrupt Lina mid-speech by just talking) ───────────────
+  // A lightweight recognizer runs only while state === "speaking". The
+  // instant it hears anything, it cuts the TTS and hands off straight into
+  // active listening — no tap required, matching how a real conversation
+  // interruption works. Reuses recognitionRef since nothing else uses it
+  // while speaking.
+
+  const startBargeInListener = useCallback(() => {
+    if (!isSupported) return;
+    const r = buildRecognition();
+    if (!r) return;
+    recognitionRef.current = r;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    r.onresult = (e: any) => {
+      if (!e.results || e.results.length === 0) return;
+      r.onresult = null; r.onerror = null; r.onend = null;
+      try { r.stop(); } catch { /* ignore */ }
+      recognitionRef.current = null;
+      window.speechSynthesis.cancel();
+      startActiveListening(false);
+    };
+    // Best-effort — a barge-in mic error shouldn't surface as a hard error
+    // state, it just means barge-in doesn't work this turn.
+    r.onerror = () => { /* ignore */ };
+    r.onend = () => {
+      // Keep it alive for as long as Lina is still talking (browsers time
+      // out a recognition session after a while even with continuous=true).
+      if (stateRef.current === "speaking") {
+        try { r.start(); } catch { /* ignore */ }
+      }
+    };
+    try { r.start(); } catch { /* ignore — mic busy, barge-in unavailable this turn */ }
+  }, [isSupported, buildRecognition, startActiveListening]);
+
+  const stopBargeInListener = useCallback(() => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      } catch { /* ignore */ }
+      recognitionRef.current = null;
+    }
+  }, []);
+
   // ── Public API ─────────────────────────────────────────────────────────
 
   const toggleWake = useCallback(() => {
@@ -310,6 +357,7 @@ export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina
   const speak = useCallback((text: string) => {
     if (!("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
+    stopBargeInListener();
 
     const cleaned = stripMarkdown(text);
     if (!cleaned) return;
@@ -332,6 +380,7 @@ export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina
     let idx = 0;
     const speakNext = () => {
       if (idx >= chunks.length) {
+        stopBargeInListener();
         setState(prev => prev === "speaking" ? "idle" : prev);
         // Resume wake mode if it was active before
         if (stateRef.current === "idle") {
@@ -348,12 +397,14 @@ export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina
       if (voice) utter.voice = voice;
       utter.onend = speakNext;
       utter.onerror = () => {
+        stopBargeInListener();
         setState(prev => prev === "speaking" ? "idle" : prev);
       };
       window.speechSynthesis.speak(utter);
     };
 
     setState("speaking");
+    startBargeInListener();
     // Voices may not be loaded yet
     if (window.speechSynthesis.getVoices().length === 0) {
       window.speechSynthesis.onvoiceschanged = () => {
@@ -363,12 +414,13 @@ export function useVoiceAgent({ onTranscript, wakeWords = ["hey lumina", "lumina
     } else {
       speakNext();
     }
-  }, []);
+  }, [startBargeInListener, stopBargeInListener]);
 
   const stopSpeaking = useCallback(() => {
+    stopBargeInListener();
     window.speechSynthesis.cancel();
     setState(prev => prev === "speaking" ? "idle" : prev);
-  }, []);
+  }, [stopBargeInListener]);
 
   // Cleanup on unmount
   useEffect(() => {

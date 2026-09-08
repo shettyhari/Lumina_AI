@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
-import { ShoppingBasket, Plus, X, Trash2, Sparkles, ChefHat } from "lucide-react";
+import { ShoppingBasket, Plus, X, Trash2, Sparkles, ChefHat, Camera, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PantryItem { id: number; name: string; quantity?: string; category: string; expiresAt?: string; addedAt: string; }
 interface MealSuggestion { name: string; description: string; uses: string[]; cookTime: string; emoji: string; }
+
+const MAX_PHOTO_MB = 10;
 
 const CATEGORIES = ["produce", "dairy", "meat", "pantry", "frozen", "bakery", "beverage", "spice", "other"];
 const CATEGORY_ICONS: Record<string, string> = { produce: "🥬", dairy: "🥛", meat: "🥩", pantry: "🥫", frozen: "🧊", bakery: "🍞", beverage: "🧃", spice: "🫙", other: "📦" };
@@ -47,6 +49,41 @@ export default function PantryPage() {
     setSuggesting(false);
   }
 
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<{ count: number } | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleScanGroceries(file: File) {
+    if (!file.type.startsWith("image/")) { alert("Please select an image file."); return; }
+    if (file.size > MAX_PHOTO_MB * 1024 * 1024) { alert(`File too large. Max ${MAX_PHOTO_MB}MB.`); return; }
+    setScanning(true);
+    setScanResult(null);
+    try {
+      const { uploadURL, objectPath } = await customFetch("/api/documents/upload-url", {
+        method: "POST",
+        body: JSON.stringify({ filename: file.name, mimeType: file.type, sizeBytes: file.size, folder: "personal" }),
+        headers: { "Content-Type": "application/json" },
+      }) as any;
+      await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      const doc = await customFetch("/api/documents/register", {
+        method: "POST",
+        body: JSON.stringify({ filename: file.name, storageKey: objectPath, mimeType: file.type, sizeBytes: file.size, folder: "personal" }),
+        headers: { "Content-Type": "application/json" },
+      }) as { id: number };
+      const result = await customFetch("/api/pantry/scan", {
+        method: "POST",
+        body: JSON.stringify({ documentFileId: doc.id }),
+        headers: { "Content-Type": "application/json" },
+      }) as { items: PantryItem[] };
+      setScanResult({ count: result.items.length });
+      qc.invalidateQueries({ queryKey: ["pantry"] });
+    } catch {
+      alert("Couldn't read that photo. Try adding items manually instead.");
+    } finally {
+      setScanning(false);
+    }
+  }
+
   const filtered = filter === "all" ? items : items.filter(i => i.category === filter);
   const expiredCount = items.filter(i => expiryStatus(i) === "expired").length;
   const expiringSoon = items.filter(i => expiryStatus(i) === "soon").length;
@@ -63,6 +100,12 @@ export default function PantryPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => photoInputRef.current?.click()} disabled={scanning} className="flex items-center gap-2 rounded-lg bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-500/20 disabled:opacity-50">
+            {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+            {scanning ? "Reading photo..." : "Scan Groceries"}
+          </button>
+          <input ref={photoInputRef} type="file" accept="image/*" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleScanGroceries(f); e.target.value = ""; }} />
           <button onClick={getSuggestions} disabled={suggesting || items.length === 0} className="flex items-center gap-2 rounded-lg bg-violet-500/10 px-4 py-2 text-sm font-medium text-violet-700 hover:bg-violet-500/20 disabled:opacity-50">
             <Sparkles className="h-4 w-4" />{suggesting ? "Thinking..." : "Suggest Meals"}
           </button>
@@ -71,6 +114,17 @@ export default function PantryPage() {
           </button>
         </div>
       </div>
+
+      {scanResult && (
+        <div className="mb-6 flex items-center justify-between rounded-xl border border-cyan-500/30 bg-cyan-500/5 px-4 py-3 text-sm">
+          <span>
+            {scanResult.count === 0
+              ? "Couldn't identify any items in that photo — add them manually below."
+              : `Added ${scanResult.count} item${scanResult.count === 1 ? "" : "s"} from the photo. Double-check quantities/categories below.`}
+          </span>
+          <button onClick={() => setScanResult(null)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+      )}
 
       {/* AI suggestions */}
       {suggestions && suggestions.length > 0 && (
