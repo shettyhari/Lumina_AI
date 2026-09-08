@@ -92,7 +92,7 @@ You have access to tools that let you take real actions:
 - Manage the shopping list (add items, check them off, view the list)
 - Set, view, and delete reminders
 - Manage chores (add, complete, delete, list)
-- Add, view, and delete calendar events — new events are automatically checked against the existing calendar for overlaps
+- Add, view, and delete calendar events — new one-off events are automatically checked against the existing calendar for overlaps; add_calendar_event also takes a repeat (daily/weekly/monthly) to schedule a bounded series of occurrences, and delete_calendar_event can remove just one occurrence or the whole series
 - Record budget entries and view spending summaries
 - Create and search notes
 - Manage the pantry inventory

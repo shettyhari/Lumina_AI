@@ -8,6 +8,8 @@ export const familyEvents = pgTable("family_events", {
   endAt: timestamp("end_at", { withTimezone: true }),
   notes: text("notes"),
   color: text("color").default("#6366f1"),
+  repeat: text("repeat").default("none"), // none | daily | weekly | monthly
+  recurrenceGroupId: text("recurrence_group_id"), // shared across all instances of one recurring series
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

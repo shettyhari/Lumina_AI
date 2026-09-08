@@ -3,6 +3,7 @@
  * Gemini function-calling declarations + server-side DB executors.
  */
 
+import { randomUUID } from "node:crypto";
 import {
   db, shoppingItems, chores, reminders, familyEvents, budgetEntries, familyNotes, familyMembers, familyMessages,
   pantryItems, automations, documentFiles, homeSettings, users, bills, mealPlans, pets, petCareLogs, homeInventory,
@@ -205,14 +206,19 @@ export const TOOL_DECLARATIONS = [
   // Calendar
   {
     name: "add_calendar_event",
-    description: "Add an event to the family calendar.",
+    description: "Add an event to the family calendar. Set repeat for a recurring event ('every Monday', 'daily standup', etc.) — this creates several concrete occurrences, not an open-ended rule.",
     parameters: {
       type: "object",
       properties: {
         title: { type: "string", description: "Event title" },
-        start_at: { type: "string", description: "ISO 8601 start datetime" },
+        start_at: { type: "string", description: "ISO 8601 start datetime (of the first occurrence, if repeating)" },
         end_at: { type: "string", description: "ISO 8601 end datetime (optional)" },
         notes: { type: "string", description: "Additional notes (optional)" },
+        repeat: {
+          type: "string",
+          enum: ["none", "daily", "weekly", "monthly"],
+          description: "Repeat frequency (default: none). Generates a bounded number of future occurrences: ~30 days for daily, ~12 weeks for weekly, ~6 months for monthly.",
+        },
       },
       required: ["title", "start_at"],
     },
@@ -230,11 +236,12 @@ export const TOOL_DECLARATIONS = [
   },
   {
     name: "delete_calendar_event",
-    description: "Delete a calendar event.",
+    description: "Delete a calendar event. If it's part of a recurring series, deletes just that one occurrence unless delete_entire_series is set.",
     parameters: {
       type: "object",
       properties: {
         title_query: { type: "string", description: "Text to match against the event title (partial match ok)" },
+        delete_entire_series: { type: "boolean", description: "If the matched event recurs, delete every occurrence in the series instead of just this one (default false)" },
       },
       required: ["title_query"],
     },
@@ -732,33 +739,84 @@ async function execDeleteChore(_clerkUserId: string, args: Args, context?: ToolC
   return { name: "delete_chore", success: true, summary: `Deleted chore: "${match.title}"` };
 }
 
+// Recurrence is materialized as concrete rows over a bounded horizon rather
+// than an open-ended rule — far simpler to query/delete/display than
+// re-deriving occurrences everywhere familyEvents is read, at the cost of a
+// series not extending itself forever (a fixed, generous horizon per
+// frequency instead).
+const RECURRENCE_HORIZON: Record<string, { stepDays?: number; stepMonths?: number; count: number }> = {
+  daily: { stepDays: 1, count: 30 },
+  weekly: { stepDays: 7, count: 12 },
+  monthly: { stepMonths: 1, count: 6 },
+};
+
+function addRecurrenceStep(date: Date, freq: string): Date {
+  const rule = RECURRENCE_HORIZON[freq];
+  const next = new Date(date);
+  if (rule.stepDays) next.setDate(next.getDate() + rule.stepDays);
+  else if (rule.stepMonths) next.setMonth(next.getMonth() + rule.stepMonths);
+  return next;
+}
+
 async function execAddCalendarEvent(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
   const title = args.title as string;
   const startAt = new Date(args.start_at as string);
   const endAt = args.end_at ? new Date(args.end_at as string) : undefined;
   const notes = args.notes as string | undefined;
+  const repeat = (args.repeat as string) ?? "none";
   if (isNaN(startAt.getTime())) return { name: "add_calendar_event", success: false, summary: "Invalid start date/time." };
-
-  // Conflict check: treat events with no end time as 1hr for comparison
-  // purposes only (never persisted) — same visibility scope as
-  // execGetCalendarEvents (shared family calendar, see routes/calendar).
-  const effectiveEnd = endAt ?? new Date(startAt.getTime() + 60 * 60 * 1000);
-  const dayBefore = new Date(startAt.getTime() - 24 * 60 * 60 * 1000);
-  const dayAfter = new Date(effectiveEnd.getTime() + 24 * 60 * 60 * 1000);
-  const nearby = await db.select().from(familyEvents)
-    .where(and(gte(familyEvents.startAt, dayBefore), lte(familyEvents.startAt, dayAfter)));
-  const conflict = nearby.find((e) => {
-    const eStart = new Date(e.startAt).getTime();
-    const eEnd = e.endAt ? new Date(e.endAt).getTime() : eStart + 60 * 60 * 1000;
-    return eStart < effectiveEnd.getTime() && eEnd > startAt.getTime();
-  });
-
-  await db.insert(familyEvents).values({ clerkUserId, title, startAt, endAt, notes });
-  const base = `Calendar event added: "${title}" on ${startAt.toLocaleString()}`;
-  if (conflict) {
-    return { name: "add_calendar_event", success: true, summary: `${base}. Heads up — this overlaps with "${conflict.title}" at ${new Date(conflict.startAt).toLocaleString()}.` };
+  if (repeat !== "none" && !RECURRENCE_HORIZON[repeat]) {
+    return { name: "add_calendar_event", success: false, summary: "repeat must be none, daily, weekly, or monthly." };
   }
-  return { name: "add_calendar_event", success: true, summary: base };
+
+  if (repeat === "none") {
+    // Conflict check: treat events with no end time as 1hr for comparison
+    // purposes only (never persisted) — same visibility scope as
+    // execGetCalendarEvents (shared family calendar, see routes/calendar).
+    const effectiveEnd = endAt ?? new Date(startAt.getTime() + 60 * 60 * 1000);
+    const dayBefore = new Date(startAt.getTime() - 24 * 60 * 60 * 1000);
+    const dayAfter = new Date(effectiveEnd.getTime() + 24 * 60 * 60 * 1000);
+    const nearby = await db.select().from(familyEvents)
+      .where(and(gte(familyEvents.startAt, dayBefore), lte(familyEvents.startAt, dayAfter)));
+    const conflict = nearby.find((e) => {
+      const eStart = new Date(e.startAt).getTime();
+      const eEnd = e.endAt ? new Date(e.endAt).getTime() : eStart + 60 * 60 * 1000;
+      return eStart < effectiveEnd.getTime() && eEnd > startAt.getTime();
+    });
+
+    await db.insert(familyEvents).values({ clerkUserId, title, startAt, endAt, notes, repeat: "none" });
+    const base = `Calendar event added: "${title}" on ${startAt.toLocaleString()}`;
+    return conflict
+      ? { name: "add_calendar_event", success: true, summary: `${base}. Heads up — this overlaps with "${conflict.title}" at ${new Date(conflict.startAt).toLocaleString()}.` }
+      : { name: "add_calendar_event", success: true, summary: base };
+  }
+
+  // Recurring: materialize occurrences over the bounded horizon. No
+  // per-occurrence conflict check — with up to 30 instances that's a lot of
+  // noise for a case the user can already see by asking for the calendar.
+  const durationMs = endAt ? endAt.getTime() - startAt.getTime() : null;
+  const { count } = RECURRENCE_HORIZON[repeat];
+  const recurrenceGroupId = randomUUID();
+  const rows: (typeof familyEvents.$inferInsert)[] = [];
+  let occurrenceStart = startAt;
+  for (let i = 0; i < count; i++) {
+    rows.push({
+      clerkUserId,
+      title,
+      startAt: occurrenceStart,
+      endAt: durationMs != null ? new Date(occurrenceStart.getTime() + durationMs) : undefined,
+      notes,
+      repeat,
+      recurrenceGroupId,
+    });
+    occurrenceStart = addRecurrenceStep(occurrenceStart, repeat);
+  }
+  await db.insert(familyEvents).values(rows);
+  return {
+    name: "add_calendar_event",
+    success: true,
+    summary: `Recurring calendar event added: "${title}", ${repeat}, starting ${startAt.toLocaleString()} — ${count} occurrences scheduled.`,
+  };
 }
 
 async function execGetCalendarEvents(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
@@ -778,21 +836,32 @@ async function execGetCalendarEvents(clerkUserId: string, args: Args): Promise<T
     .limit(limit);
   const summary = rows.length === 0
     ? `No events in the next ${daysAhead} days.`
-    : rows.map(e => `• ${e.title} — ${new Date(e.startAt).toLocaleString()}`).join("\n");
+    : rows.map(e => `• ${e.title} — ${new Date(e.startAt).toLocaleString()}${e.repeat && e.repeat !== "none" ? ` (repeats ${e.repeat})` : ""}`).join("\n");
   return { name: "get_calendar_events", success: true, summary, data: rows };
 }
 
 async function execDeleteCalendarEvent(_clerkUserId: string, args: Args, context?: ToolContext): Promise<ToolResultEvent> {
   const titleQuery = (args.title_query as string ?? "").toLowerCase();
+  const deleteSeries = (args.delete_entire_series as boolean) ?? false;
   // Shared family calendar — same unscoped visibility as execGetCalendarEvents.
   const rows = await db.select().from(familyEvents);
   const match = rows.find(e => e.title.toLowerCase().includes(titleQuery));
   if (!match) return { name: "delete_calendar_event", success: false, summary: `Could not find an event matching "${args.title_query}".` };
+
+  if (deleteSeries && match.recurrenceGroupId) {
+    if (needsConfirmation(context?.originalMessage)) {
+      return { name: "delete_calendar_event", success: false, summary: `Confirm with the user before deleting the entire "${match.title}" series, then call delete_calendar_event again.` };
+    }
+    const seriesRows = rows.filter(e => e.recurrenceGroupId === match.recurrenceGroupId);
+    await db.delete(familyEvents).where(eq(familyEvents.recurrenceGroupId, match.recurrenceGroupId));
+    return { name: "delete_calendar_event", success: true, summary: `Deleted all ${seriesRows.length} occurrences of "${match.title}".` };
+  }
+
   if (needsConfirmation(context?.originalMessage)) {
     return { name: "delete_calendar_event", success: false, summary: `Confirm with the user before deleting "${match.title}" (${new Date(match.startAt).toLocaleString()}), then call delete_calendar_event again.` };
   }
   await db.delete(familyEvents).where(eq(familyEvents.id, match.id));
-  return { name: "delete_calendar_event", success: true, summary: `Deleted event: "${match.title}"` };
+  return { name: "delete_calendar_event", success: true, summary: `Deleted event: "${match.title}"${match.recurrenceGroupId ? " (just this occurrence — the rest of the series is untouched)" : ""}` };
 }
 
 async function execAddBudgetEntry(

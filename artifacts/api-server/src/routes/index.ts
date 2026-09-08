@@ -34,6 +34,7 @@ import automationsRouter from "./automations";
 import cronRouter from "./cron";
 import webhooksRouter from "./webhooks";
 import pushRouter from "./push";
+import statusRouter from "./status";
 import { requireApproved } from "../middlewares/requireApproved";
 import { getReqUserId } from "../middlewares/requireAuth";
 
@@ -90,5 +91,6 @@ router.use(automationsRouter);
 router.use(cronRouter);
 router.use(webhooksRouter);
 router.use(pushRouter);
+router.use(statusRouter);
 
 export default router;

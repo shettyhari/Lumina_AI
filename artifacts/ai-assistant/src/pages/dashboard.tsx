@@ -9,6 +9,7 @@ import { Link } from "wouter";
 import { format, isValid } from "date-fns";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import StatusHud from "@/components/StatusHud";
 
 /** Safely formats a date string — returns empty string for null/invalid dates */
 function safeFormat(dateStr: string | null | undefined, fmt: string): string {
@@ -77,6 +78,9 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold tracking-tight mb-2">Dashboard</h1>
           <p className="text-muted-foreground">Overview of your intelligence workspace.</p>
         </div>
+
+        {/* Status HUD */}
+        <StatusHud />
 
         {/* Daily Digest */}
         <div className="bg-glass rounded-2xl p-6 space-y-3 relative overflow-hidden">
