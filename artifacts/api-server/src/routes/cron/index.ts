@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
-import { and, eq, lte, desc, sql } from "drizzle-orm";
-import { db, automations, conversations, messages } from "@workspace/db";
+import { and, eq, lte } from "drizzle-orm";
+import { db, automations } from "@workspace/db";
 import { executeTool } from "../../lib/agentTools";
 import { computeNextRunAt } from "../../lib/automationSchedule";
+import { postAssistantMessage } from "../../lib/chatMessaging";
 
 const router: IRouter = Router();
 
@@ -11,21 +12,6 @@ function isAuthorized(req: import("express").Request): boolean {
   if (!secret) return false; // refuse to run with no secret configured
   const header = req.headers.authorization;
   return header === `Bearer ${secret}`;
-}
-
-async function postSystemMessage(clerkUserId: string, content: string): Promise<void> {
-  const [latest] = await db.select().from(conversations)
-    .where(eq(conversations.clerkUserId, clerkUserId))
-    .orderBy(desc(conversations.updatedAt)).limit(1);
-
-  const conversationId = latest
-    ? latest.id
-    : (await db.insert(conversations).values({ clerkUserId, title: "Lina" }).returning())[0].id;
-
-  await db.insert(messages).values({ conversationId, role: "assistant", content });
-  await db.update(conversations)
-    .set({ messageCount: sql`message_count + 1`, updatedAt: new Date() })
-    .where(eq(conversations.id, conversationId));
 }
 
 // Triggered by Vercel Cron (see vercel.json). Not user-facing — protected by
@@ -43,7 +29,7 @@ router.post("/cron/run-due", async (req, res): Promise<void> => {
     const result = await executeTool(automation.clerkUserId, automation.toolName, automation.toolArgs);
     if (result.success) ran++; else failed++;
 
-    await postSystemMessage(
+    await postAssistantMessage(
       automation.clerkUserId,
       result.success
         ? `⏰ Automation ran: "${automation.description}"\n\n${result.summary}`

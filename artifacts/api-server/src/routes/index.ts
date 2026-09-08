@@ -32,6 +32,7 @@ import briefingRouter from "./briefing";
 import cloudStorageRouter from "./cloud-storage";
 import automationsRouter from "./automations";
 import cronRouter from "./cron";
+import webhooksRouter from "./webhooks";
 import { requireApproved } from "../middlewares/requireApproved";
 import { getReqUserId } from "../middlewares/requireAuth";
 
@@ -86,5 +87,6 @@ router.use(briefingRouter);
 router.use(cloudStorageRouter);
 router.use(automationsRouter);
 router.use(cronRouter);
+router.use(webhooksRouter);
 
 export default router;

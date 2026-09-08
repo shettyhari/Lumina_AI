@@ -23,6 +23,42 @@ const AUTOMATABLE_TOOLS = new Set([
   "send_family_message", "generate_weekly_insight", "control_smart_home_device", "send_status_briefing_email",
 ]);
 
+// Shared confirm-before-acting gate: used for consequential actions (large
+// budget entries, deletions). Fires while the triggering message contains no
+// confirmation language — once the user replies "yes"/"confirm"/"delete it"
+// etc., the call goes through, since that reply typically won't re-match
+// whatever originally triggered the gate (a dollar figure, a delete verb).
+const CONFIRMATION_WORDS = /\b(yes|yep|yeah|confirm(ed)?|correct|go ahead|do it|log it|delete it|remove it|that'?s right|sounds right|please do)\b/i;
+
+function needsConfirmation(originalMessage?: string): boolean {
+  return !originalMessage || !CONFIRMATION_WORDS.test(originalMessage);
+}
+
+// Kid Mode (a family-member featureFlag, set in Admin) blocks a family
+// member's session from financial, deletion, smart-home-control, and
+// scheduling tools — same restriction the admin dashboard's toggle grants,
+// just enforced here too so it also covers chat/voice, not only the
+// module UIs a restricted member might not even see a link to.
+const RESTRICTED_TOOLS = new Set([
+  "add_budget_entry", "get_budget_summary", "parse_receipt_image",
+  "control_smart_home_device",
+  "delete_reminder", "delete_chore", "delete_calendar_event",
+  "create_automation",
+  "add_bill", "get_bills",
+  "send_status_briefing_email",
+]);
+
+async function isKidModeRestricted(clerkUserId: string): Promise<boolean> {
+  try {
+    const [member] = await db.select().from(familyMembers).where(eq(familyMembers.clerkUserId, clerkUserId));
+    if (!member) return false;
+    const flags = JSON.parse(member.featureFlags || "{}") as Record<string, boolean>;
+    return flags.kidMode === true;
+  } catch {
+    return false; // never let a lookup failure block a normal action
+  }
+}
+
 // ─── Type helpers ─────────────────────────────────────────────────────────────
 
 export interface ToolCallEvent {
@@ -107,6 +143,17 @@ export const TOOL_DECLARATIONS = [
       },
     },
   },
+  {
+    name: "delete_reminder",
+    description: "Delete a reminder. Confirm with the user which one before calling this if there's any ambiguity.",
+    parameters: {
+      type: "object",
+      properties: {
+        message_query: { type: "string", description: "Text to match against the reminder's message (partial match ok)" },
+      },
+      required: ["message_query"],
+    },
+  },
   // Chores
   {
     name: "add_chore",
@@ -144,6 +191,17 @@ export const TOOL_DECLARATIONS = [
       required: ["chore_title"],
     },
   },
+  {
+    name: "delete_chore",
+    description: "Delete a chore entirely (not the same as completing it).",
+    parameters: {
+      type: "object",
+      properties: {
+        chore_title: { type: "string", description: "Title of the chore to delete (partial match ok)" },
+      },
+      required: ["chore_title"],
+    },
+  },
   // Calendar
   {
     name: "add_calendar_event",
@@ -168,6 +226,17 @@ export const TOOL_DECLARATIONS = [
         days_ahead: { type: "number", description: "How many days ahead to look (default 14)" },
         limit: { type: "number", description: "Max results (default 10)" },
       },
+    },
+  },
+  {
+    name: "delete_calendar_event",
+    description: "Delete a calendar event.",
+    parameters: {
+      type: "object",
+      properties: {
+        title_query: { type: "string", description: "Text to match against the event title (partial match ok)" },
+      },
+      required: ["title_query"],
     },
   },
   // Budget
@@ -359,6 +428,16 @@ export const TOOL_DECLARATIONS = [
       type: "object",
       properties: {
         days_ahead: { type: "number", description: "How many days ahead to include, from today (default 7)" },
+      },
+    },
+  },
+  {
+    name: "sync_meal_plan_to_shopping_list",
+    description: "Look at the planned meals and current pantry, then add the likely-missing grocery items to the shopping list. Ingredients are AI-inferred from dish names (the meal plan doesn't store ingredient lists), so tell the user this is a best-effort list they should double-check.",
+    parameters: {
+      type: "object",
+      properties: {
+        days_ahead: { type: "number", description: "How many days of the meal plan to shop for (default 7)" },
       },
     },
   },
@@ -592,6 +671,18 @@ async function execGetReminders(clerkUserId: string, args: Args): Promise<ToolRe
   return { name: "get_reminders", success: true, summary, data: upcoming };
 }
 
+async function execDeleteReminder(clerkUserId: string, args: Args, context?: ToolContext): Promise<ToolResultEvent> {
+  const query = (args.message_query as string ?? "").toLowerCase();
+  const rows = await db.select().from(reminders).where(eq(reminders.clerkUserId, clerkUserId));
+  const match = rows.find(r => r.message.toLowerCase().includes(query));
+  if (!match) return { name: "delete_reminder", success: false, summary: `Could not find a reminder matching "${args.message_query}".` };
+  if (needsConfirmation(context?.originalMessage)) {
+    return { name: "delete_reminder", success: false, summary: `Confirm with the user before deleting the reminder "${match.message}", then call delete_reminder again.` };
+  }
+  await db.delete(reminders).where(eq(reminders.id, match.id));
+  return { name: "delete_reminder", success: true, summary: `Deleted reminder: "${match.message}"` };
+}
+
 async function execAddChore(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
   const title = args.title as string;
   const description = args.description as string | undefined;
@@ -627,6 +718,18 @@ async function execCompleteChore(_clerkUserId: string, args: Args): Promise<Tool
   if (!match) return { name: "complete_chore", success: false, summary: `Could not find chore "${args.chore_title}".` };
   await db.update(chores).set({ status: "done", updatedAt: new Date() }).where(eq(chores.id, match.id));
   return { name: "complete_chore", success: true, summary: `Marked chore "${match.title}" as done! ✅` };
+}
+
+async function execDeleteChore(_clerkUserId: string, args: Args, context?: ToolContext): Promise<ToolResultEvent> {
+  const titleQuery = (args.chore_title as string ?? "").toLowerCase();
+  const rows = await db.select().from(chores);
+  const match = rows.find(c => c.title.toLowerCase().includes(titleQuery));
+  if (!match) return { name: "delete_chore", success: false, summary: `Could not find chore "${args.chore_title}".` };
+  if (needsConfirmation(context?.originalMessage)) {
+    return { name: "delete_chore", success: false, summary: `Confirm with the user before deleting the chore "${match.title}", then call delete_chore again.` };
+  }
+  await db.delete(chores).where(eq(chores.id, match.id));
+  return { name: "delete_chore", success: true, summary: `Deleted chore: "${match.title}"` };
 }
 
 async function execAddCalendarEvent(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
@@ -679,6 +782,19 @@ async function execGetCalendarEvents(clerkUserId: string, args: Args): Promise<T
   return { name: "get_calendar_events", success: true, summary, data: rows };
 }
 
+async function execDeleteCalendarEvent(_clerkUserId: string, args: Args, context?: ToolContext): Promise<ToolResultEvent> {
+  const titleQuery = (args.title_query as string ?? "").toLowerCase();
+  // Shared family calendar — same unscoped visibility as execGetCalendarEvents.
+  const rows = await db.select().from(familyEvents);
+  const match = rows.find(e => e.title.toLowerCase().includes(titleQuery));
+  if (!match) return { name: "delete_calendar_event", success: false, summary: `Could not find an event matching "${args.title_query}".` };
+  if (needsConfirmation(context?.originalMessage)) {
+    return { name: "delete_calendar_event", success: false, summary: `Confirm with the user before deleting "${match.title}" (${new Date(match.startAt).toLocaleString()}), then call delete_calendar_event again.` };
+  }
+  await db.delete(familyEvents).where(eq(familyEvents.id, match.id));
+  return { name: "delete_calendar_event", success: true, summary: `Deleted event: "${match.title}"` };
+}
+
 async function execAddBudgetEntry(
   clerkUserId: string,
   args: Args,
@@ -707,12 +823,10 @@ async function execAddBudgetEntry(
   }
 
   // Large-amount gate: same shape as the confidence gate above, but keyed on
-  // size rather than ambiguity. Only fires while the triggering message still
-  // contains no confirmation language — once the user replies "yes"/"confirm"
-  // etc. (with no fresh amount to re-trigger this), the call goes through.
+  // size rather than ambiguity — see needsConfirmation() for how the
+  // confirmation-language bypass works.
   const LARGE_AMOUNT_THRESHOLD = 500;
-  const CONFIRMATION_WORDS = /\b(yes|yep|yeah|confirm(ed)?|correct|go ahead|log it|that'?s right|sounds right|please do)\b/i;
-  if (amountNum >= LARGE_AMOUNT_THRESHOLD && context?.originalMessage && !CONFIRMATION_WORDS.test(context.originalMessage)) {
+  if (amountNum >= LARGE_AMOUNT_THRESHOLD && needsConfirmation(context?.originalMessage)) {
     return {
       name: "add_budget_entry",
       success: false,
@@ -860,7 +974,7 @@ async function execGetWeather(_clerkUserId: string, args: Args): Promise<ToolRes
   }
 }
 
-async function buildStatusBriefingText(clerkUserId: string): Promise<string> {
+export async function buildStatusBriefingText(clerkUserId: string): Promise<string> {
   const parts: string[] = [];
 
   const [cityRow] = await db.select().from(homeSettings).where(eq(homeSettings.key, "city")).limit(1);
@@ -978,6 +1092,54 @@ async function execGetMealPlan(clerkUserId: string, args: Args): Promise<ToolRes
     ? `No meals planned in the next ${daysAhead} days.`
     : inRange.map((r) => `• ${r.absoluteDate.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} ${r.mealSlot}: ${r.dishName}`).join("\n");
   return { name: "get_meal_plan", success: true, summary, data: inRange };
+}
+
+async function execSyncMealPlanToShoppingList(clerkUserId: string, args: Args): Promise<ToolResultEvent> {
+  const daysAhead = (args.days_ahead as number) ?? 7;
+  const now = new Date();
+  const until = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+
+  const rows = await db.select().from(mealPlans).where(eq(mealPlans.clerkUserId, clerkUserId));
+  const dishes = rows
+    .map((r) => ({ ...r, absoluteDate: mealPlanAbsoluteDate(r.weekStart, r.dayOfWeek) }))
+    .filter((r) => r.absoluteDate >= new Date(now.toISOString().slice(0, 10)) && r.absoluteDate <= until)
+    .map((r) => r.dishName);
+
+  if (dishes.length === 0) {
+    return { name: "sync_meal_plan_to_shopping_list", success: true, summary: `No meals planned in the next ${daysAhead} days — nothing to shop for.` };
+  }
+
+  const pantryRows = await db.select().from(pantryItems).where(eq(pantryItems.clerkUserId, clerkUserId));
+  const pantryNames = pantryRows.map((p) => p.name);
+
+  const prompt = `Planned dishes for the next ${daysAhead} days: ${dishes.join(", ")}.\n` +
+    `Already in the pantry: ${pantryNames.length > 0 ? pantryNames.join(", ") : "(nothing recorded)"}.\n\n` +
+    `List the grocery items likely needed to make these dishes that are NOT already in the pantry. ` +
+    `Keep it practical — common ingredients only, no exotic substitutions, no duplicates, no items already in the pantry list above. ` +
+    `Respond ONLY with a JSON array of short item names, e.g. ["ground beef","spaghetti","parmesan"]. Max 15 items.`;
+
+  let items: string[] = [];
+  try {
+    const result = await ai.models.generateContent({ model: "gemini-flash-latest", contents: [{ role: "user", parts: [{ text: prompt }] }] });
+    const raw = result.text?.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim() ?? "[]";
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) items = parsed.filter((i): i is string => typeof i === "string").slice(0, 15);
+  } catch {
+    return { name: "sync_meal_plan_to_shopping_list", success: false, summary: "Couldn't work out what's needed for the meal plan right now — try again shortly." };
+  }
+
+  if (items.length === 0) {
+    return { name: "sync_meal_plan_to_shopping_list", success: true, summary: "Looks like the pantry already covers everything needed for the planned meals." };
+  }
+
+  for (const name of items) {
+    await db.insert(shoppingItems).values({ clerkUserId, name: name.trim(), category: "Other" }).onConflictDoNothing();
+  }
+  return {
+    name: "sync_meal_plan_to_shopping_list",
+    success: true,
+    summary: `Added ${items.length} AI-suggested item(s) to the shopping list for this week's meal plan: ${items.join(", ")}. Double-check against the actual recipes.`,
+  };
 }
 
 async function execGetPets(_clerkUserId: string, _args: Args): Promise<ToolResultEvent> {
@@ -1240,17 +1402,23 @@ export async function executeTool(
   context?: ToolContext,
 ): Promise<ToolResultEvent> {
   try {
+    if (RESTRICTED_TOOLS.has(name) && (await isKidModeRestricted(clerkUserId))) {
+      return { name, success: false, summary: "That's not available on this account — ask a parent or admin." };
+    }
     switch (name) {
       case "add_shopping_items":      return await execAddShoppingItems(clerkUserId, args);
       case "get_shopping_list":       return await execGetShoppingList(clerkUserId, args);
       case "check_off_shopping_item": return await execCheckOffShoppingItem(clerkUserId, args);
       case "add_reminder":            return await execAddReminder(clerkUserId, args);
       case "get_reminders":           return await execGetReminders(clerkUserId, args);
+      case "delete_reminder":         return await execDeleteReminder(clerkUserId, args, context);
       case "add_chore":               return await execAddChore(clerkUserId, args);
       case "get_chores":              return await execGetChores(clerkUserId, args);
       case "complete_chore":          return await execCompleteChore(clerkUserId, args);
+      case "delete_chore":             return await execDeleteChore(clerkUserId, args, context);
       case "add_calendar_event":      return await execAddCalendarEvent(clerkUserId, args);
       case "get_calendar_events":     return await execGetCalendarEvents(clerkUserId, args);
+      case "delete_calendar_event":   return await execDeleteCalendarEvent(clerkUserId, args, context);
       case "add_budget_entry":        return await execAddBudgetEntry(clerkUserId, args, context);
       case "parse_receipt_image":     return await execParseReceiptImage(clerkUserId, args);
       case "get_budget_summary":      return await execGetBudgetSummary(clerkUserId, args);
@@ -1265,6 +1433,7 @@ export async function executeTool(
       case "get_bills":                return await execGetBills(clerkUserId, args);
       case "plan_meal":                return await execPlanMeal(clerkUserId, args);
       case "get_meal_plan":            return await execGetMealPlan(clerkUserId, args);
+      case "sync_meal_plan_to_shopping_list": return await execSyncMealPlanToShoppingList(clerkUserId, args);
       case "get_pets":                  return await execGetPets(clerkUserId, args);
       case "log_pet_care":             return await execLogPetCare(clerkUserId, args);
       case "add_inventory_item":      return await execAddInventoryItem(clerkUserId, args);

@@ -286,6 +286,14 @@ export default function AdminPage() {
                             onToggle={() => handleFeatureToggle(member.clerkUserId, flags, key)}
                           />
                         ))}
+                        {/* Kid Mode is opt-IN (default off), unlike the flags above which
+                            default on — blocks budget, deletions, smart-home control, and
+                            scheduling for this member, in chat/voice as well as the dashboard. */}
+                        <FeatureToggle
+                          label="Kid Mode"
+                          enabled={flags.kidMode === true}
+                          onToggle={() => handleFeatureToggle(member.clerkUserId, flags, "kidMode")}
+                        />
                       </div>
                     )}
                   </div>

@@ -15,7 +15,7 @@ export const DOMAIN_TOOLS: Record<string, string[]> = {
   smart_home: ["get_smart_home_devices", "control_smart_home_device"],
   status: ["get_weather", "get_status_briefing", "send_status_briefing_email"],
   bills: ["add_bill", "get_bills"],
-  meals: ["plan_meal", "get_meal_plan"],
+  meals: ["plan_meal", "get_meal_plan", "sync_meal_plan_to_shopping_list"],
   pets: ["get_pets", "log_pet_care"],
   home_upkeep: ["add_inventory_item", "get_inventory", "add_maintenance_task", "get_maintenance_tasks", "complete_maintenance_task"],
   rewards: ["get_reward_balance", "redeem_reward"],

@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
-import { 
+import {
   useGetUserProfile, getGetUserProfileQueryKey, useUpdateUserProfile,
   useListUserApiKeys, getListUserApiKeysQueryKey,
   useSetUserApiKey, useDeleteUserApiKey,
   useListModels, getListModelsQueryKey,
   useGetUserStats, getGetUserStatsQueryKey,
+  customFetch,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Settings2, Save, Moon, Sun, Monitor, Key, Eye, EyeOff, Trash2,
-  CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Brain, Sparkles, ArrowRight, Home
+  CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Brain, Sparkles, ArrowRight, Home, Copy, DoorOpen
 } from "lucide-react";
 import { SiGoogle } from "react-icons/si";
 import { Bot } from "lucide-react";
@@ -241,6 +242,105 @@ function HomeAssistantRow({ connected, onSave, onDelete }: {
   );
 }
 
+function ArrivalWebhookRow() {
+  const [expanded, setExpanded] = useState(false);
+  const [configured, setConfigured] = useState(false);
+  const [newUrl, setNewUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const webhookPath = `${import.meta.env.BASE_URL}api/webhooks/arrival`.replace(/\/{2,}/g, "/");
+
+  useEffect(() => {
+    customFetch<{ configured: boolean }>(`${import.meta.env.BASE_URL}api/user/arrival-webhook`.replace(/\/{2,}/g, "/"))
+      .then(r => setConfigured(r.configured))
+      .catch(() => {});
+  }, []);
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    try {
+      const r = await customFetch<{ token: string }>(
+        `${import.meta.env.BASE_URL}api/user/arrival-webhook`.replace(/\/{2,}/g, "/"),
+        { method: "POST" },
+      );
+      setNewUrl(`${window.location.origin}${webhookPath}?token=${r.token}`);
+      setConfigured(true);
+    } finally { setLoading(false); }
+  };
+
+  const handleRevoke = async () => {
+    if (!confirm("Revoke the arrival webhook? Your Home Assistant automation will stop working until you generate a new one.")) return;
+    setLoading(true);
+    try {
+      await customFetch(`${import.meta.env.BASE_URL}api/user/arrival-webhook`.replace(/\/{2,}/g, "/"), { method: "DELETE" });
+      setConfigured(false); setNewUrl(null);
+    } finally { setLoading(false); }
+  };
+
+  const handleCopy = () => {
+    if (!newUrl) return;
+    navigator.clipboard?.writeText(newUrl);
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className={cn("border rounded-xl transition-all overflow-hidden", configured ? "border-primary/30 bg-primary/5" : "border-border/50 bg-card/30")}>
+      <div className="flex items-center gap-3 p-4 cursor-pointer hover:bg-white/5 transition-colors" onClick={() => setExpanded(!expanded)}>
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-background/50 text-amber-400">
+          <DoorOpen className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-foreground">Welcome Home Trigger</span>
+            {configured ? (
+              <span className="flex items-center gap-1 text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">
+                <CheckCircle2 className="w-3 h-3" /> Configured
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/20 px-2 py-0.5 rounded-full">
+                <AlertCircle className="w-3 h-3" /> Not set up
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground truncate mt-0.5">Arrive home and Lina has the status briefing waiting</p>
+        </div>
+        {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+      </div>
+
+      {expanded && (
+        <div className="px-4 pb-4 border-t border-border/30 pt-4 space-y-3">
+          <p className="text-xs text-muted-foreground">
+            In Home Assistant, create an automation triggered by a <span className="font-mono">person</span> or{" "}
+            <span className="font-mono">device_tracker</span> entity changing to "home", with an action that calls this
+            webhook URL (a REST Command or "Notify webhook" action). Lina will post a welcome briefing into your chat.
+          </p>
+          {newUrl ? (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input readOnly value={newUrl} className="flex-1 bg-input/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground" />
+                <button onClick={handleCopy} className="px-3 py-2 bg-secondary hover:bg-secondary/70 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                  <Copy className="w-3.5 h-3.5" /> {copied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+              <p className="text-xs text-amber-400/90">Save this URL now — it won't be shown again. Generating a new one replaces it.</p>
+            </div>
+          ) : (
+            <button onClick={handleGenerate} disabled={loading} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
+              {loading ? "Generating..." : configured ? "Generate new webhook URL" : "Generate webhook URL"}
+            </button>
+          )}
+          {configured && (
+            <button onClick={handleRevoke} disabled={loading} className="text-xs text-destructive hover:underline">
+              Revoke webhook
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: profile, isLoading } = useGetUserProfile({ query: { queryKey: getGetUserProfileQueryKey() } });
@@ -419,6 +519,7 @@ export default function SettingsPage() {
               queryClient.invalidateQueries({ queryKey: getListUserApiKeysQueryKey() });
             }}
           />
+          <ArrivalWebhookRow />
         </div>
 
         {/* AI Preferences */}

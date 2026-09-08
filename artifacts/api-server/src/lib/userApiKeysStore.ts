@@ -125,6 +125,35 @@ export async function saveUserApiKeyRecord(clerkUserId: string, provider: string
   return { provider, maskedKey: masked, createdAt: now };
 }
 
+/**
+ * Reverse lookup: which user owns this token, for a given provider. Used by
+ * inbound webhooks (e.g. the Home Assistant arrival trigger) where the
+ * caller has no Clerk session — the token itself is the only identity.
+ * Provider row counts are tiny (one per user who opted in), so a decrypt
+ * loop is fine; this isn't on any hot path.
+ */
+export async function findClerkUserIdByProviderToken(provider: string, token: string): Promise<string | null> {
+  let rows: Array<{ clerkUserId: string; encryptedKey: string }> = [];
+  try {
+    rows = await db.select().from(userApiKeys).where(eq(userApiKeys.provider, provider));
+  } catch {
+    rows = [];
+  }
+  for (const row of rows) {
+    try {
+      if (decryptApiKey(row.encryptedKey) === token) return row.clerkUserId;
+    } catch { /* corrupt/undecryptable row, skip */ }
+  }
+  for (const [clerkUserId, userMap] of memoryStore.entries()) {
+    const record = userMap.get(provider);
+    if (!record) continue;
+    try {
+      if (decryptApiKey(record.encryptedKey) === token) return clerkUserId;
+    } catch { /* skip */ }
+  }
+  return null;
+}
+
 export async function deleteUserApiKeyRecord(clerkUserId: string, provider: string): Promise<void> {
   const userMap = memoryStore.get(clerkUserId);
   if (userMap) {
