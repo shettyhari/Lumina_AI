@@ -7,6 +7,7 @@ import { isBudgetQuestion, getBudgetContext, detectBudgetMonth, detectBudgetComp
 import { executeTool, TOOL_DECLARATIONS } from "../../lib/agentTools";
 import { classifyDomains, getToolDeclarationsForDomains } from "../../lib/agentDomains";
 import { getCrossModuleStats } from "../../lib/crossModuleStats";
+import { looksMemoryWorthy, extractAndSaveMemories } from "../../lib/memoryExtraction";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { GoogleGenAI } from "@google/genai";
 import { generateImage } from "@workspace/integrations-gemini-ai/image";
@@ -788,6 +789,15 @@ router.post("/gemini/conversations/:id/messages", requireAuth, aiRateLimit, asyn
         res.write(`data: ${JSON.stringify({ relayConfirm: relay.confirmMsg })}\n\n`);
       }
     } catch { /* ignore */ }
+
+    if (looksMemoryWorthy(parsed.data.content)) {
+      try {
+        const saved = await extractAndSaveMemories(clerkUserId, parsed.data.content, fullResponse);
+        for (const fact of saved) {
+          res.write(`data: ${JSON.stringify({ memorySaved: fact })}\n\n`);
+        }
+      } catch { /* ignore — never let memory extraction break the chat reply */ }
+    }
 
     const assistantMsgObj = {
       id: Date.now() + 1,

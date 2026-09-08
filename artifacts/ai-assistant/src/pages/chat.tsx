@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { useVoiceAgent } from "@/hooks/useVoiceAgent";
 import VoiceOrb from "@/components/VoiceOrb";
 import { RelayToast } from "@/components/relay-toast";
+import { MemoryToast } from "@/components/memory-toast";
 
 // ─── Provider badge ───────────────────────────────────────────────────────────
 
@@ -363,6 +364,7 @@ export default function ChatPage() {
   const [attachedImage, setAttachedImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [relayToast, setRelayToast] = useState<string | null>(null);
+  const [memoryToast, setMemoryToast] = useState<string | null>(null);
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>(() =>
     loadAndClearPendingToolEvents()
   );
@@ -550,6 +552,7 @@ export default function ChatPage() {
               if (data.done) break;
               if (data.error) setStreamError({ message: data.error });
               if (data.relayConfirm) setRelayToast(data.relayConfirm);
+              if (data.memorySaved) setMemoryToast(data.memorySaved);
               if (data.content) { fullResponse += data.content; setStreamingContent(prev => prev + data.content); }
               if (data.toolCall) {
                 const ev: ToolEvent = { kind: "call", name: data.toolCall.name };
@@ -635,6 +638,7 @@ export default function ChatPage() {
         <VoiceOrb state={voice.state} interimText={voice.interimText} errorMessage={voice.errorMessage} onClose={handleCloseVoice} onStopSpeaking={voice.stopSpeaking} onRetry={voice.toggleWake} />
       )}
       <RelayToast message={relayToast} onDismiss={() => setRelayToast(null)} />
+      <MemoryToast message={memoryToast} onDismiss={() => setMemoryToast(null)} />
 
       {/* Header */}
       {!isNew && conversation && (
