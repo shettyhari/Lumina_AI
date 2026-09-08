@@ -34,14 +34,18 @@ async function findUserByEmail(email: string): Promise<StoredUser | null> {
   try {
     const [dbUser] = await db.select().from(users).where(eq(users.email, normalizedEmail));
     if (dbUser) {
+      // users.clerkUserId is nullable (unlike familyMembers.clerkUserId) —
+      // resolve the same fallback once and reuse it for both the lookup and
+      // the returned record, rather than querying with a possible null.
+      const clerkUserId = dbUser.clerkUserId || `user_${dbUser.id}`;
       let role = "member";
       try {
-        const [member] = await db.select().from(familyMembers).where(eq(familyMembers.clerkUserId, dbUser.clerkUserId));
+        const [member] = await db.select().from(familyMembers).where(eq(familyMembers.clerkUserId, clerkUserId));
         if (member?.role) role = member.role;
       } catch { /* ignore */ }
       return {
         id: dbUser.id,
-        clerkUserId: dbUser.clerkUserId || `user_${dbUser.id}`,
+        clerkUserId,
         email: normalizedEmail,
         passwordHash: dbUser.passwordHash || "",
         displayName: dbUser.displayName || normalizedEmail.split("@")[0],

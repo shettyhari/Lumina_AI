@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck libs
+        run: pnpm run typecheck:libs
+
+      - name: Typecheck packages
+        # Not `pnpm run typecheck` — that script's --filter "./artifacts/**"
+        # glob matches zero packages when the repo is checked out under a
+        # path containing parentheses (as this repo's local dev path is),
+        # which pnpm's path-glob matching chokes on. Naming each package
+        # explicitly sidesteps that regardless of checkout path.
+        run: |
+          pnpm --filter "@workspace/ai-assistant" run typecheck
+          pnpm --filter "@workspace/api-server" run typecheck
+          pnpm --filter "@workspace/mockup-sandbox" run typecheck
+          pnpm --filter "@workspace/scripts" run typecheck
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm --filter @workspace/api-server run test
