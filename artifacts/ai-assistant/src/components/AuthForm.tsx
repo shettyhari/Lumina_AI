@@ -17,7 +17,10 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, setLocation] = useLocation();
-  const { login, register, verifySignupOtp, resendSignupOtp } = useAuth();
+  const { login, register, verifySignupOtp, resendSignupOtp, loginWithGoogle } = useAuth();
+  const [googleReady, setGoogleReady] = useState(false);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   // Signup OTP step
   const [awaitingOtp, setAwaitingOtp] = useState(false);
@@ -32,6 +35,67 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
   useEffect(() => {
     return () => { if (cooldownTimer.current) clearInterval(cooldownTimer.current); };
   }, []);
+
+  const handleGoogleCredential = async (response: { credential?: string }) => {
+    if (!response.credential) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await loginWithGoogle(response.credential);
+      setLocation("/chat");
+    } catch (err: any) {
+      setError(err?.message || "Google sign-in failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Loads Google's Identity Services script once (shared across mounts —
+  // multiple AuthForm instances, e.g. sign-in/sign-up tabs, reuse the same
+  // <script> tag instead of injecting it again) and renders the official
+  // "Sign in with Google" button into our container.
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    if (!clientId) return;
+
+    let cancelled = false;
+
+    const initAndRender = () => {
+      if (cancelled) return;
+      const google = (window as any).google;
+      if (!google?.accounts?.id || !googleButtonRef.current) return;
+      google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleCredential });
+      googleButtonRef.current.innerHTML = "";
+      google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        shape: "pill",
+        width: 336,
+        text: mode === "sign-in" ? "signin_with" : "signup_with",
+      });
+      setGoogleReady(true);
+    };
+
+    const existing = document.getElementById("google-identity-script") as HTMLScriptElement | null;
+    if ((window as any).google?.accounts?.id) {
+      initAndRender();
+    } else if (existing) {
+      existing.addEventListener("load", initAndRender);
+      existing.addEventListener("error", () => setGoogleError("Couldn't load Google sign-in."));
+    } else {
+      const script = document.createElement("script");
+      script.id = "google-identity-script";
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.onload = initAndRender;
+      script.onerror = () => setGoogleError("Couldn't load Google sign-in.");
+      document.head.appendChild(script);
+    }
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   const startCooldown = () => {
     setCooldown(RESEND_COOLDOWN_SECONDS);
@@ -302,6 +366,20 @@ export function AuthForm({ mode: initialMode }: AuthFormProps) {
           )}
         </button>
       </form>
+
+      {Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID) && !googleError && (
+        <div className="mt-4">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-px flex-1 bg-border/60" />
+            <span className="text-[11px] text-muted-foreground/70 uppercase tracking-wide">or</span>
+            <div className="h-px flex-1 bg-border/60" />
+          </div>
+          <div
+            className={`flex justify-center transition-opacity ${googleReady ? "opacity-100" : "opacity-0"}`}
+            ref={googleButtonRef}
+          />
+        </div>
+      )}
 
       <div className="mt-6 text-center border-t border-border/40 pt-4">
         {mode === "sign-in" ? (

@@ -19,6 +19,8 @@ interface AuthContextType {
   verifySignupOtp: (email: string, code: string) => Promise<void>;
   /** Re-sends the signup verification code for a pending signup. */
   resendSignupOtp: (email: string) => Promise<void>;
+  /** Signs in (or signs up, on first use) with a verified Google ID token credential. */
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -195,6 +197,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async (credential: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      let data: any = null;
+      let ok = false;
+      try {
+        const response = await fetch(`${basePath}/api/auth/google`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credential }),
+          credentials: "include",
+        });
+        ok = response.ok;
+        data = await response.json().catch(() => null);
+      } catch {
+        throw new Error("Unable to reach the server. Please check your connection and try again.");
+      }
+
+      if (!ok) {
+        throw new Error(data?.error || "Google sign-in failed. Please try again.");
+      }
+
+      const newToken = data.token;
+      const newUser = data.user;
+
+      localStorage.setItem("lumina_session_token", newToken);
+      localStorage.setItem("lumina_user_session", JSON.stringify(newUser));
+      localStorage.setItem("lumina_admin_session", newUser.role === "admin" ? "true" : "false");
+
+      setToken(newToken);
+      setUser(newUser);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const resendSignupOtp = async (email: string): Promise<void> => {
     let data: any = null;
     let ok = false;
@@ -242,6 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         verifySignupOtp,
         resendSignupOtp,
+        loginWithGoogle,
         logout,
       }}
     >

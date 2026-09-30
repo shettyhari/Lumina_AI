@@ -1,5 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
+import { OAuth2Client } from "google-auth-library";
 import { db, users, familyMembers, pendingSignups } from "@workspace/db";
 import { hashPassword, verifyPassword } from "../lib/authCrypto.js";
 import { createSessionToken } from "../lib/sessionToken.js";
@@ -436,6 +438,98 @@ router.post("/auth/login", authRateLimit, async (req: Request, res: Response): P
     if (req.log?.error) req.log.error({ err }, "Login error");
     if (!res.headersSent) {
       res.status(500).json({ error: "Authentication failed. Please try again." });
+    }
+  }
+});
+
+/**
+ * POST /api/auth/google
+ * "Continue with Google": verifies a Google Identity Services ID token
+ * (proves the caller controls that Google account/email — same trust
+ * boundary as our own email-OTP signup), then logs the user in if an
+ * account with that email already exists, or creates one otherwise
+ * (going through the same first-user-is-admin / everyone-else-pending
+ * family-approval workflow as email/password signup).
+ */
+router.post("/auth/google", authRateLimit, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { credential } = req.body ?? {};
+    if (!credential || typeof credential !== "string") {
+      res.status(400).json({ error: "Missing Google credential." });
+      return;
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      res.status(503).json({ error: "Google sign-in isn't configured yet." });
+      return;
+    }
+
+    const client = new OAuth2Client(clientId);
+    let payload: { email?: string; email_verified?: boolean; name?: string } | undefined;
+    try {
+      const ticket = await client.verifyIdToken({ idToken: credential, audience: clientId });
+      payload = ticket.getPayload();
+    } catch {
+      res.status(401).json({ error: "Invalid Google credential." });
+      return;
+    }
+
+    if (!payload?.email || !payload.email_verified) {
+      res.status(401).json({ error: "That Google account has no verified email." });
+      return;
+    }
+
+    const normalizedEmail = payload.email.trim().toLowerCase();
+    let user = await findUserByEmail(normalizedEmail);
+
+    if (!user) {
+      // No password will ever be checked for a Google-created account — this
+      // is just a placeholder so the (nullable but shared) column always has
+      // a value, never guessable, never sent anywhere.
+      const placeholderHash = hashPassword(randomBytes(32).toString("hex"));
+      try {
+        user = await createUser(normalizedEmail, placeholderHash, payload.name);
+      } catch (err) {
+        if (err instanceof DuplicateEmailError) {
+          // Lost a race with a concurrent signup for the same email — the
+          // account exists now, so just log into it.
+          user = await findUserByEmail(normalizedEmail);
+        }
+        if (!user) throw err;
+      }
+    }
+
+    const token = createSessionToken({
+      userId: user.clerkUserId,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+    });
+
+    try {
+      res.cookie("lumina_session_token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 86400 * 1000,
+      });
+    } catch { /* ignore cookie set error if headers sent */ }
+
+    res.status(200).json({
+      token,
+      user: {
+        id: user.clerkUserId,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+      },
+    });
+  } catch (err: any) {
+    console.error("Google auth endpoint error:", err);
+    if (req.log?.error) req.log.error({ err }, "Google auth error");
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Google sign-in failed. Please try again." });
     }
   }
 });
